@@ -1,0 +1,32 @@
+site_name: PyMotion
+site_description: Python-native, code-first video generation framework
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+nav:
+  - Home: index.md
+  - Getting Started: guides/getting-started.md
+  - Guides:
+    - Keyframe Animation: guides/keyframe-animation.md
+    - Audio Mixing: guides/audio-mixing.md
+    - 3D Scenes: guides/3d-scenes.md
+    - Batch Generation: guides/batch-generation.md
+  - API Reference:
+    - Composition: api/composition.md
+    - Clips: api/clips.md
+    - Effects: api/effects.md
+    - Transitions: api/transitions.md
+    - Audio: api/audio.md
+    - Animation: api/animation.md
+    - Templates: api/templates.md
