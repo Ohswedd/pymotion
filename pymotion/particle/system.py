@@ -545,3 +545,132 @@ def rain(width: int = 1920, height: int = 1080) -> ParticleSystem:
         )
     )
     return ps
+
+
+def stars(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a twinkling stars particle effect.
+
+    Particles spawn across the full frame with slow drift and
+    subtle pulsing via opacity-over-life.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, height / 2),
+            rate=5.0,
+            lifetime=(60.0, 120.0),
+            speed=(0.1, 0.5),
+            angle=(0.0, 360.0),
+            size=(1.0, 3.0),
+            color_over_life=[Color(1.0, 1.0, 1.0), Color(0.8, 0.9, 1.0)],
+            opacity_over_life=[0.0, 1.0, 0.5, 1.0, 0.0],
+            blend_mode=BlendMode.ADD,
+        )
+    )
+    return ps
+
+
+def dust(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a floating dust motes particle effect.
+
+    Gentle, slow-moving particles with slight turbulence.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, height / 2),
+            rate=8.0,
+            lifetime=(80.0, 160.0),
+            speed=(0.2, 1.0),
+            angle=(0.0, 360.0),
+            size=(1.0, 3.0),
+            color_over_life=[Color(0.9, 0.85, 0.7)],
+            opacity_over_life=[0.0, 0.4, 0.3, 0.0],
+            turbulence=0.2,
+            drag=0.01,
+            blend_mode=BlendMode.ADD,
+        )
+    )
+    return ps
+
+
+def explosion(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create an explosion particle effect.
+
+    High-speed burst from center with rapid color shift and falloff.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, height / 2),
+            rate=100.0,
+            lifetime=(10.0, 30.0),
+            speed=(5.0, 20.0),
+            angle=(0.0, 360.0),
+            size=(2.0, 8.0),
+            color_over_life=[
+                Color(1.0, 1.0, 0.8),
+                Color(1.0, 0.6, 0.0),
+                Color(0.8, 0.2, 0.0),
+                Color(0.3, 0.1, 0.1),
+            ],
+            opacity_over_life=[1.0, 0.8, 0.3, 0.0],
+            gravity=Vec2(0.0, 0.2),
+            drag=0.03,
+            turbulence=0.8,
+            blend_mode=BlendMode.ADD,
+        )
+    )
+    return ps
+
+
+def bubbles(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a rising bubbles particle effect.
+
+    Translucent circular particles rising with gentle side drift.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, height),
+            rate=8.0,
+            lifetime=(60.0, 120.0),
+            speed=(1.0, 3.0),
+            angle=(250.0, 290.0),
+            size=(4.0, 12.0),
+            color_over_life=[Color(0.7, 0.85, 1.0)],
+            opacity_over_life=[0.0, 0.3, 0.3, 0.0],
+            gravity=Vec2(0.0, -0.05),
+            turbulence=0.15,
+            blend_mode=BlendMode.ADD,
+        )
+    )
+    return ps

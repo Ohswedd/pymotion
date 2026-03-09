@@ -9,11 +9,15 @@ from pymotion.particle.system import (
     Emitter,
     ParticleClip,
     ParticleSystem,
+    bubbles,
     confetti,
+    dust,
+    explosion,
     fire,
     rain,
     smoke,
     sparkles,
+    stars,
 )
 from pymotion.utils.math import Vec2
 
@@ -214,9 +218,25 @@ class TestPresets:
         ps = rain(width=64, height=48)
         assert len(ps._emitters) == 1
 
+    def test_stars(self) -> None:
+        ps = stars(width=64, height=48)
+        assert len(ps._emitters) == 1
+
+    def test_dust(self) -> None:
+        ps = dust(width=64, height=48)
+        assert len(ps._emitters) == 1
+
+    def test_explosion(self) -> None:
+        ps = explosion(width=64, height=48)
+        assert len(ps._emitters) == 1
+
+    def test_bubbles(self) -> None:
+        ps = bubbles(width=64, height=48)
+        assert len(ps._emitters) == 1
+
     def test_all_presets_render(self) -> None:
         """All presets should produce valid BGRA frames after simulation."""
-        for preset_fn in [sparkles, confetti, fire, smoke, rain]:
+        for preset_fn in [sparkles, confetti, fire, smoke, rain, stars, dust, explosion, bubbles]:
             ps = preset_fn(width=64, height=48)
             for _ in range(5):
                 frame = ps.simulate_frame()
