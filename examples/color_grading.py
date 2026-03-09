@@ -4,12 +4,9 @@ Demonstrates the color pipeline: loading a .cube LUT, applying
 lift/gamma/gain grading, and ACES tone mapping.
 """
 
-from pymotion import ColorClip, Composition, TextClip, tone_map_aces
+from pymotion import ColorClip, Composition, TextClip
 from pymotion.render.color_pipeline import (
     ColorGrade,
-    apply_color_grade,
-    apply_color_pipeline,
-    load_cube_lut,
 )
 
 comp = Composition(width=1920, height=1080, fps=30, duration=150)
@@ -36,10 +33,10 @@ comp.add(title)
 
 # Define a color grade: warm shadows, cool highlights
 grade = ColorGrade(
-    lift=(0.02, -0.01, -0.03),    # warm shadows (add red, reduce blue)
-    gamma=(1.0, 1.0, 0.95),       # slightly reduce blue in midtones
-    gain=(1.05, 1.0, 0.9),        # warm highlights
-    saturation=1.15,               # slightly boost saturation
+    lift=(0.02, -0.01, -0.03),  # warm shadows (add red, reduce blue)
+    gamma=(1.0, 1.0, 0.95),  # slightly reduce blue in midtones
+    gain=(1.05, 1.0, 0.9),  # warm highlights
+    saturation=1.15,  # slightly boost saturation
 )
 
 # In a custom render loop, apply the full pipeline to each frame:

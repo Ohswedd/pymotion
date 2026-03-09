@@ -22,6 +22,11 @@ nav:
     - Audio Mixing: guides/audio-mixing.md
     - 3D Scenes: guides/3d-scenes.md
     - Batch Generation: guides/batch-generation.md
+    - Text Animation: guides/text-animation.md
+    - Effects Pipeline: guides/effects-pipeline.md
+    - Transitions: guides/transitions.md
+    - Particles: guides/particles.md
+    - Template System: guides/template-system.md
   - API Reference:
     - Composition: api/composition.md
     - Clips: api/clips.md

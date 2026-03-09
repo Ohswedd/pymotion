@@ -4,7 +4,7 @@ Demonstrates TextClip positioned over a solid color background with
 a subtitle line and adjusted opacity.
 """
 
-from pymotion import Color, ColorClip, Composition, TextClip
+from pymotion import ColorClip, Composition, TextClip
 
 comp = Composition(width=1920, height=1080, fps=30, duration=150)
 

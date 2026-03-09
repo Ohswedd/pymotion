@@ -2,6 +2,23 @@
 
 All notable changes to PyMotion are documented here.
 
+## [1.0.0] — 2026-03-09
+
+### Added
+- Complete PRD §8.2 public API: all symbols importable from `import pymotion`
+- `Silence` helper for creating silent audio placeholders
+- `animate()` shorthand for two-keyframe animations
+- `Align` enum for text/element alignment (13 values)
+- Audio effects: `Reverb`, `Delay`, `PitchShift`, `NoiseReduction`, `LowPassFilter`, `HighPassFilter`
+- 3D exports: `Scene3DClip`, `Scene3D`, `Camera`, `PointLight`, `DirectionalLight`, `SpotLight`, `AmbientLight`, `HDRIEnvironment`, `PBRMaterial`
+- Particle exports: `ParticleSystem`, `Emitter`, `Sparkles`, `Confetti`, `Fire`, `Smoke`, `Rain`, `Stars`
+- `ScrambleText` alias for `Scramble` animated text
+- 37 new unit tests for v1.0 API surface
+
+### Changed
+- Version bumped to 1.0.0 (stable release)
+- `__init__.py` docstring updated to "v1.0"
+
 ## [0.9.0-rc] — 2026-03-09
 
 ### Added
