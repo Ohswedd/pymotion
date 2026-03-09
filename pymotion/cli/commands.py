@@ -183,6 +183,73 @@ def validate(file: str) -> None:
 
 
 @main.command()
+def doctor() -> None:
+    """Check system dependencies and environment health."""
+    import shutil
+
+    all_ok = True
+
+    def _check(name: str, found: bool, detail: str = "") -> None:
+        nonlocal all_ok
+        status = "OK" if found else "MISSING"
+        if not found:
+            all_ok = False
+        msg = f"  [{status}] {name}"
+        if detail:
+            msg += f" — {detail}"
+        click.echo(msg)
+
+    click.echo("PyMotion Doctor")
+    click.echo("=" * 40)
+
+    # Python version
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    py_ok = sys.version_info >= (3, 11)
+    _check(f"Python {py_ver}", py_ok, "requires >= 3.11" if not py_ok else "")
+
+    # FFmpeg
+    ffmpeg_path = shutil.which("ffmpeg")
+    _check("ffmpeg", ffmpeg_path is not None, str(ffmpeg_path or ""))
+
+    # pkg-config
+    pkgconfig_path = shutil.which("pkg-config")
+    _check("pkg-config", pkgconfig_path is not None)
+
+    # Core Python deps
+    core_deps = ["numpy", "PIL", "cairo", "structlog", "click"]
+    for dep in core_deps:
+        try:
+            __import__(dep)
+            _check(dep, found=True)
+        except ImportError:
+            _check(dep, found=False)
+
+    # Optional deps
+    click.echo("\nOptional dependencies:")
+    optional_deps = [
+        ("freetype", "Text rendering"),
+        ("uharfbuzz", "Complex text layout"),
+        ("moderngl", "3D rendering"),
+        ("librosa", "Audio analysis"),
+        ("pedalboard", "Audio effects"),
+        ("httpx", "Google Fonts download"),
+    ]
+    for dep, desc in optional_deps:
+        try:
+            __import__(dep)
+            _check(f"{dep} ({desc})", found=True)
+        except ImportError:
+            _check(f"{dep} ({desc})", found=False)
+
+    click.echo()
+    if all_ok:
+        click.echo("All checks passed!")
+    else:
+        click.echo("Some checks failed. Install missing dependencies.")
+        raise SystemExit(1)
+
+
+@main.command()
 @click.argument("directory")
 def new(directory: str) -> None:
     """Scaffold a new PyMotion project."""

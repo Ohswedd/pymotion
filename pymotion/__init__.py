@@ -28,6 +28,7 @@ from pymotion.clip.shape import ShapeClip
 from pymotion.clip.text import Shadow, TextClip, download_google_font
 from pymotion.clip.video import VideoClip
 from pymotion.composition import Composition, Track
+from pymotion.config import PyMotionConfig, get_config, reset_config, set_config
 from pymotion.effects.base import Effect
 from pymotion.effects.color import (
     BleachBypass,
@@ -65,6 +66,11 @@ from pymotion.effects.visual import (
     Vignette,
 )
 from pymotion.export.presets import OutputPreset, get_preset
+from pymotion.render.color_pipeline import (
+    tone_map_aces,
+    tone_map_filmic,
+    tone_map_reinhard,
+)
 from pymotion.template.base import Template, TemplateValidationError
 from pymotion.text.animated import (
     CountDown,
@@ -255,6 +261,15 @@ __all__ = [
     # Template
     "Template",
     "TemplateValidationError",
+    # Config
+    "PyMotionConfig",
+    "get_config",
+    "set_config",
+    "reset_config",
+    # Tone mapping
+    "tone_map_aces",
+    "tone_map_filmic",
+    "tone_map_reinhard",
 ]
 
 __version__ = "0.9.0-rc"

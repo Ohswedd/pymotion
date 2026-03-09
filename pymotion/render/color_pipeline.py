@@ -260,21 +260,117 @@ def apply_color_grade(frame: np.ndarray, grade: ColorGrade) -> np.ndarray:
     return output
 
 
+def tone_map_aces(frame: np.ndarray) -> np.ndarray:
+    """Apply ACES filmic tone mapping to a frame.
+
+    Uses the ACES approximation by Stephen Hill (Narkowicz 2015):
+    f(x) = (x * (2.51*x + 0.03)) / (x * (2.43*x + 0.59) + 0.14)
+
+    Args:
+        frame: BGRA numpy array, shape (H, W, 4), dtype uint8.
+
+    Returns:
+        Tone-mapped BGRA numpy array.
+    """
+    b_ch = frame[:, :, 0].astype(np.float32) / 255.0
+    g_ch = frame[:, :, 1].astype(np.float32) / 255.0
+    r_ch = frame[:, :, 2].astype(np.float32) / 255.0
+
+    def _aces(x: np.ndarray) -> np.ndarray:
+        a = 2.51
+        b = 0.03
+        c = 2.43
+        d = 0.59
+        e = 0.14
+        return np.clip((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0)
+
+    output = frame.copy()
+    output[:, :, 2] = (_aces(r_ch) * 255.0).astype(np.uint8)
+    output[:, :, 1] = (_aces(g_ch) * 255.0).astype(np.uint8)
+    output[:, :, 0] = (_aces(b_ch) * 255.0).astype(np.uint8)
+    return output
+
+
+def tone_map_reinhard(frame: np.ndarray) -> np.ndarray:
+    """Apply Reinhard tone mapping to a frame.
+
+    Uses the simple Reinhard operator: f(x) = x / (1 + x).
+
+    Args:
+        frame: BGRA numpy array, shape (H, W, 4), dtype uint8.
+
+    Returns:
+        Tone-mapped BGRA numpy array.
+    """
+    b_ch = frame[:, :, 0].astype(np.float32) / 255.0
+    g_ch = frame[:, :, 1].astype(np.float32) / 255.0
+    r_ch = frame[:, :, 2].astype(np.float32) / 255.0
+
+    output = frame.copy()
+    output[:, :, 2] = (r_ch / (1.0 + r_ch) * 255.0).astype(np.uint8)
+    output[:, :, 1] = (g_ch / (1.0 + g_ch) * 255.0).astype(np.uint8)
+    output[:, :, 0] = (b_ch / (1.0 + b_ch) * 255.0).astype(np.uint8)
+    return output
+
+
+def tone_map_filmic(frame: np.ndarray) -> np.ndarray:
+    """Apply Uncharted 2 filmic tone mapping to a frame.
+
+    Uses the Hable tone mapping curve.
+
+    Args:
+        frame: BGRA numpy array, shape (H, W, 4), dtype uint8.
+
+    Returns:
+        Tone-mapped BGRA numpy array.
+    """
+    b_ch = frame[:, :, 0].astype(np.float32) / 255.0
+    g_ch = frame[:, :, 1].astype(np.float32) / 255.0
+    r_ch = frame[:, :, 2].astype(np.float32) / 255.0
+
+    def _hable(x: np.ndarray) -> np.ndarray:
+        a = 0.15
+        b = 0.50
+        c = 0.10
+        d = 0.20
+        e = 0.02
+        f = 0.30
+        return ((x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - e / f
+
+    w = 11.2
+    white_scale = 1.0 / _hable(np.array([w], dtype=np.float32))[0]
+
+    output = frame.copy()
+    output[:, :, 2] = np.clip(_hable(r_ch) * white_scale * 255.0, 0, 255).astype(np.uint8)
+    output[:, :, 1] = np.clip(_hable(g_ch) * white_scale * 255.0, 0, 255).astype(np.uint8)
+    output[:, :, 0] = np.clip(_hable(b_ch) * white_scale * 255.0, 0, 255).astype(np.uint8)
+    return output
+
+
+TONE_MAP_FUNCTIONS = {
+    "aces": tone_map_aces,
+    "reinhard": tone_map_reinhard,
+    "filmic": tone_map_filmic,
+}
+
+
 def apply_color_pipeline(
     frame: np.ndarray,
     color_space: str = "srgb",
     lut: LUT3D | None = None,
     grade: ColorGrade | None = None,
+    tone_map: str | None = None,
 ) -> np.ndarray:
     """Apply the full color pipeline to a rendered frame.
 
-    Pipeline order: LUT → color grade → output.
+    Pipeline order: tone map → LUT → color grade → output.
 
     Args:
         frame: BGRA numpy array, shape (H, W, 4), dtype uint8.
         color_space: Target color space (currently only "srgb").
         lut: Optional 3D LUT to apply.
         grade: Optional color grading parameters.
+        tone_map: Optional tone mapping operator ("aces", "reinhard", "filmic").
 
     Returns:
         Processed BGRA frame.
@@ -287,6 +383,17 @@ def apply_color_pipeline(
         )
 
     result = frame
+
+    if tone_map is not None:
+        tm_fn = TONE_MAP_FUNCTIONS.get(tone_map)
+        if tm_fn is None:
+            logger.warning(
+                "unknown_tone_map",
+                tone_map=tone_map,
+                available=list(TONE_MAP_FUNCTIONS.keys()),
+            )
+        else:
+            result = tm_fn(result)
 
     if lut is not None:
         result = apply_lut_trilinear(result, lut)

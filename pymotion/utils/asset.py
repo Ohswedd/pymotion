@@ -12,12 +12,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from pymotion.config import get_config
 from pymotion.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Default maximum cache size in bytes (512 MB)
-DEFAULT_MAX_CACHE_SIZE: int = 512 * 1024 * 1024
 
 
 @functools.lru_cache(maxsize=128)
@@ -68,15 +66,18 @@ class AssetLoader:
     def __init__(
         self,
         base_dirs: list[Path] | None = None,
-        max_cache_size: int = DEFAULT_MAX_CACHE_SIZE,
+        max_cache_size: int | None = None,
     ) -> None:
         """Initialize the asset loader.
 
         Args:
             base_dirs: List of allowed base directories. If None, allows cwd.
-            max_cache_size: Maximum cache size in bytes.
+            max_cache_size: Maximum cache size in bytes. Defaults to
+                PyMotionConfig.cache_max_bytes.
         """
         self.base_dirs = base_dirs or [Path.cwd()]
+        if max_cache_size is None:
+            max_cache_size = get_config().cache_max_bytes
         self.max_cache_size = max_cache_size
 
     def load_image(self, path: str | Path) -> np.ndarray:
