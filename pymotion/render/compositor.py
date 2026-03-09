@@ -1,7 +1,8 @@
 """Frame compositor — alpha compositing and blend modes.
 
 Composites multiple clip layers into a single frame using NumPy-vectorized
-operations. Supports NORMAL, MULTIPLY, SCREEN, and ADD blend modes.
+operations. Supports all 8 blend modes: NORMAL, MULTIPLY, SCREEN, OVERLAY,
+ADD, SOFT_LIGHT, HARD_LIGHT, DIFFERENCE.
 """
 
 from __future__ import annotations
@@ -58,8 +59,25 @@ def composite_layers(
             blended_rgb = (bg_rgb * layer_rgb) / 255.0
         elif blend_mode == BlendMode.SCREEN:
             blended_rgb = 255.0 - ((255.0 - bg_rgb) * (255.0 - layer_rgb)) / 255.0
+        elif blend_mode == BlendMode.OVERLAY:
+            # Overlay = Multiply when bg < 128, Screen when bg >= 128
+            low = 2.0 * bg_rgb * layer_rgb / 255.0
+            high = 255.0 - 2.0 * (255.0 - bg_rgb) * (255.0 - layer_rgb) / 255.0
+            blended_rgb = np.where(bg_rgb < 128, low, high)
         elif blend_mode == BlendMode.ADD:
             blended_rgb = bg_rgb + layer_rgb
+        elif blend_mode == BlendMode.SOFT_LIGHT:
+            # Pegtop soft light formula
+            blended_rgb = (
+                255.0 - 2.0 * layer_rgb
+            ) * bg_rgb * bg_rgb / 65025.0 + 2.0 * layer_rgb * bg_rgb / 255.0
+        elif blend_mode == BlendMode.HARD_LIGHT:
+            # Hard light = Overlay with layers swapped
+            low = 2.0 * bg_rgb * layer_rgb / 255.0
+            high = 255.0 - 2.0 * (255.0 - bg_rgb) * (255.0 - layer_rgb) / 255.0
+            blended_rgb = np.where(layer_rgb < 128, low, high)
+        elif blend_mode == BlendMode.DIFFERENCE:
+            blended_rgb = np.abs(bg_rgb - layer_rgb)
         else:
             blended_rgb = layer_rgb
 
