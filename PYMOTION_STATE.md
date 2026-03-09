@@ -1,45 +1,41 @@
 # PyMotion Development State
 
 ## Current Phase
-Phase: Alpha 0.2 — Text, Video, Audio Base
+Phase: Beta 0.3 — 3D, Particles, Advanced Audio
 Started: 2026-03-09
 
-## Phase 0.2 Checklist
+## Phase 0.3 Checklist
 
-### Text & Typography
-- [x] text/renderer.py — FontLoader (local + system), GlyphRenderer (FreeType)
-- [x] text/renderer.py — HarfBuzz integration for complex layout (RTL, ligatures)
-- [x] clip/text.py — TextClip full implementation (all params from PRD §7.10)
+### 3D Rendering
+- [ ] render/backend_3d.py — ModernGLRenderer (headless, EGL + OSMesa)
+- [ ] clip/scene3d.py — Scene3D, Camera, all light types, PBR materials
+- [ ] GLTF/OBJ import
 
-### Video & Gradient
-- [x] clip/video.py — VideoClip (file source, trim, loop, speed, reverse)
-- [x] clip/color.py — GradientClip (linear, radial, conic)
+### 3D Post-FX
+- [ ] 3D post-FX: SSAO, Bloom, DOF
 
-### Animation
-- [x] animation/easing.py — complete all 30 easings + spring() + cubic_bezier() + steps()
-- [x] animation/spring.py — analytical damped harmonic oscillator
-- [x] animation/interpolator.py — Color interpolation via OKLCH
+### Audio Advanced
+- [ ] audio/analysis.py — Beat detection (librosa)
 
-### Transitions
-- [x] transition/library.py — 20 transitions (Fade, FadeToBlack, FadeToWhite, DipToColor, CrossDissolve, Cut, Slide×4, Push×4, Cover×2, Reveal×2, ZoomIn, ZoomOut)
+### Particles
+- [ ] particle/system.py — ParticleSystem with 5 presets
 
-### Audio
-- [x] audio/mixer.py — AudioMixer: add(), set_volume(), render()
-- [x] clip/audio.py — AudioClip: trim, fade_in, fade_out, volume, loop, at()
-- [x] audio/effects.py — EQ, Compressor, Limiter (via pedalboard)
+### Color Pipeline
+- [ ] render/color_pipeline.py — LUT support, basic color grade
 
-### Export & CLI
-- [x] export/presets.py — add: h264_4k, h265_1080p, h265_4k, webm_1080p, instagram_reel, youtube_1080p, youtube_4k, tiktok
-- [x] cli/commands.py — add preview command (basic, no hot-reload yet)
-- [x] __init__.py — extend public exports for Phase 0.2 symbols
+### Preview
+- [ ] preview/server.py — Preview server with hot-reload
 
-### Tests (Phase 0.2)
-- [x] tests/unit/test_text_renderer.py
-- [x] tests/unit/test_audio_mixer.py
-- [x] tests/unit/test_transitions.py (all 20)
-- [x] tests/integration/test_render_2d.py — extend with TextClip + VideoClip cases
+### Quality
+- [ ] 80% test coverage
+- [ ] Snapshot tests added
 
 ## Completed Phases
+
+### Phase 0.2 — Text, Video, Audio Base (COMPLETE)
+- All 20 checklist items complete
+- 275 tests pass, 69% coverage
+- Exit criteria: product video with text, shapes, audio, 6 transitions to valid MP4
 
 ### Phase 0.1 — Core 2D Rendering Pipeline (COMPLETE)
 - All infrastructure, core modules, and tests complete
