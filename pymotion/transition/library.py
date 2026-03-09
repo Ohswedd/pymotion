@@ -1,6 +1,6 @@
-"""Built-in transition library — 20 transitions for Phase 0.2.
+"""Built-in transition library — 39 transitions.
 
-Provides basic, directional, and zoom transitions between clips.
+Provides basic, directional, zoom, wipe, and advanced transitions between clips.
 """
 
 from __future__ import annotations
@@ -525,3 +525,499 @@ def _resize_nearest(src: np.ndarray, target_w: int, target_h: int) -> np.ndarray
     y_indices = np.clip((np.arange(target_h) * sh / target_h).astype(np.intp), 0, sh - 1)
     x_indices = np.clip((np.arange(target_w) * sw / target_w).astype(np.intp), 0, sw - 1)
     return src[np.ix_(y_indices, x_indices)]
+
+
+@dataclass
+class ZoomBlur(Transition):
+    """Zoom-blur transition — A blurs outward while fading to B.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render zoom-blur transition."""
+        h, w = clip_a.shape[:2]
+        # Simulate zoom blur by blending multiple zoom levels of A
+        blurred = clip_a.astype(np.float32)
+        n_samples = 5
+        for i in range(1, n_samples + 1):
+            scale = 1.0 + progress * 0.3 * i / n_samples
+            crop_h = max(1, int(h / scale))
+            crop_w = max(1, int(w / scale))
+            y0 = (h - crop_h) // 2
+            x0 = (w - crop_w) // 2
+            cropped = clip_a[y0 : y0 + crop_h, x0 : x0 + crop_w]
+            zoomed = _resize_nearest(cropped, w, h)
+            blurred += zoomed.astype(np.float32)
+        blurred /= n_samples + 1
+        blurred_u8 = np.clip(blurred, 0, 255).astype(np.uint8)
+        return _blend(blurred_u8, clip_b, progress)
+
+
+@dataclass
+class ScaleDissolve(Transition):
+    """Scale-dissolve — A scales down while dissolving to B.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render scale-dissolve transition."""
+        h, w = clip_a.shape[:2]
+        scale = 1.0 - progress * 0.5  # Scale A from 1.0 to 0.5
+        new_h = max(1, int(h * scale))
+        new_w = max(1, int(w * scale))
+        scaled = _resize_nearest(clip_a, new_w, new_h)
+
+        # Center the scaled A on a transparent canvas
+        canvas = np.zeros_like(clip_a)
+        y0 = (h - new_h) // 2
+        x0 = (w - new_w) // 2
+        canvas[y0 : y0 + new_h, x0 : x0 + new_w] = scaled
+
+        return _blend(canvas, clip_b, progress)
+
+
+# --- Directional: Cover Up/Down ---
+
+
+@dataclass
+class CoverUp(Transition):
+    """Cover transition — B slides in from the bottom, covering A.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render cover-up transition."""
+        h, _w = clip_a.shape[:2]
+        result = clip_a.copy()
+        offset = int((1 - progress) * h)
+        _blit_shifted(result, clip_b, 0, offset)
+        return result
+
+
+@dataclass
+class CoverDown(Transition):
+    """Cover transition — B slides in from the top, covering A.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render cover-down transition."""
+        h, _w = clip_a.shape[:2]
+        result = clip_a.copy()
+        offset = -int((1 - progress) * h)
+        _blit_shifted(result, clip_b, 0, offset)
+        return result
+
+
+# --- Directional: Reveal Up/Down ---
+
+
+@dataclass
+class RevealUp(Transition):
+    """Reveal transition — A slides upward, revealing B beneath.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render reveal-up transition."""
+        h, _w = clip_a.shape[:2]
+        result = clip_b.copy()
+        offset = -int(progress * h)
+        _blit_shifted(result, clip_a, 0, offset)
+        return result
+
+
+@dataclass
+class RevealDown(Transition):
+    """Reveal transition — A slides downward, revealing B beneath.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render reveal-down transition."""
+        h, _w = clip_a.shape[:2]
+        result = clip_b.copy()
+        offset = int(progress * h)
+        _blit_shifted(result, clip_a, 0, offset)
+        return result
+
+
+# --- Wipe Transitions ---
+
+
+@dataclass
+class WipeLeft(Transition):
+    """Wipe-left transition — B is revealed from right to left.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render wipe-left transition."""
+        h, w = clip_a.shape[:2]
+        result = clip_a.copy()
+        boundary = int((1 - progress) * w)
+        result[:, :boundary] = clip_a[:, :boundary]
+        result[:, boundary:] = clip_b[:, boundary:]
+        return result
+
+
+@dataclass
+class WipeRight(Transition):
+    """Wipe-right transition — B is revealed from left to right.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render wipe-right transition."""
+        h, w = clip_a.shape[:2]
+        result = clip_a.copy()
+        boundary = int(progress * w)
+        result[:, :boundary] = clip_b[:, :boundary]
+        return result
+
+
+@dataclass
+class WipeDiagonal(Transition):
+    """Diagonal wipe — B is revealed along a top-left to bottom-right diagonal.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render diagonal wipe transition."""
+        h, w = clip_a.shape[:2]
+        # Normalized coordinates: (x/w + y/h) ranges from 0 to 2
+        y_coords = np.arange(h).reshape(h, 1) / max(h - 1, 1)
+        x_coords = np.arange(w).reshape(1, w) / max(w - 1, 1)
+        diagonal = (x_coords + y_coords) / 2.0  # Normalize to 0..1
+        if progress >= 1.0:
+            return clip_b.copy()
+        mask = (diagonal < progress).reshape(h, w, 1)
+        return np.where(mask, clip_b, clip_a)
+
+
+@dataclass
+class CircularWipe(Transition):
+    """Circular wipe — B is revealed through an expanding circle from center.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render circular wipe transition."""
+        h, w = clip_a.shape[:2]
+        cy, cx = h / 2.0, w / 2.0
+        max_radius = np.sqrt(cx * cx + cy * cy)
+        radius = progress * max_radius
+
+        y_coords = np.arange(h).reshape(h, 1) - cy
+        x_coords = np.arange(w).reshape(1, w) - cx
+        dist = np.sqrt(y_coords * y_coords + x_coords * x_coords)
+
+        mask = (
+            (dist < radius).reshape(h, w, 1) if progress < 1.0 else np.ones((h, w, 1), dtype=bool)
+        )
+        return np.where(mask, clip_b, clip_a)
+
+
+# --- Advanced Transitions ---
+
+
+@dataclass
+class IrisIn(Transition):
+    """Iris-in transition — B is revealed through a shrinking circle to full.
+
+    The circle starts at zero radius and expands to cover the full frame.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render iris-in transition."""
+        h, w = clip_a.shape[:2]
+        cy, cx = h / 2.0, w / 2.0
+        max_radius = np.sqrt(cx * cx + cy * cy)
+        radius = progress * max_radius
+
+        y_coords = np.arange(h).reshape(h, 1) - cy
+        x_coords = np.arange(w).reshape(1, w) - cx
+        dist = np.sqrt(y_coords * y_coords + x_coords * x_coords)
+
+        mask = (
+            (dist < radius).reshape(h, w, 1) if progress < 1.0 else np.ones((h, w, 1), dtype=bool)
+        )
+        return np.where(mask, clip_b, clip_a)
+
+
+@dataclass
+class IrisOut(Transition):
+    """Iris-out transition — A is hidden by a shrinking circle revealing B.
+
+    The circle starts at full size and shrinks to zero, showing B underneath.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render iris-out transition."""
+        h, w = clip_a.shape[:2]
+        cy, cx = h / 2.0, w / 2.0
+        max_radius = np.sqrt(cx * cx + cy * cy)
+        radius = (1 - progress) * max_radius
+
+        y_coords = np.arange(h).reshape(h, 1) - cy
+        x_coords = np.arange(w).reshape(1, w) - cx
+        dist = np.sqrt(y_coords * y_coords + x_coords * x_coords)
+
+        if progress <= 0.0:
+            return clip_a.copy()
+        if progress >= 1.0:
+            return clip_b.copy()
+        mask = (dist < radius).reshape(h, w, 1)
+        return np.where(mask, clip_a, clip_b)
+
+
+@dataclass
+class PixelDissolve(Transition):
+    """Pixel-dissolve transition — pixels randomly switch from A to B.
+
+    Uses a deterministic random pattern (seeded) so the transition is reproducible.
+
+    Args:
+        duration: Transition duration in frames.
+        seed: Random seed for the pixel ordering.
+    """
+
+    seed: int = 42
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render pixel-dissolve transition."""
+        h, w = clip_a.shape[:2]
+        rng = np.random.default_rng(self.seed)
+        # Generate a random threshold per pixel
+        thresholds = rng.random((h, w)).reshape(h, w, 1)
+        mask = thresholds <= progress
+        return np.where(mask, clip_b, clip_a)
+
+
+@dataclass
+class Glitch(Transition):
+    """Glitch transition — random horizontal slices shift with color channel separation.
+
+    Args:
+        duration: Transition duration in frames.
+        seed: Random seed for glitch pattern.
+    """
+
+    seed: int = 42
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render glitch transition."""
+        h, w = clip_a.shape[:2]
+        # Start with a blend base
+        base = _blend(clip_a, clip_b, progress)
+        result = base.copy()
+
+        # Generate slice-based distortion
+        rng = np.random.default_rng(self.seed + int(progress * 100))
+        intensity = int(progress * (1 - progress) * 4 * w * 0.2)  # Peak at midpoint
+        n_slices = max(1, int(h * 0.15))
+
+        for _ in range(n_slices):
+            y = rng.integers(0, h)
+            slice_h = min(rng.integers(1, max(2, h // 10)), h - y)
+            shift = rng.integers(-intensity, max(1, intensity + 1))
+            if shift != 0:
+                result[y : y + slice_h] = np.roll(base[y : y + slice_h], shift, axis=1)
+
+        return result
+
+
+@dataclass
+class FilmBurn(Transition):
+    """Film-burn transition — bright overexposure wipe from A to B.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render film-burn transition."""
+        h, w = clip_a.shape[:2]
+
+        # Create a horizontal burn gradient
+        x_coords = np.arange(w, dtype=np.float32) / max(w - 1, 1)
+        # The burn edge sweeps across with progress
+        burn_center = progress
+        burn = np.exp(-((x_coords - burn_center) ** 2) / max(0.01, progress * (1 - progress) * 0.5))
+        burn_2d = burn.reshape(1, w, 1)  # broadcast over h and channels
+
+        base = _blend(clip_a, clip_b, progress)
+        # Add white burn glow
+        result = base.astype(np.float32) + burn_2d * 255 * 0.7 * (4 * progress * (1 - progress))
+        out: np.ndarray = np.clip(result, 0, 255).astype(np.uint8)
+        return out
+
+
+@dataclass
+class PageTurn(Transition):
+    """Page-turn transition — A peels away like a turning page, revealing B.
+
+    Simulated with a diagonal wipe and shadow effect.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render page-turn transition."""
+        h, w = clip_a.shape[:2]
+
+        # Diagonal fold line sweeps from right to left
+        x_coords = np.arange(w, dtype=np.float32) / max(w - 1, 1)
+        y_coords = np.arange(h, dtype=np.float32) / max(h - 1, 1)
+        xx, yy = np.meshgrid(x_coords, y_coords)
+        # Fold boundary: line sweeps from x=1 to x=0
+        fold = (1.0 - progress) + yy * 0.2  # slight diagonal
+        mask = (xx > fold).reshape(h, w, 1)
+
+        # Shadow near fold edge
+        dist_to_fold = np.abs(xx - fold)
+        shadow = np.clip(1.0 - dist_to_fold * 5, 0, 1) * 0.3 * (1 if progress > 0 else 0)
+        shadow_3d = shadow.reshape(h, w, 1)
+
+        base = np.where(mask, clip_b, clip_a)
+        # Darken near the fold
+        result = base.astype(np.float32) * (1.0 - shadow_3d)
+        out: np.ndarray = np.clip(result, 0, 255).astype(np.uint8)
+        return out
+
+
+@dataclass
+class Vortex(Transition):
+    """Vortex transition — pixels swirl from A to B.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render vortex transition."""
+        h, w = clip_a.shape[:2]
+        cy, cx = h / 2.0, w / 2.0
+
+        y_coords = np.arange(h, dtype=np.float32) - cy
+        x_coords = np.arange(w, dtype=np.float32) - cx
+        yy, xx = np.meshgrid(y_coords, x_coords, indexing="ij")
+
+        dist = np.sqrt(xx * xx + yy * yy)
+        max_dist = np.sqrt(cx * cx + cy * cy)
+        normalized_dist = dist / max(max_dist, 1)
+
+        # Swirl angle increases with progress, stronger near center
+        angle = progress * np.pi * 2 * (1 - normalized_dist)
+        cos_a = np.cos(angle)
+        sin_a = np.sin(angle)
+
+        src_x = (cos_a * xx - sin_a * yy + cx).astype(np.intp)
+        src_y = (sin_a * xx + cos_a * yy + cy).astype(np.intp)
+
+        src_x = np.clip(src_x, 0, w - 1)
+        src_y = np.clip(src_y, 0, h - 1)
+
+        # Sample from A with swirl distortion, then blend to B
+        swirled = clip_a[src_y, src_x]
+        return _blend(swirled, clip_b, progress)
+
+
+@dataclass
+class Shatter(Transition):
+    """Shatter transition — A breaks into rectangular pieces that fall away.
+
+    Args:
+        duration: Transition duration in frames.
+        seed: Random seed for shard pattern.
+        grid_size: Number of shard columns/rows.
+    """
+
+    seed: int = 42
+    grid_size: int = 6
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render shatter transition."""
+        h, w = clip_a.shape[:2]
+        result = clip_b.copy()
+        rng = np.random.default_rng(self.seed)
+
+        cell_h = max(1, h // self.grid_size)
+        cell_w = max(1, w // self.grid_size)
+
+        # Each shard has a random "break time" — once progress passes it, the shard disappears
+        for gy in range(self.grid_size + 1):
+            for gx in range(self.grid_size + 1):
+                break_time = rng.random()
+                if progress < break_time:
+                    # This shard of A still visible
+                    y0 = gy * cell_h
+                    x0 = gx * cell_w
+                    y1 = min(y0 + cell_h, h)
+                    x1 = min(x0 + cell_w, w)
+                    if y1 > y0 and x1 > x0:
+                        # Apply slight offset based on progress for "falling" feel
+                        fall = int((progress / max(break_time, 0.01)) * cell_h * 0.3)
+                        dy = min(fall, h - y1)
+                        result[y0 + dy : y1 + dy, x0:x1] = clip_a[y0:y1, x0:x1]
+
+        return result
+
+
+@dataclass
+class MorphWarp(Transition):
+    """Morph-warp transition — A warps and morphs into B.
+
+    Uses a sinusoidal displacement field that increases with progress.
+
+    Args:
+        duration: Transition duration in frames.
+    """
+
+    def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
+        """Render morph-warp transition."""
+        h, w = clip_a.shape[:2]
+
+        y_coords = np.arange(h, dtype=np.float32)
+        x_coords = np.arange(w, dtype=np.float32)
+        yy, xx = np.meshgrid(y_coords, x_coords, indexing="ij")
+
+        # Sinusoidal warp that increases with progress
+        amplitude = progress * (1 - progress) * 40  # Peak at midpoint
+        freq = 0.05
+        dx = (amplitude * np.sin(yy * freq + progress * 10)).astype(np.intp)
+        dy = (amplitude * np.cos(xx * freq + progress * 10)).astype(np.intp)
+
+        src_x = np.clip(xx.astype(np.intp) + dx, 0, w - 1)
+        src_y = np.clip(yy.astype(np.intp) + dy, 0, h - 1)
+
+        # Warp A, then blend with B
+        warped = clip_a[src_y, src_x]
+        return _blend(warped, clip_b, progress)
