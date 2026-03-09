@@ -166,3 +166,55 @@ class WaveformExtractor:
             envelope /= peak
 
         return envelope
+
+
+def waveform_to_keyframes(
+    audio: np.ndarray,
+    sample_rate: int,
+    fps: int = 30,
+    min_value: float = 0.0,
+    max_value: float = 1.0,
+    smoothing: int = 1,
+) -> list[tuple[int, float]]:
+    """Convert audio waveform amplitude to animation keyframes.
+
+    Samples the audio amplitude envelope at the video frame rate
+    and maps it to a value range suitable for driving animations.
+
+    Args:
+        audio: Audio samples as 1D or 2D float array.
+        sample_rate: Audio sample rate in Hz.
+        fps: Video frame rate.
+        min_value: Minimum output keyframe value.
+        max_value: Maximum output keyframe value.
+        smoothing: Number of frames to average for smoothing (1 = no smoothing).
+
+    Returns:
+        List of (frame_number, value) keyframe tuples.
+    """
+    extractor = WaveformExtractor()
+    n_samples = len(audio) if audio.ndim == 1 else audio.shape[0]
+    duration_sec = n_samples / max(sample_rate, 1)
+    n_frames = max(1, int(duration_sec * fps))
+
+    envelope = extractor.extract(audio, n_frames)
+
+    # Apply smoothing
+    if smoothing > 1:
+        kernel = np.ones(smoothing, dtype=np.float32) / smoothing
+        envelope = np.convolve(envelope, kernel, mode="same").astype(np.float32)
+
+    # Map to output range
+    value_range = max_value - min_value
+    keyframes: list[tuple[int, float]] = []
+    for i in range(n_frames):
+        value = min_value + float(envelope[i]) * value_range
+        keyframes.append((i, value))
+
+    logger.info(
+        "waveform_to_keyframes",
+        n_frames=n_frames,
+        min_value=min_value,
+        max_value=max_value,
+    )
+    return keyframes
