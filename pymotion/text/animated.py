@@ -7,6 +7,7 @@ per-word animation configured via render_frame overrides.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -16,7 +17,25 @@ from pymotion.utils.color import Color
 from pymotion.utils.logging import get_logger
 from pymotion.utils.math import Vec2
 
+if TYPE_CHECKING:
+    from pymotion.text.renderer import GlyphRenderer
+
 logger = get_logger(__name__)
+
+_cached_renderer: GlyphRenderer | None = None
+
+
+def _get_renderer() -> GlyphRenderer:
+    """Get or create a shared GlyphRenderer for animated text."""
+    global _cached_renderer  # noqa: PLW0603
+    if _cached_renderer is None:
+        from pymotion.text.renderer import (
+            FontLoader,  # noqa: PLC0415
+            GlyphRenderer,  # noqa: PLC0415
+        )
+
+        _cached_renderer = GlyphRenderer(FontLoader())
+    return _cached_renderer
 
 
 def _render_text_simple(
@@ -26,46 +45,77 @@ def _render_text_simple(
     font_size: float,
     color: tuple[int, int, int, int],
     position: Vec2,
+    font: str = "Arial",
 ) -> np.ndarray:
-    """Render simple text to BGRA frame using numpy (no FreeType dependency).
-
-    This is a lightweight renderer for animated text presets that draws
-    text as small block characters for performance.
+    """Render text to a BGRA frame using FreeType via GlyphRenderer.
 
     Args:
         text: Text to render.
         width: Frame width.
         height: Frame height.
-        font_size: Approximate character height.
-        color: BGRA color tuple.
+        font_size: Font size in points.
+        color: BGRA color tuple (ignored, color comes from Color object).
         position: Text position (x, y).
+        font: Font name or path.
 
     Returns:
         BGRA numpy array.
     """
     frame = np.zeros((height, width, 4), dtype=np.uint8)
-    char_w = max(1, int(font_size * 0.6))
-    char_h = max(1, int(font_size))
+    if not text.strip():
+        return frame
 
-    x = int(position.x)
-    y = int(position.y)
+    # Convert BGRA uint8 tuple back to Color
+    b, g, r, a = color
+    text_color = Color(r / 255.0, g / 255.0, b / 255.0, a / 255.0)
 
-    for ch in text:
-        if ch == "\n":
-            x = int(position.x)
-            y += char_h + 2
-            continue
-        if ch == " ":
-            x += char_w
-            continue
+    try:
+        renderer = _get_renderer()
+        text_img = renderer.render_text(
+            text,
+            font,
+            font_size,
+            text_color,
+        )
 
-        x0 = max(0, x)
-        y0 = max(0, y)
-        x1 = min(width, x + char_w)
-        y1 = min(height, y + char_h)
-        if x0 < x1 and y0 < y1:
-            frame[y0:y1, x0:x1] = color
-        x += char_w + 1
+        # Composite text image onto frame at position
+        th, tw = text_img.shape[:2]
+        px = int(position.x)
+        py = int(position.y)
+
+        src_y0 = max(0, -py)
+        src_x0 = max(0, -px)
+        dst_y0 = max(0, py)
+        dst_x0 = max(0, px)
+        copy_h = min(th - src_y0, height - dst_y0)
+        copy_w = min(tw - src_x0, width - dst_x0)
+
+        if copy_h > 0 and copy_w > 0:
+            frame[dst_y0 : dst_y0 + copy_h, dst_x0 : dst_x0 + copy_w] = text_img[
+                src_y0 : src_y0 + copy_h, src_x0 : src_x0 + copy_w
+            ]
+    except (FileNotFoundError, OSError):
+        # Fallback: draw block characters if font not available
+        logger.debug("animated_text_font_fallback", font=font)
+        char_w = max(1, int(font_size * 0.6))
+        char_h = max(1, int(font_size))
+        x = int(position.x)
+        y = int(position.y)
+        for ch in text:
+            if ch == "\n":
+                x = int(position.x)
+                y += char_h + 2
+                continue
+            if ch == " ":
+                x += char_w
+                continue
+            x0 = max(0, x)
+            y0 = max(0, y)
+            x1 = min(width, x + char_w)
+            y1 = min(height, y + char_h)
+            if x0 < x1 and y0 < y1:
+                frame[y0:y1, x0:x1] = color
+            x += char_w + 1
 
     return frame
 
