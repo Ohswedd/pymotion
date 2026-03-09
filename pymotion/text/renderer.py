@@ -210,11 +210,17 @@ class FontLoader:
         weight: float | None = None,
         width: float | None = None,
         slant: float | None = None,
+        italic: float | None = None,
+        optical_size: float | None = None,
+        axes: dict[str, float] | None = None,
     ) -> Any:
         """Load a variable font with axis settings.
 
         Supports OpenType variable fonts (e.g., .ttf files with fvar table).
         Falls back to the default instance if axes are not available.
+
+        Standard axes (wght, wdth, slnt, ital, opsz) have named parameters.
+        Custom axes can be passed via the ``axes`` dict using their 4-char tags.
 
         Args:
             font: Font file path or font name.
@@ -222,6 +228,9 @@ class FontLoader:
             weight: Weight axis value (e.g., 100–900). None = font default.
             width: Width axis value (e.g., 75–125). None = font default.
             slant: Slant/italic axis value (e.g., -12 to 0). None = font default.
+            italic: Italic axis value (0 or 1). None = font default.
+            optical_size: Optical size axis value in pt. None = font default.
+            axes: Additional custom axis values as {tag: value} dict.
 
         Returns:
             A FreeType Face with variable axes applied.
@@ -229,8 +238,16 @@ class FontLoader:
         Raises:
             FileNotFoundError: If the font cannot be found.
         """
-        axes = {"wght": weight, "wdth": width, "slnt": slant}
-        active = {k: v for k, v in axes.items() if v is not None}
+        named = {
+            "wght": weight,
+            "wdth": width,
+            "slnt": slant,
+            "ital": italic,
+            "opsz": optical_size,
+        }
+        active = {k: v for k, v in named.items() if v is not None}
+        if axes:
+            active.update(axes)
         cache_key = f"{font}:{size}:var:{active}"
 
         if cache_key in self._cache:

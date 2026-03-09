@@ -294,3 +294,99 @@ class PreviewServer:
         """Stop the preview server."""
         self._running = False
         logger.info("preview_server_stopped")
+
+
+def export_frame_inline(
+    composition: Any,
+    frame: int = 0,
+    scale: float = 1.0,
+) -> Any:
+    """Render a frame and return it as a PIL Image for Jupyter display.
+
+    Usage in a notebook::
+
+        from pymotion.preview.server import export_frame_inline
+        img = export_frame_inline(comp, frame=30)
+        img  # displays inline in Jupyter
+
+    Args:
+        composition: A Composition instance.
+        frame: Frame number to render.
+        scale: Scale factor (1.0 = full resolution).
+
+    Returns:
+        A PIL Image in RGBA mode.
+    """
+    from PIL import Image
+
+    rendered = composition._render_frame(frame)  # noqa: SLF001
+
+    if scale != 1.0:
+        h, w = rendered.shape[:2]
+        new_w = max(2, int(w * scale) + int(w * scale) % 2)
+        new_h = max(2, int(h * scale) + int(h * scale) % 2)
+        # Convert to PIL for resizing
+        rgba = rendered.copy()
+        rgba[:, :, 0] = rendered[:, :, 2]  # R
+        rgba[:, :, 2] = rendered[:, :, 0]  # B
+        img = Image.fromarray(rgba)
+        return img.resize((new_w, new_h), Image.LANCZOS)  # type: ignore[attr-defined]
+
+    # Convert BGRA to RGBA
+    rgba = rendered.copy()
+    rgba[:, :, 0] = rendered[:, :, 2]  # R
+    rgba[:, :, 2] = rendered[:, :, 0]  # B
+    return Image.fromarray(rgba)
+
+
+def preview_widget(
+    composition: Any,
+    scale: float = 0.5,
+) -> Any:
+    """Create a Jupyter widget for scrubbing through composition frames.
+
+    Requires ipywidgets to be installed. Falls back to a static frame
+    if ipywidgets is not available.
+
+    Usage::
+
+        from pymotion.preview.server import preview_widget
+        preview_widget(comp)
+
+    Args:
+        composition: A Composition instance.
+        scale: Scale factor for preview (default 0.5).
+
+    Returns:
+        An ipywidgets interactive widget, or a PIL Image if widgets unavailable.
+    """
+    try:
+        import ipywidgets as widgets  # type: ignore[import-not-found]  # noqa: PLC0415
+        from IPython.display import display  # type: ignore[import-not-found]  # noqa: PLC0415
+    except ImportError:
+        logger.warning("ipywidgets_not_available", msg="Falling back to static frame")
+        return export_frame_inline(composition, frame=0, scale=scale)
+
+    output = widgets.Output()
+    slider = widgets.IntSlider(
+        value=0,
+        min=0,
+        max=max(0, composition.duration - 1),
+        step=1,
+        description="Frame:",
+    )
+
+    def _on_change(change: dict[str, Any]) -> None:
+        with output:
+            output.clear_output(wait=True)
+            img = export_frame_inline(composition, frame=change["new"], scale=scale)
+            display(img)
+
+    slider.observe(_on_change, names=["value"])
+
+    # Show initial frame
+    with output:
+        img = export_frame_inline(composition, frame=0, scale=scale)
+        display(img)
+
+    return widgets.VBox([slider, output])
