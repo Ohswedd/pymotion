@@ -92,7 +92,10 @@ class TestKeyframeTrack:
         )
         result = track.value_at(5)
         assert isinstance(result, Color)
-        assert abs(result.r - 0.5) < 0.01
+        # OKLCH interpolation: perceptually uniform midpoint differs from linear 0.5
+        # The midpoint between black and white in OKLCH lands around 0.39 in sRGB
+        assert 0.0 < result.r < 1.0
+        assert abs(result.r - result.g) < 0.01  # achromatic stays neutral
 
     def test_vec2_interpolation(self) -> None:
         track = KeyframeTrack(
