@@ -80,9 +80,50 @@ class Vec3:
         """Right-multiply vector by a scalar."""
         return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
 
+    def __neg__(self) -> Vec3:
+        """Negate this vector."""
+        return Vec3(-self.x, -self.y, -self.z)
+
     def length(self) -> float:
         """Return the length (magnitude) of the vector."""
         return _math.sqrt(self.x**2 + self.y**2 + self.z**2)
+
+    def normalize(self) -> Vec3:
+        """Return a unit-length vector in the same direction.
+
+        Returns:
+            Normalized vector. Returns zero vector if length is near zero.
+        """
+        mag = self.length()
+        if mag < 1e-12:
+            return Vec3(0.0, 0.0, 0.0)
+        return Vec3(self.x / mag, self.y / mag, self.z / mag)
+
+    def dot(self, other: Vec3) -> float:
+        """Compute the dot product with another vector.
+
+        Args:
+            other: The other vector.
+
+        Returns:
+            Scalar dot product.
+        """
+        return self.x * other.x + self.y * other.y + self.z * other.z
+
+    def cross(self, other: Vec3) -> Vec3:
+        """Compute the cross product with another vector.
+
+        Args:
+            other: The other vector.
+
+        Returns:
+            Cross product vector.
+        """
+        return Vec3(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x,
+        )
 
     def as_tuple(self) -> tuple[float, float, float]:
         """Return as a plain tuple.
