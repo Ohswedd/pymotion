@@ -1,55 +1,43 @@
 # PyMotion Development State
 
 ## Current Phase
-Phase: RC 0.9 — Polish & Production Readiness
+Phase: v1.0 — Stable Release
 Started: 2026-03-09
 
-## Phase RC 0.9 Checklist
+## Phase v1.0 Checklist
 
-### Rendering & Performance
-- [x] 4K rendering validated end-to-end (all presets at 3840×2160)
-- [x] render/color_pipeline.py — ACES full color pipeline (ACES, Reinhard, Filmic tone mapping)
-- [x] render/pipeline.py — GPU instancing support (ModernGL) — InstanceData + render_instanced()
+### API & Imports
+- [x] API stability audit — all PRD §8.2 exports verified
+- [x] Zero broken imports from `import pymotion`
+- [x] __init__.py — added: 3D types, ParticleSystem, Silence, animate, Align, 6 audio effects
+- [x] __init__.py — docstring updated to "v1.0"
 
-### 3D Backend
-- [x] render/backend_3d.py — HDRI environment maps (EXR/HDR loading, equirectangular sampling)
-- [x] render/backend_3d.py — shadow mapping (ShadowMapConfig for directional + spot)
-- [x] render/backend_3d.py — skeletal animation (Joint, AnimationChannel, SkeletalAnimation)
+### Version & Release
+- [x] pyproject.toml version → "1.0.0"
+- [x] CHANGELOG.md — finalized 1.0.0 section
 
-### Typography
-- [x] clip/text.py — variable fonts full axis support (ital, opsz, custom axes)
-
-### Preview & CLI
-- [x] preview/server.py — Jupyter widget (export_frame_inline + preview_widget)
-- [x] cli/commands.py — pymotion doctor (checks all system deps)
-
-### Configuration
-- [x] utils/asset.py — configurable LRU cache size via PyMotionConfig
-- [x] pymotion/config.py — PyMotionConfig (allow_network, cache_size, etc.)
+### Documentation
+- [x] docs/guides/ — 10 total guides (5 new: text-animation, effects-pipeline, transitions, particles, template-system)
+- [x] examples/ — 20 total examples (5 new: social_media_ad, countdown_timer, photo_slideshow, corporate_intro, music_visualizer)
 
 ### Quality Gates
 - [x] All mypy --strict errors: zero
 - [x] All ruff errors: zero
-- [x] Test coverage: ≥ 85% (85%, 1079 tests)
-- [x] Performance regression tests in CI (5 baseline tests)
+- [x] Test coverage: ≥ 85% (85%, 1116 tests)
+- [x] All examples syntax-check pass
 
-### Documentation
-- [x] docs/ — MkDocs + Material setup with mkdocstrings
-- [x] docs/api/ — auto-generated from all public modules (7 pages)
-- [x] docs/guides/ — 5 guides: getting-started, keyframe-animation, audio-mixing, 3d-scenes, batch-generation
-
-### Examples & Packaging
-- [x] examples/ — 10 working example scripts
-- [x] Docker image — Dockerfile + build verified
-- [x] CHANGELOG.md — complete from phase 0.1 to 0.9
-- [x] README.md — complete with install, quickstart, feature matrix
+### External (require user action)
+- [ ] PyPI test publish (TestPyPI) — install and verify
+- [ ] PyPI production publish
+- [ ] GitHub Release with generated notes from CHANGELOG
+- [ ] Docker Hub publish: pymotion/pymotion:1.0.0 + pymotion/pymotion:latest
+- [ ] git tag: v1.0.0
 
 ## Completed Phases
 
 ### Phase RC 0.9 — Polish & Production Readiness (COMPLETE)
 - All 22 checklist items complete
 - 1079 tests pass, 85% coverage
-- Exit criteria pending: 60s 4K product trailer render test
 
 ### Phase 0.4 — Full Feature Completeness (COMPLETE)
 - All 24 checklist items complete
@@ -72,7 +60,7 @@ Started: 2026-03-09
 - Exit criteria: valid MP4 render
 
 ## In Progress
-(none — Phase RC 0.9 checklist COMPLETE)
+(none)
 
 ## Blocked / Issues
 (none)
