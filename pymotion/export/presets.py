@@ -58,9 +58,92 @@ H264_4K = OutputPreset(
     extra_flags=["-preset", "medium"],
 )
 
+H265_1080P = OutputPreset(
+    name="h265_1080p",
+    codec="libx265",
+    pixel_format="yuv420p",
+    crf=22,
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=["-preset", "medium"],
+)
+
+H265_4K = OutputPreset(
+    name="h265_4k",
+    codec="libx265",
+    pixel_format="yuv420p",
+    crf=22,
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=["-preset", "medium"],
+)
+
+WEBM_1080P = OutputPreset(
+    name="webm_1080p",
+    codec="libvpx-vp9",
+    pixel_format="yuv420p",
+    crf=31,
+    audio_codec="libopus",
+    audio_bitrate="128k",
+    container="webm",
+)
+
+INSTAGRAM_REEL = OutputPreset(
+    name="instagram_reel",
+    codec="libx264",
+    pixel_format="yuv420p",
+    bitrate="8M",
+    audio_codec="aac",
+    audio_bitrate="192k",
+    container="mp4",
+    extra_flags=["-preset", "fast", "-s", "1080x1920"],
+)
+
+YOUTUBE_1080P = OutputPreset(
+    name="youtube_1080p",
+    codec="libx264",
+    pixel_format="yuv420p",
+    crf=18,
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=["-preset", "medium", "-movflags", "+faststart"],
+)
+
+YOUTUBE_4K = OutputPreset(
+    name="youtube_4k",
+    codec="libx265",
+    pixel_format="yuv420p",
+    crf=18,
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=["-preset", "medium", "-movflags", "+faststart"],
+)
+
+TIKTOK = OutputPreset(
+    name="tiktok",
+    codec="libx264",
+    pixel_format="yuv420p",
+    bitrate="8M",
+    audio_codec="aac",
+    audio_bitrate="192k",
+    container="mp4",
+    extra_flags=["-preset", "fast", "-s", "1080x1920"],
+)
+
 _PRESET_REGISTRY: dict[str, OutputPreset] = {
     "h264_1080p": H264_1080P,
     "h264_4k": H264_4K,
+    "h265_1080p": H265_1080P,
+    "h265_4k": H265_4K,
+    "webm_1080p": WEBM_1080P,
+    "instagram_reel": INSTAGRAM_REEL,
+    "youtube_1080p": YOUTUBE_1080P,
+    "youtube_4k": YOUTUBE_4K,
+    "tiktok": TIKTOK,
 }
 
 

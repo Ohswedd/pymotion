@@ -1,4 +1,4 @@
-"""CLI command definitions — render and export-frame for Phase 0.1.
+"""CLI command definitions — render, export-frame, and preview.
 
 Provides the main CLI entry point using Click.
 """
@@ -93,3 +93,26 @@ def export_frame(file: str, frame: int, output: str) -> None:
 
     result = comp.export_frame(frame, output)
     click.echo(f"Exported frame {frame} to: {result}")
+
+
+@main.command()
+@click.argument("file")
+@click.option("--port", "-p", default=4321, type=int, help="Preview server port.")
+@click.option("--frame", "-f", default=0, type=int, help="Frame to preview.")
+@click.option("--output", "-o", default="preview.png", help="Output preview image.")
+def preview(file: str, port: int, frame: int, output: str) -> None:
+    """Preview a composition frame (basic, no hot-reload).
+
+    Renders a single frame and saves it as a PNG for quick visual
+    inspection. A full hot-reload preview server will be added later.
+    """
+    from pymotion.composition import Composition
+
+    comp = _load_composition(file)
+    if not isinstance(comp, Composition):
+        msg = f"'comp' must be a Composition instance, got {type(comp).__name__}"
+        raise click.ClickException(msg)
+
+    result = comp.export_frame(frame, output)
+    click.echo(f"Preview frame {frame} saved to: {result}")
+    click.echo(f"(Full preview server on port {port} will be available in a future release)")
