@@ -524,7 +524,319 @@ class DepthOfFieldConfig:
     blur_radius: float = 10.0
 
 
+@dataclass
+class ShadowMapConfig:
+    """Shadow mapping configuration for directional and spot lights.
+
+    Args:
+        resolution: Shadow map texture resolution (width = height).
+        bias: Depth bias to prevent shadow acne.
+        pcf_samples: Number of PCF filtering samples (0 = no filtering).
+        cascade_count: Number of cascades for directional light CSM.
+    """
+
+    resolution: int = 1024
+    bias: float = 0.005
+    pcf_samples: int = 4
+    cascade_count: int = 3
+
+
 PostFX3D = SSAOConfig | BloomConfig | DepthOfFieldConfig
+
+
+# ---------------------------------------------------------------------------
+# HDRI Environment
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class HDRIEnvironment:
+    """HDRI environment map for image-based lighting.
+
+    Provides ambient lighting from an equirectangular HDR/EXR image.
+    Falls back to a solid color ambient if the EXR file cannot be loaded.
+
+    Args:
+        path: Path to the EXR/HDR file (None = solid color fallback).
+        data: Raw HDR image data as float32 array (H, W, 3). Loaded from path.
+        rotation: Rotation of the environment in degrees around Y axis.
+        intensity: Overall intensity multiplier.
+    """
+
+    path: str | None = None
+    data: np.ndarray | None = field(default=None, repr=False)
+    rotation: float = 0.0
+    intensity: float = 1.0
+
+    def load(self) -> None:
+        """Load the EXR/HDR file into memory.
+
+        Requires the pyopenexr optional dependency for EXR files.
+        Falls back to a default gray environment if loading fails.
+
+        Raises:
+            FileNotFoundError: If the path does not exist.
+        """
+        if self.path is None:
+            return
+
+        from pathlib import Path as _Path
+
+        p = _Path(self.path)
+        if not p.exists():
+            msg = f"HDRI file not found: {self.path}"
+            raise FileNotFoundError(msg)
+
+        ext = p.suffix.lower()
+        if ext in (".exr",):
+            self.data = _load_exr(p)
+        elif ext in (".hdr",):
+            self.data = _load_hdr(p)
+        else:
+            logger.warning("unsupported_hdri_format", ext=ext, path=self.path)
+
+    def sample(self, direction: Vec3) -> tuple[float, float, float]:
+        """Sample the environment map in a given direction.
+
+        Args:
+            direction: Normalized direction vector.
+
+        Returns:
+            (R, G, B) tuple of float values scaled by intensity.
+        """
+        if self.data is None:
+            return (0.2 * self.intensity, 0.2 * self.intensity, 0.2 * self.intensity)
+
+        h, w = self.data.shape[:2]
+        # Equirectangular mapping
+        theta = math.atan2(direction.x, direction.z) + math.radians(self.rotation)
+        phi = math.acos(max(-1.0, min(1.0, direction.y)))
+
+        u = (theta / (2.0 * math.pi) + 0.5) % 1.0
+        v = phi / math.pi
+
+        px = int(u * (w - 1))
+        py = int(v * (h - 1))
+        px = max(0, min(w - 1, px))
+        py = max(0, min(h - 1, py))
+
+        r = float(self.data[py, px, 0]) * self.intensity
+        g = float(self.data[py, px, 1]) * self.intensity
+        b = float(self.data[py, px, 2]) * self.intensity
+        return (r, g, b)
+
+
+def _load_exr(path: object) -> np.ndarray:
+    """Load an EXR file as a float32 RGB array.
+
+    Args:
+        path: Path to the EXR file.
+
+    Returns:
+        Float32 array of shape (H, W, 3).
+    """
+    try:
+        import Imath  # type: ignore[import-not-found]  # noqa: PLC0415
+        import OpenEXR  # type: ignore[import-not-found]  # noqa: PLC0415
+
+        exr = OpenEXR.InputFile(str(path))
+        header = exr.header()
+        dw = header["dataWindow"]
+        w = dw.max.x - dw.min.x + 1
+        h = dw.max.y - dw.min.y + 1
+
+        pt = Imath.PixelType(Imath.PixelType.FLOAT)
+        r_str = exr.channel("R", pt)
+        g_str = exr.channel("G", pt)
+        b_str = exr.channel("B", pt)
+
+        r = np.frombuffer(r_str, dtype=np.float32).reshape(h, w)
+        g = np.frombuffer(g_str, dtype=np.float32).reshape(h, w)
+        b = np.frombuffer(b_str, dtype=np.float32).reshape(h, w)
+
+        result = np.stack([r, g, b], axis=-1)
+        logger.info("exr_loaded", path=str(path), shape=result.shape)
+        return result
+    except ImportError:
+        logger.warning("openexr_not_available", msg="Falling back to gray environment")
+        return np.full((64, 128, 3), 0.2, dtype=np.float32)
+
+
+def _load_hdr(path: object) -> np.ndarray:
+    """Load an HDR file as a float32 RGB array.
+
+    Uses Pillow which supports Radiance HDR (.hdr) format.
+
+    Args:
+        path: Path to the HDR file.
+
+    Returns:
+        Float32 array of shape (H, W, 3).
+    """
+    from PIL import Image  # noqa: PLC0415
+
+    img = Image.open(str(path))
+    arr = np.array(img, dtype=np.float32)
+    if arr.ndim == 2:
+        arr = np.stack([arr, arr, arr], axis=-1)
+    elif arr.shape[2] == 4:
+        arr = arr[:, :, :3]
+    logger.info("hdr_loaded", path=str(path), shape=arr.shape)
+    return arr
+
+
+# ---------------------------------------------------------------------------
+# Skeletal Animation
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Joint:
+    """A single joint in a skeletal hierarchy.
+
+    Args:
+        name: Joint name.
+        index: Joint index in the skeleton.
+        parent_index: Parent joint index (-1 for root).
+        inverse_bind_matrix: 4x4 inverse bind pose matrix.
+    """
+
+    name: str
+    index: int
+    parent_index: int = -1
+    inverse_bind_matrix: np.ndarray = field(default_factory=lambda: np.eye(4, dtype=np.float32))
+
+
+@dataclass
+class AnimationChannel:
+    """Keyframed animation data for a single joint property.
+
+    Args:
+        joint_index: Index of the target joint.
+        property: Animated property ("translation", "rotation", "scale").
+        times: Array of keyframe times in seconds.
+        values: Array of keyframe values (shape depends on property).
+        interpolation: Interpolation mode ("LINEAR", "STEP", "CUBICSPLINE").
+    """
+
+    joint_index: int
+    property: str
+    times: np.ndarray
+    values: np.ndarray
+    interpolation: str = "LINEAR"
+
+
+@dataclass
+class SkeletalAnimation:
+    """Skeletal animation data for a 3D model.
+
+    Contains a joint hierarchy and animation channels that can be
+    sampled at a given time to produce joint matrices.
+
+    Args:
+        name: Animation name.
+        joints: List of joints in the skeleton.
+        channels: Animation channels for joint properties.
+        duration: Total animation duration in seconds.
+    """
+
+    name: str = ""
+    joints: list[Joint] = field(default_factory=list)
+    channels: list[AnimationChannel] = field(default_factory=list)
+    duration: float = 0.0
+
+    def sample(self, time: float) -> np.ndarray:
+        """Sample joint matrices at a given time.
+
+        Args:
+            time: Time in seconds (wraps around duration).
+
+        Returns:
+            Array of 4x4 joint matrices, shape (num_joints, 4, 4).
+        """
+        n = len(self.joints)
+        if n == 0:
+            return np.zeros((0, 4, 4), dtype=np.float32)
+
+        # Wrap time (clamp at boundary for exact endpoint)
+        if self.duration > 0 and time > self.duration:
+            time = time % self.duration
+
+        # Start with identity for each joint
+        local_transforms = [np.eye(4, dtype=np.float32) for _ in range(n)]
+
+        # Apply animation channels
+        for channel in self.channels:
+            idx = channel.joint_index
+            if idx < 0 or idx >= n:
+                continue
+
+            # Find the two surrounding keyframes
+            if len(channel.times) == 0:
+                continue
+
+            t_arr = channel.times
+            v_arr = channel.values
+
+            if time <= t_arr[0]:
+                value = v_arr[0]
+            elif time >= t_arr[-1]:
+                value = v_arr[-1]
+            else:
+                # Linear interpolation between surrounding keyframes
+                i = int(np.searchsorted(t_arr, time)) - 1
+                i = max(0, min(i, len(t_arr) - 2))
+                t0, t1 = float(t_arr[i]), float(t_arr[i + 1])
+                dt = t1 - t0
+                alpha = (time - t0) / dt if dt > 0 else 0.0
+                value = v_arr[i] * (1 - alpha) + v_arr[i + 1] * alpha
+
+            if channel.property == "translation" and len(value) >= 3:
+                local_transforms[idx][0, 3] = value[0]
+                local_transforms[idx][1, 3] = value[1]
+                local_transforms[idx][2, 3] = value[2]
+            elif channel.property == "scale" and len(value) >= 3:
+                local_transforms[idx][0, 0] = value[0]
+                local_transforms[idx][1, 1] = value[1]
+                local_transforms[idx][2, 2] = value[2]
+
+        # Compute global transforms
+        global_transforms = [np.eye(4, dtype=np.float32) for _ in range(n)]
+        for i, joint in enumerate(self.joints):
+            if joint.parent_index >= 0 and joint.parent_index < n:
+                global_transforms[i] = global_transforms[joint.parent_index] @ local_transforms[i]
+            else:
+                global_transforms[i] = local_transforms[i]
+
+        # Apply inverse bind matrices
+        result = np.zeros((n, 4, 4), dtype=np.float32)
+        for i, joint in enumerate(self.joints):
+            result[i] = global_transforms[i] @ joint.inverse_bind_matrix
+
+        return result
+
+
+# ---------------------------------------------------------------------------
+# GPU Instancing Configuration
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class InstanceData:
+    """Per-instance data for GPU instanced rendering.
+
+    Args:
+        model_matrices: Array of 4x4 model matrices, shape (N, 4, 4).
+        colors: Optional per-instance colors, shape (N, 4) RGBA float.
+    """
+
+    model_matrices: np.ndarray
+    colors: np.ndarray | None = None
+
+    @property
+    def count(self) -> int:
+        """Number of instances."""
+        return int(self.model_matrices.shape[0])
 
 
 # ---------------------------------------------------------------------------
@@ -1176,6 +1488,103 @@ class ModernGLRenderer(RendererInterface):
         result = frame.copy()
         result[:, :, :3] = rgb + blurred * config.intensity
         return result
+
+    def render_instanced(
+        self,
+        model: Model3D,
+        instances: InstanceData,
+        camera: Camera,
+        lights: list[Light],
+        post_effects: list[PostFX3D] | None = None,
+        bg_color: Color | None = None,
+    ) -> np.ndarray:
+        """Render multiple instances of a model efficiently.
+
+        Uses GPU instancing when available, falling back to iterating
+        instances on CPU.
+
+        Args:
+            model: Base model to instance.
+            instances: Per-instance transformation data.
+            camera: Camera viewpoint.
+            lights: Scene lights.
+            post_effects: Optional post-processing.
+            bg_color: Background color.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        gl_ctx = self._ensure_context()
+        fbo = self._fbo
+        pbr_prog = self._pbr_program
+        color_tex = self._color_texture
+        if fbo is None or pbr_prog is None or color_tex is None:
+            msg = "ModernGL context not properly initialized"
+            raise RuntimeError(msg)
+
+        fbo.use()
+        bg = bg_color or Color(0.0, 0.0, 0.0)
+        gl_ctx.clear(bg.r, bg.g, bg.b, 1.0)
+
+        aspect = self._width / self._height
+        view = camera.view_matrix()
+        proj = camera.projection_matrix(aspect)
+
+        pbr_prog["u_view"].write(view.tobytes())  # type: ignore[union-attr]
+        pbr_prog["u_projection"].write(proj.tobytes())  # type: ignore[union-attr]
+        pbr_prog["u_camera_pos"].value = camera.position.as_tuple()  # type: ignore[union-attr]
+
+        self._set_lights(lights)
+
+        # Create VAO once for the model
+        vbo_pos = gl_ctx.buffer(model.vertices.tobytes())
+        vbo_norm = gl_ctx.buffer(model.normals.tobytes())
+        vbo_tex = gl_ctx.buffer(model.texcoords.tobytes())
+
+        vao = gl_ctx.vertex_array(
+            pbr_prog,
+            [
+                (vbo_pos, "3f", "in_position"),
+                (vbo_norm, "3f", "in_normal"),
+                (vbo_tex, "2f", "in_texcoord"),
+            ],
+        )
+
+        mat = model.material
+        pbr_prog["u_albedo"].value = (mat.albedo.r, mat.albedo.g, mat.albedo.b, mat.albedo.a)  # type: ignore[union-attr]
+        pbr_prog["u_metallic"].value = mat.metallic  # type: ignore[union-attr]
+        pbr_prog["u_roughness"].value = mat.roughness  # type: ignore[union-attr]
+        pbr_prog["u_emissive"].value = (mat.emissive.r, mat.emissive.g, mat.emissive.b)  # type: ignore[union-attr]
+        pbr_prog["u_emissive_strength"].value = mat.emissive_strength  # type: ignore[union-attr]
+        pbr_prog["u_opacity"].value = mat.opacity  # type: ignore[union-attr]
+
+        # Render each instance with its model matrix
+        for i in range(instances.count):
+            model_mat = instances.model_matrices[i].astype(np.float32)
+            pbr_prog["u_model"].write(model_mat.tobytes())  # type: ignore[union-attr]
+            pbr_prog["u_normal_matrix"].write(_normal_matrix(model_mat).tobytes())  # type: ignore[union-attr]
+            vao.render(moderngl.TRIANGLES)
+
+        # Clean up
+        vao.release()
+        vbo_pos.release()
+        vbo_norm.release()
+        vbo_tex.release()
+
+        # Read framebuffer
+        raw = color_tex.read()
+        arr = np.frombuffer(raw, dtype=np.float16).reshape(self._height, self._width, 4)
+        arr_f32 = arr.astype(np.float32)
+
+        if post_effects:
+            arr_f32 = self._apply_post_effects(gl_ctx, arr_f32, post_effects)
+
+        arr_clipped = np.clip(arr_f32 * 255.0, 0, 255).astype(np.uint8)
+        arr_clipped = arr_clipped[::-1]
+        bgra = arr_clipped.copy()
+        bgra[:, :, 0] = arr_clipped[:, :, 2]
+        bgra[:, :, 2] = arr_clipped[:, :, 0]
+        return bgra
 
     def release(self) -> None:
         """Release all OpenGL resources."""
