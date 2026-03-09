@@ -75,6 +75,50 @@ class TestVec3:
         v = Vec3(1.0, 2.0, 3.0)
         assert v.as_tuple() == (1.0, 2.0, 3.0)
 
+    def test_neg(self) -> None:
+        v = Vec3(1.0, -2.0, 3.0)
+        result = -v
+        assert result == Vec3(-1.0, 2.0, -3.0)
+
+    def test_normalize(self) -> None:
+        v = Vec3(3.0, 0.0, 0.0)
+        n = v.normalize()
+        assert abs(n.x - 1.0) < 1e-10
+        assert abs(n.y) < 1e-10
+        assert abs(n.length() - 1.0) < 1e-10
+
+    def test_normalize_zero_vector(self) -> None:
+        v = Vec3(0.0, 0.0, 0.0)
+        n = v.normalize()
+        assert n == Vec3(0.0, 0.0, 0.0)
+
+    def test_dot(self) -> None:
+        a = Vec3(1.0, 2.0, 3.0)
+        b = Vec3(4.0, 5.0, 6.0)
+        assert abs(a.dot(b) - 32.0) < 1e-10
+
+    def test_dot_perpendicular(self) -> None:
+        a = Vec3(1.0, 0.0, 0.0)
+        b = Vec3(0.0, 1.0, 0.0)
+        assert abs(a.dot(b)) < 1e-10
+
+    def test_cross(self) -> None:
+        x = Vec3(1.0, 0.0, 0.0)
+        y = Vec3(0.0, 1.0, 0.0)
+        z = x.cross(y)
+        assert abs(z.x) < 1e-10
+        assert abs(z.y) < 1e-10
+        assert abs(z.z - 1.0) < 1e-10
+
+    def test_cross_anticommutative(self) -> None:
+        a = Vec3(1.0, 2.0, 3.0)
+        b = Vec3(4.0, 5.0, 6.0)
+        ab = a.cross(b)
+        ba = b.cross(a)
+        assert abs(ab.x + ba.x) < 1e-10
+        assert abs(ab.y + ba.y) < 1e-10
+        assert abs(ab.z + ba.z) < 1e-10
+
 
 class TestClamp:
     """Test clamp function."""
