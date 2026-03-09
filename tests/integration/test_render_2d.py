@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
 from pymotion.clip.color import ColorClip, GradientClip
 from pymotion.clip.shape import ShapeClip
+from pymotion.clip.text import TextClip
 from pymotion.composition import Composition
 
 
@@ -115,3 +117,71 @@ class TestCompositionRender:
         assert frame[120, 160, 0] > 200
         # Corner should be black (background)
         assert frame[0, 0, 0] == 0
+
+
+class TestTextClipRender:
+    """Test TextClip rendering."""
+
+    def test_text_renders_to_frame(self) -> None:
+        """TextClip should render text pixels onto a frame."""
+        try:
+            clip = TextClip("Hello", font="Helvetica", size=24.0)
+            clip.set_duration(30)
+            ctx = _make_ctx()
+            frame = clip.render_frame(ctx)
+            assert frame.shape == (240, 320, 4)
+            assert frame.dtype == np.uint8
+            # Should have some non-zero alpha pixels (text rendered)
+            assert np.any(frame[:, :, 3] > 0)
+        except FileNotFoundError:
+            pytest.skip("Helvetica not found on this system")
+
+    def test_text_empty_renders_transparent(self) -> None:
+        """Empty TextClip should render transparent."""
+        try:
+            clip = TextClip("", font="Helvetica", size=24.0)
+            clip.set_duration(30)
+            ctx = _make_ctx()
+            frame = clip.render_frame(ctx)
+            assert frame.shape == (240, 320, 4)
+            assert np.all(frame[:, :, 3] == 0)
+        except FileNotFoundError:
+            pytest.skip("Helvetica not found on this system")
+
+    def test_text_in_composition(self) -> None:
+        """TextClip should render correctly within a composition."""
+        try:
+            comp = Composition(width=320, height=240, fps=30, duration=10)
+            comp.add(
+                ColorClip("#000000").set_duration(10),
+                TextClip("Test", font="Helvetica", size=48.0, color="#FFFFFF").set_duration(10),
+            )
+            frame = comp._render_frame(0)
+            assert frame.shape == (240, 320, 4)
+            # Should have white text pixels somewhere
+            white_pixels = (frame[:, :, 0] > 200) & (frame[:, :, 1] > 200) & (frame[:, :, 2] > 200)
+            assert np.any(white_pixels)
+        except FileNotFoundError:
+            pytest.skip("Helvetica not found on this system")
+
+
+class TestGradientClipTypes:
+    """Test gradient clip variants (radial, conic)."""
+
+    def test_radial_gradient(self) -> None:
+        clip = GradientClip("#FFFFFF", "#000000", gradient_type="radial")
+        ctx = _make_ctx()
+        frame = clip.render_frame(ctx)
+        assert frame.shape == (240, 320, 4)
+        # Center should be lighter than corner
+        center_val = int(frame[120, 160, 0])
+        corner_val = int(frame[0, 0, 0])
+        assert center_val > corner_val
+
+    def test_conic_gradient(self) -> None:
+        clip = GradientClip("#FF0000", "#0000FF", gradient_type="conic")
+        ctx = _make_ctx()
+        frame = clip.render_frame(ctx)
+        assert frame.shape == (240, 320, 4)
+        # Should have some color variation
+        assert frame.std() > 0

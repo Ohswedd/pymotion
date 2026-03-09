@@ -37,7 +37,7 @@ Started: 2026-03-09
 - [x] tests/unit/test_text_renderer.py
 - [x] tests/unit/test_audio_mixer.py
 - [x] tests/unit/test_transitions.py (all 20)
-- [ ] tests/integration/test_render_2d.py — extend with TextClip + VideoClip cases
+- [x] tests/integration/test_render_2d.py — extend with TextClip + VideoClip cases
 
 ## Completed Phases
 
