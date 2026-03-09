@@ -64,6 +64,53 @@ class TestCompositor:
         # Background should show through
         assert result[5, 5, 0] == 255  # B
 
+    def test_screen_blend(self) -> None:
+        bg = self._make_solid(10, 10, 0, 0, 128, 255)
+        layer = self._make_solid(10, 10, 0, 0, 128, 255)
+        result = composite_layers(bg, [(layer, BlendMode.SCREEN, 1.0)])
+        # screen: 255 - (255-128)*(255-128)/255 ≈ 192
+        r_val = result[5, 5, 2]
+        assert 188 <= r_val <= 196, f"Expected ~192, got {r_val}"
+
+    def test_overlay_blend(self) -> None:
+        bg = self._make_solid(10, 10, 0, 0, 64, 255)  # Dark
+        layer = self._make_solid(10, 10, 0, 0, 200, 255)
+        result = composite_layers(bg, [(layer, BlendMode.OVERLAY, 1.0)])
+        r_val = result[5, 5, 2]
+        # Overlay of dark bg: uses multiply formula → should be < 128
+        assert r_val < 128, f"Expected dark overlay, got {r_val}"
+
+    def test_soft_light_blend(self) -> None:
+        bg = self._make_solid(10, 10, 0, 0, 128, 255)
+        layer = self._make_solid(10, 10, 0, 0, 128, 255)
+        result = composite_layers(bg, [(layer, BlendMode.SOFT_LIGHT, 1.0)])
+        r_val = result[5, 5, 2]
+        # Soft light of 128 on 128 should be close to 128
+        assert 120 <= r_val <= 136, f"Expected ~128, got {r_val}"
+
+    def test_hard_light_blend(self) -> None:
+        bg = self._make_solid(10, 10, 0, 0, 128, 255)
+        layer = self._make_solid(10, 10, 0, 0, 64, 255)  # Dark layer
+        result = composite_layers(bg, [(layer, BlendMode.HARD_LIGHT, 1.0)])
+        r_val = result[5, 5, 2]
+        # Hard light with dark layer uses multiply
+        assert r_val < 128, f"Expected dark result, got {r_val}"
+
+    def test_difference_blend(self) -> None:
+        bg = self._make_solid(10, 10, 0, 0, 200, 255)
+        layer = self._make_solid(10, 10, 0, 0, 50, 255)
+        result = composite_layers(bg, [(layer, BlendMode.DIFFERENCE, 1.0)])
+        # difference: |200 - 50| = 150
+        r_val = result[5, 5, 2]
+        assert 145 <= r_val <= 155, f"Expected ~150, got {r_val}"
+
+    def test_difference_same_is_black(self) -> None:
+        bg = self._make_solid(10, 10, 0, 0, 128, 255)
+        layer = self._make_solid(10, 10, 0, 0, 128, 255)
+        result = composite_layers(bg, [(layer, BlendMode.DIFFERENCE, 1.0)])
+        r_val = result[5, 5, 2]
+        assert r_val < 5, f"Expected ~0, got {r_val}"
+
     def test_multiple_layers(self) -> None:
         bg = self._make_solid(10, 10, 0, 0, 0, 255)
         layer1 = self._make_solid(10, 10, 255, 0, 0, 255)
