@@ -1,58 +1,57 @@
-"""Gradient & Shapes — GradientClip and ShapeClip usage.
+"""Gradient Shapes — gradient backgrounds with geometric shapes.
 
-Demonstrates gradient backgrounds (linear, radial) and geometric
-shapes created with ShapeClip factory methods.
+Demonstrates GradientClip (linear and radial) combined with ShapeClip
+factory methods for rectangles, circles, and polygons.
 """
+
+from pathlib import Path
 
 from pymotion import Composition, GradientClip, ShapeClip
 
-comp = Composition(width=1920, height=1080, fps=30, duration=150)
+output_dir = Path(__file__).parent / "output"
+output_dir.mkdir(exist_ok=True)
 
-# Linear gradient background (top to bottom, purple to dark blue)
-gradient_bg = GradientClip(
-    color_start="#6c5ce7",
-    color_end="#0c0032",
-    gradient_type="linear",
-    direction=0.0,  # top to bottom
+FPS = 30
+DURATION = FPS * 5  # 150 frames
+
+comp = Composition(width=1920, height=1080, fps=FPS, duration=DURATION, background="#000000")
+
+bg = GradientClip("#0a0a2a", "#1a0a3a", direction=45.0)
+bg.set_duration(DURATION)
+
+radial_bg = GradientClip(
+    "#222255", "#000011", gradient_type="radial", center_x=0.5, center_y=0.5, radius=0.7
 )
-gradient_bg.set_duration(150)
+radial_bg.set_duration(DURATION).set_opacity(0.5)
 
-# Radial gradient overlay for a spotlight effect
-radial = GradientClip(
-    color_start="#ffffff",
-    color_end="#00000000",
-    gradient_type="radial",
-    center_x=0.5,
-    center_y=0.5,
-    radius=0.6,
+rect1 = ShapeClip.rect(
+    x=200, y=300, w=300, h=200, fill="#FF6B6B", stroke="#FFFFFF", stroke_width=3.0
 )
-radial.set_duration(150).set_opacity(0.3)
+rect1.set_duration(DURATION)
 
-# Shapes using factory methods
-rect = ShapeClip.rect(x=100, y=200, w=300, h=200, fill="#ff6348")
-rect.set_duration(150)
+rect2 = ShapeClip.rect(x=250, y=350, w=200, h=120, fill="#4ECDC4")
+rect2.set_duration(DURATION).set_opacity(0.7)
 
-circle = ShapeClip.circle(cx=960, cy=540, r=80, fill="#2ed573")
-circle.set_duration(150)
+circle1 = ShapeClip.circle(
+    cx=960, cy=540, r=120, fill="#FFD93D", stroke="#FFFFFF", stroke_width=2.0
+)
+circle1.set_duration(DURATION)
 
-ellipse = ShapeClip.ellipse(cx=1500, cy=400, rx=120, ry=60, fill="#ffa502")
-ellipse.set_duration(150)
+circle2 = ShapeClip.circle(cx=1050, cy=480, r=80, fill="#6BCB77")
+circle2.set_duration(DURATION).set_opacity(0.8)
 
 triangle = ShapeClip.polygon(
-    points=[(960, 800), (860, 950), (1060, 950)],
-    fill="#1e90ff",
+    points=[(1500.0, 300.0), (1700.0, 700.0), (1300.0, 700.0)],
+    fill="#C084FC",
 )
-triangle.set_duration(150)
+triangle.set_duration(DURATION)
 
-line = ShapeClip.line(x1=200, y1=100, x2=1720, y2=100, color="#ffffff", width=2.0)
-line.set_duration(150)
+diamond = ShapeClip.polygon(
+    points=[(960.0, 850.0), (1060.0, 950.0), (960.0, 1050.0), (860.0, 950.0)],
+    fill="#F472B6",
+)
+diamond.set_duration(DURATION).set_opacity(0.9)
 
-comp.add(gradient_bg)
-comp.add(radial)
-comp.add(rect)
-comp.add(circle)
-comp.add(ellipse)
-comp.add(triangle)
-comp.add(line)
-
-comp.render("gradient_shapes.mp4", preset="h264_1080p")
+comp.add(bg, radial_bg, rect1, rect2, circle1, circle2, triangle, diamond)
+comp.render(str(output_dir / "gradient_shapes.mp4"))
+print("Rendered: output/gradient_shapes.mp4")

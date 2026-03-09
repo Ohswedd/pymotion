@@ -1,42 +1,60 @@
-"""Particle Fire — fire particle effect.
+"""Particle Fire — fire particle system over a dark background.
 
-Uses the built-in fire() preset from the particle system, which
-configures emitters with warm colors, upward velocity, and drag.
+Uses the built-in fire() preset with ParticleSystem to render a fire
+effect composited over a dark gradient via a custom render loop.
 """
 
-from pymotion import ColorClip, Composition, Vec2
-from pymotion.particle.system import Emitter, ParticleSystem, fire
+from pathlib import Path
 
-comp = Composition(width=1920, height=1080, fps=30, duration=150)
+import numpy as np
 
-# Dark background
-background = ColorClip(color="#0a0a0a")
-background.set_duration(150)
+from pymotion import Composition, GradientClip
+from pymotion.export.encoder import FFmpegEncoder
+from pymotion.export.presets import get_preset
+from pymotion.particle.system import fire
 
-# Use the fire preset — returns a fully configured ParticleSystem
-fire_system = fire(width=1920, height=1080)
+output_dir = Path(__file__).parent / "output"
+output_dir.mkdir(exist_ok=True)
 
-# You can also build a custom particle system from scratch:
-custom_system = ParticleSystem(width=1920, height=1080)
-custom_system.add_emitter(
-    Emitter(
-        position=Vec2(960.0, 900.0),
-        rate=30.0,
-        lifetime=(20.0, 50.0),
-        speed=(2.0, 6.0),
-        angle=(250.0, 290.0),  # upward cone
-        size=(3.0, 8.0),
-        gravity=Vec2(0.0, -0.1),
-        drag=0.02,
-        turbulence=0.5,
-    )
+FPS = 30
+DURATION = FPS * 5  # 150 frames
+WIDTH, HEIGHT = 1920, 1080
+
+comp = Composition(width=WIDTH, height=HEIGHT, fps=FPS, duration=DURATION, background="#000000")
+
+bg = GradientClip("#0a0505", "#1a0a0a", direction=0.0)
+bg.set_duration(DURATION)
+comp.add(bg)
+
+fire_system = fire(WIDTH, HEIGHT)
+
+preset = get_preset("h264_1080p")
+encoder = FFmpegEncoder()
+
+
+def frame_iter():
+    fire_system.reset()
+    for i in range(DURATION):
+        base = comp._render_frame(i)
+        particle_frame = fire_system.simulate_frame()
+
+        base_f = base.astype(np.float32)
+        part_f = particle_frame.astype(np.float32)
+
+        base_f[:, :, :3] = np.clip(base_f[:, :, :3] + part_f[:, :, :3], 0, 255)
+        base_f[:, :, 3] = np.maximum(base_f[:, :, 3], part_f[:, :, 3])
+
+        yield base_f.astype(np.uint8)
+
+
+output_path = output_dir / "particle_fire.mp4"
+encoder.encode(
+    frame_iter=frame_iter(),
+    audio=None,
+    output=output_path,
+    preset=preset,
+    width=WIDTH,
+    height=HEIGHT,
+    fps=FPS,
 )
-
-comp.add(background)
-
-# In a real render loop, you would call:
-#   fire_system.step()                     # advance simulation
-#   particle_frame = fire_system.render()  # get BGRA array
-# and composite it onto each frame.
-
-comp.render("particle_fire.mp4", preset="h264_1080p")
+print("Rendered: output/particle_fire.mp4")

@@ -1,51 +1,81 @@
-"""Effects Showcase — apply visual effects to clips.
+"""Effects Showcase — applies visual effects to a gradient scene.
 
-Demonstrates creating effect instances and applying them to BGRA frames.
-Effects are stateless transform functions: effect.apply(frame, ctx).
+Demonstrates Vignette, FilmGrain, GaussianBlur, and Brightness effects
+applied through a custom render loop.
 """
+
+from pathlib import Path
 
 from pymotion import (
     Brightness,
-    ChromaticAberration,
-    ColorClip,
     Composition,
-    Contrast,
     FilmGrain,
-    GaussianBlur,
+    GradientClip,
+    ShapeClip,
     TextClip,
     Vignette,
 )
+from pymotion.clip.base import RenderContext, Resolution, TimeRange
+from pymotion.export.encoder import FFmpegEncoder
+from pymotion.export.presets import get_preset
 
-comp = Composition(width=1920, height=1080, fps=30, duration=150)
+output_dir = Path(__file__).parent / "output"
+output_dir.mkdir(exist_ok=True)
 
-# Base background
-background = ColorClip(color="#264653")
-background.set_duration(150)
+FPS = 30
+DURATION = FPS * 6  # 180 frames
+WIDTH, HEIGHT = 1920, 1080
 
-# Title
-title = TextClip(
-    text="Effects Showcase",
-    font="Arial",
-    size=56.0,
-    color="#E9C46A",
+comp = Composition(width=WIDTH, height=HEIGHT, fps=FPS, duration=DURATION, background="#000000")
+
+bg = GradientClip("#1a0533", "#0a1628", direction=135.0)
+bg.set_duration(DURATION)
+
+circle = ShapeClip.circle(cx=960, cy=540, r=200, fill="#FF6B6B")
+circle.set_duration(DURATION)
+
+rect = ShapeClip.rect(x=300, y=400, w=250, h=250, fill="#4ECDC4")
+rect.set_duration(DURATION)
+
+label = TextClip("Effects Showcase", color="#FFFFFF", size=48.0, font="Arial")
+label.set_duration(DURATION).set_position(960.0, 150.0)
+
+comp.add(bg, rect, circle, label)
+
+effects = [
+    Vignette(strength=0.6),
+    FilmGrain(strength=0.15),
+    Brightness(value=0.05),
+]
+
+preset = get_preset("h264_1080p")
+encoder = FFmpegEncoder()
+
+
+def frame_iter():
+    for i in range(DURATION):
+        frame = comp._render_frame(i)
+        ctx = RenderContext(
+            frame=i,
+            fps=FPS,
+            resolution=Resolution(WIDTH, HEIGHT),
+            time_range=TimeRange(start=0, end=DURATION),
+            local_frame=i,
+            progress=i / max(DURATION - 1, 1),
+        )
+        for effect in effects:
+            frame = effect.apply(frame, ctx)
+        yield frame
+
+
+output_path = output_dir / "effects_showcase.mp4"
+encoder.encode(
+    frame_iter=frame_iter(),
+    audio=None,
+    output=output_path,
+    preset=preset,
+    width=WIDTH,
+    height=HEIGHT,
+    fps=FPS,
 )
-title.set_duration(150).set_position(960, 200)
-
-# Create various effect instances
-vignette = Vignette(strength=0.6, radius=0.75, feather=0.4)
-film_grain = FilmGrain(strength=0.25, size=1.0, monochrome=True)
-blur = GaussianBlur(radius=3.0)
-brightness = Brightness(value=1.2)
-contrast = Contrast(value=1.3)
-chromatic = ChromaticAberration(offset=2.5, angle=45.0)
-
-# Effects are applied per-frame in a render loop:
-#   frame = vignette.apply(frame, ctx)
-#   frame = film_grain.apply(frame, ctx)
-#
-# Each effect takes a BGRA uint8 array and returns a new one.
-
-comp.add(background)
-comp.add(title)
-
-comp.render("effects_showcase.mp4", preset="h264_1080p")
+print("Rendered: output/effects_showcase.mp4")
