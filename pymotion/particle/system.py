@@ -1,1 +1,547 @@
-"""ParticleSystem, Emitter, and Particle for particle-based effects."""
+"""ParticleSystem, Emitter, and Particle for particle-based effects.
+
+All particle state is stored in NumPy arrays for vectorized updates.
+No per-particle Python loops during simulation or rendering.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from pymotion.clip.base import BlendMode, Clip, RenderContext
+from pymotion.utils.color import Color
+from pymotion.utils.logging import get_logger
+from pymotion.utils.math import Vec2
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class Emitter:
+    """Particle emitter configuration.
+
+    Args:
+        position: Spawn origin (x, y).
+        rate: Particles per frame.
+        lifetime: (min_frames, max_frames) randomized per particle.
+        speed: (min, max) initial speed in pixels/frame.
+        angle: (min_deg, max_deg) emission cone.
+        size: (min_px, max_px) particle size.
+        color_over_life: Gradient colors from birth to death.
+        opacity_over_life: Opacity values from birth to death.
+        gravity: Per-frame velocity delta.
+        drag: Velocity multiplier per frame (0 = no drag, 1 = instant stop).
+        turbulence: Random noise added to velocity per frame.
+        sprite: Optional sprite per particle (default: circle).
+        blend_mode: Blending mode for rendering.
+    """
+
+    position: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
+    rate: float = 10.0
+    lifetime: tuple[float, float] = (30.0, 60.0)
+    speed: tuple[float, float] = (1.0, 5.0)
+    angle: tuple[float, float] = (0.0, 360.0)
+    size: tuple[float, float] = (2.0, 6.0)
+    color_over_life: list[Color] = field(default_factory=lambda: [Color(1.0, 1.0, 1.0)])
+    opacity_over_life: list[float] = field(default_factory=lambda: [1.0, 0.0])
+    gravity: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
+    drag: float = 0.0
+    turbulence: float = 0.0
+    sprite: np.ndarray | None = None
+    blend_mode: BlendMode = BlendMode.ADD
+
+
+# Maximum particles per system to prevent memory issues
+_MAX_PARTICLES = 100_000
+
+
+class ParticleSystem:
+    """Vectorized particle system with one or more emitters.
+
+    All state is stored in flat NumPy arrays for efficient batch
+    updates. Renders particles to a BGRA numpy array.
+
+    Args:
+        width: Output width in pixels.
+        height: Output height in pixels.
+    """
+
+    def __init__(self, width: int, height: int) -> None:
+        """Initialize the particle system.
+
+        Args:
+            width: Render width in pixels.
+            height: Render height in pixels.
+        """
+        self._width = width
+        self._height = height
+        self._emitters: list[Emitter] = []
+
+        # Particle state arrays (pre-allocated, grown as needed)
+        self._capacity = 1024
+        self._count = 0
+        self._pos = np.zeros((self._capacity, 2), dtype=np.float32)
+        self._vel = np.zeros((self._capacity, 2), dtype=np.float32)
+        self._age = np.zeros(self._capacity, dtype=np.float32)
+        self._max_age = np.zeros(self._capacity, dtype=np.float32)
+        self._sizes = np.zeros(self._capacity, dtype=np.float32)
+        self._emitter_idx = np.zeros(self._capacity, dtype=np.int32)
+        self._rng = np.random.default_rng(42)
+
+    def add_emitter(self, emitter: Emitter) -> None:
+        """Add an emitter to the system.
+
+        Args:
+            emitter: The emitter to add.
+        """
+        self._emitters.append(emitter)
+
+    def _grow_arrays(self, needed: int) -> None:
+        """Grow internal arrays to accommodate more particles.
+
+        Args:
+            needed: Minimum required capacity.
+        """
+        new_cap = max(self._capacity * 2, needed)
+        new_cap = min(new_cap, _MAX_PARTICLES)
+
+        new_pos = np.zeros((new_cap, 2), dtype=np.float32)
+        new_vel = np.zeros((new_cap, 2), dtype=np.float32)
+        new_age = np.zeros(new_cap, dtype=np.float32)
+        new_max_age = np.zeros(new_cap, dtype=np.float32)
+        new_sizes = np.zeros(new_cap, dtype=np.float32)
+        new_eidx = np.zeros(new_cap, dtype=np.int32)
+
+        n = self._count
+        new_pos[:n] = self._pos[:n]
+        new_vel[:n] = self._vel[:n]
+        new_age[:n] = self._age[:n]
+        new_max_age[:n] = self._max_age[:n]
+        new_sizes[:n] = self._sizes[:n]
+        new_eidx[:n] = self._emitter_idx[:n]
+
+        self._pos = new_pos
+        self._vel = new_vel
+        self._age = new_age
+        self._max_age = new_max_age
+        self._sizes = new_sizes
+        self._emitter_idx = new_eidx
+        self._capacity = new_cap
+
+    def _spawn(self) -> None:
+        """Spawn new particles from all emitters."""
+        for ei, emitter in enumerate(self._emitters):
+            # Fractional accumulation for sub-frame rates
+            n_new = int(emitter.rate)
+            if n_new <= 0:
+                continue
+
+            total_after = self._count + n_new
+            if total_after > _MAX_PARTICLES:
+                n_new = max(0, _MAX_PARTICLES - self._count)
+                if n_new == 0:
+                    continue
+
+            if total_after > self._capacity:
+                self._grow_arrays(total_after)
+
+            start = self._count
+            end = start + n_new
+
+            # Position
+            self._pos[start:end, 0] = emitter.position.x
+            self._pos[start:end, 1] = emitter.position.y
+
+            # Random angle and speed
+            min_angle = math.radians(emitter.angle[0])
+            max_angle = math.radians(emitter.angle[1])
+            angles = self._rng.uniform(min_angle, max_angle, n_new).astype(np.float32)
+            speeds = self._rng.uniform(emitter.speed[0], emitter.speed[1], n_new).astype(np.float32)
+
+            self._vel[start:end, 0] = np.cos(angles) * speeds
+            self._vel[start:end, 1] = np.sin(angles) * speeds
+
+            # Lifetime
+            self._max_age[start:end] = self._rng.uniform(
+                emitter.lifetime[0], emitter.lifetime[1], n_new
+            ).astype(np.float32)
+
+            # Size
+            self._sizes[start:end] = self._rng.uniform(
+                emitter.size[0], emitter.size[1], n_new
+            ).astype(np.float32)
+
+            # Age starts at 0
+            self._age[start:end] = 0.0
+
+            # Emitter index
+            self._emitter_idx[start:end] = ei
+
+            self._count = end
+
+    def _update(self) -> None:
+        """Update all live particles by one frame."""
+        n = self._count
+        if n == 0:
+            return
+
+        # Age all particles
+        self._age[:n] += 1.0
+
+        # Remove dead particles (compact arrays)
+        alive = self._age[:n] < self._max_age[:n]
+        alive_count = int(np.sum(alive))
+
+        if alive_count < n:
+            self._pos[:alive_count] = self._pos[:n][alive]
+            self._vel[:alive_count] = self._vel[:n][alive]
+            self._age[:alive_count] = self._age[:n][alive]
+            self._max_age[:alive_count] = self._max_age[:n][alive]
+            self._sizes[:alive_count] = self._sizes[:n][alive]
+            self._emitter_idx[:alive_count] = self._emitter_idx[:n][alive]
+            self._count = alive_count
+            n = alive_count
+
+        if n == 0:
+            return
+
+        # Apply gravity from each emitter
+        for ei, emitter in enumerate(self._emitters):
+            mask = self._emitter_idx[:n] == ei
+            self._vel[:n, 0] += np.where(mask, emitter.gravity.x, 0.0)
+            self._vel[:n, 1] += np.where(mask, emitter.gravity.y, 0.0)
+
+            # Apply drag
+            if emitter.drag > 0:
+                drag_factor = 1.0 - emitter.drag
+                self._vel[:n, 0] = np.where(mask, self._vel[:n, 0] * drag_factor, self._vel[:n, 0])
+                self._vel[:n, 1] = np.where(mask, self._vel[:n, 1] * drag_factor, self._vel[:n, 1])
+
+            # Apply turbulence
+            if emitter.turbulence > 0:
+                turb = self._rng.normal(0, emitter.turbulence, (n, 2)).astype(np.float32)
+                self._vel[:n, 0] += np.where(mask, turb[:, 0], 0.0)
+                self._vel[:n, 1] += np.where(mask, turb[:, 1], 0.0)
+
+        # Apply velocity to position
+        self._pos[:n] += self._vel[:n]
+
+    def _render_frame(self) -> np.ndarray:
+        """Render current particle state to BGRA array.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        frame = np.zeros((self._height, self._width, 4), dtype=np.float32)
+        n = self._count
+
+        if n == 0:
+            return frame.astype(np.uint8)
+
+        for ei, emitter in enumerate(self._emitters):
+            mask = self._emitter_idx[:n] == ei
+            indices = np.nonzero(mask)[0]
+
+            if len(indices) == 0:
+                continue
+
+            # Get life progress (0 to 1)
+            life_progress = self._age[indices] / np.maximum(self._max_age[indices], 1.0)
+            life_progress = np.clip(life_progress, 0.0, 1.0)
+
+            # Interpolate color over life
+            colors = emitter.color_over_life
+            n_colors = len(colors)
+
+            # Interpolate opacity over life
+            opacities = emitter.opacity_over_life
+            n_opacities = len(opacities)
+
+            for j, idx in enumerate(indices):
+                px = int(self._pos[idx, 0])
+                py = int(self._pos[idx, 1])
+                sz = max(1, int(self._sizes[idx]))
+                t = float(life_progress[j])
+
+                # Color interpolation
+                if n_colors == 1:
+                    c = colors[0]
+                else:
+                    ci = t * (n_colors - 1)
+                    lo = min(int(ci), n_colors - 2)
+                    frac = ci - lo
+                    c0, c1 = colors[lo], colors[lo + 1]
+                    c = Color(
+                        c0.r + (c1.r - c0.r) * frac,
+                        c0.g + (c1.g - c0.g) * frac,
+                        c0.b + (c1.b - c0.b) * frac,
+                        c0.a + (c1.a - c0.a) * frac,
+                    )
+
+                # Opacity interpolation
+                if n_opacities == 1:
+                    opacity = opacities[0]
+                else:
+                    oi = t * (n_opacities - 1)
+                    lo_o = min(int(oi), n_opacities - 2)
+                    frac_o = oi - lo_o
+                    opacity = opacities[lo_o] + (opacities[lo_o + 1] - opacities[lo_o]) * frac_o
+
+                # Draw circle (or sprite)
+                half = sz // 2
+                y0 = max(0, py - half)
+                y1 = min(self._height, py + half + 1)
+                x0 = max(0, px - half)
+                x1 = min(self._width, px + half + 1)
+
+                if y0 >= y1 or x0 >= x1:
+                    continue
+
+                if emitter.blend_mode == BlendMode.ADD:
+                    # Additive blending
+                    frame[y0:y1, x0:x1, 0] += c.b * opacity
+                    frame[y0:y1, x0:x1, 1] += c.g * opacity
+                    frame[y0:y1, x0:x1, 2] += c.r * opacity
+                    frame[y0:y1, x0:x1, 3] = np.maximum(frame[y0:y1, x0:x1, 3], opacity)
+                else:
+                    # Normal blending
+                    frame[y0:y1, x0:x1, 0] = c.b * opacity
+                    frame[y0:y1, x0:x1, 1] = c.g * opacity
+                    frame[y0:y1, x0:x1, 2] = c.r * opacity
+                    frame[y0:y1, x0:x1, 3] = opacity
+
+        # Clamp and convert
+        result = np.clip(frame * 255.0, 0.0, 255.0).astype(np.uint8)
+        return result
+
+    def simulate_frame(self) -> np.ndarray:
+        """Advance simulation by one frame and render.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        self._spawn()
+        self._update()
+        return self._render_frame()
+
+    def reset(self) -> None:
+        """Reset all particles and state."""
+        self._count = 0
+        self._age[:] = 0.0
+
+    def to_clip(self, duration: int) -> ParticleClip:
+        """Convert this particle system to a renderable clip.
+
+        Args:
+            duration: Duration in frames.
+
+        Returns:
+            A ParticleClip bound to this system.
+        """
+        clip = ParticleClip(system=self)
+        clip.set_duration(duration)
+        return clip
+
+    @property
+    def particle_count(self) -> int:
+        """Current number of live particles."""
+        return self._count
+
+
+@dataclass
+class ParticleClip(Clip):
+    """Clip that renders a particle system to BGRA frames."""
+
+    system: ParticleSystem = field(default_factory=lambda: ParticleSystem(1920, 1080))
+    _frame_cache: dict[int, np.ndarray] = field(default_factory=dict, repr=False)
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Render a single frame of the particle system.
+
+        Simulates the system from the beginning to produce deterministic
+        output. Caches frames for efficiency.
+
+        Args:
+            ctx: Render context for this frame.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        target_frame = ctx.local_frame
+
+        if target_frame in self._frame_cache:
+            return self._frame_cache[target_frame]
+
+        # Reset and re-simulate up to target frame for determinism
+        self.system.reset()
+        self.system._rng = np.random.default_rng(42)
+
+        result = np.zeros((ctx.resolution.height, ctx.resolution.width, 4), dtype=np.uint8)
+        for _f in range(target_frame + 1):
+            result = self.system.simulate_frame()
+
+        self._frame_cache[target_frame] = result
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Built-in Particle Presets
+# ---------------------------------------------------------------------------
+
+
+def sparkles(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a sparkle particle effect.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, height / 2),
+            rate=15.0,
+            lifetime=(20.0, 40.0),
+            speed=(1.0, 4.0),
+            angle=(0.0, 360.0),
+            size=(1.0, 3.0),
+            color_over_life=[Color(1.0, 1.0, 0.8), Color(1.0, 0.8, 0.2)],
+            opacity_over_life=[1.0, 0.0],
+            blend_mode=BlendMode.ADD,
+        )
+    )
+    return ps
+
+
+def confetti(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a confetti particle effect.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, 0.0),
+            rate=20.0,
+            lifetime=(60.0, 120.0),
+            speed=(2.0, 6.0),
+            angle=(60.0, 120.0),
+            size=(4.0, 8.0),
+            color_over_life=[
+                Color(1.0, 0.2, 0.2),
+                Color(0.2, 0.8, 0.2),
+                Color(0.2, 0.2, 1.0),
+                Color(1.0, 1.0, 0.2),
+            ],
+            opacity_over_life=[1.0, 1.0, 0.5],
+            gravity=Vec2(0.0, 0.3),
+            drag=0.01,
+            blend_mode=BlendMode.NORMAL,
+        )
+    )
+    return ps
+
+
+def fire(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a fire particle effect.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, height * 0.8),
+            rate=30.0,
+            lifetime=(15.0, 30.0),
+            speed=(2.0, 5.0),
+            angle=(250.0, 290.0),
+            size=(3.0, 8.0),
+            color_over_life=[
+                Color(1.0, 1.0, 0.3),
+                Color(1.0, 0.5, 0.0),
+                Color(0.8, 0.1, 0.0),
+            ],
+            opacity_over_life=[1.0, 0.8, 0.0],
+            gravity=Vec2(0.0, -0.1),
+            turbulence=0.5,
+            blend_mode=BlendMode.ADD,
+        )
+    )
+    return ps
+
+
+def smoke(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a smoke particle effect.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, height * 0.8),
+            rate=10.0,
+            lifetime=(40.0, 80.0),
+            speed=(0.5, 2.0),
+            angle=(250.0, 290.0),
+            size=(6.0, 15.0),
+            color_over_life=[
+                Color(0.5, 0.5, 0.5),
+                Color(0.3, 0.3, 0.3),
+            ],
+            opacity_over_life=[0.3, 0.1, 0.0],
+            gravity=Vec2(0.0, -0.05),
+            turbulence=0.3,
+            drag=0.02,
+            blend_mode=BlendMode.NORMAL,
+        )
+    )
+    return ps
+
+
+def rain(width: int = 1920, height: int = 1080) -> ParticleSystem:
+    """Create a rain particle effect.
+
+    Args:
+        width: Output width.
+        height: Output height.
+
+    Returns:
+        Configured ParticleSystem.
+    """
+    ps = ParticleSystem(width, height)
+    ps.add_emitter(
+        Emitter(
+            position=Vec2(width / 2, 0.0),
+            rate=50.0,
+            lifetime=(30.0, 60.0),
+            speed=(8.0, 15.0),
+            angle=(85.0, 95.0),
+            size=(1.0, 2.0),
+            color_over_life=[Color(0.6, 0.7, 0.9)],
+            opacity_over_life=[0.6, 0.3],
+            gravity=Vec2(0.0, 0.5),
+            blend_mode=BlendMode.ADD,
+        )
+    )
+    return ps
