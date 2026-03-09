@@ -1,7 +1,8 @@
-"""Audio DSP effects — EQ, Compressor, Limiter via pedalboard.
+"""Audio DSP effects via pedalboard.
 
 Provides audio effect wrappers around the pedalboard library for
-common audio processing operations.
+common audio processing operations including EQ, dynamics,
+reverb, delay, pitch shifting, noise reduction, and filtering.
 """
 
 from __future__ import annotations
@@ -186,3 +187,195 @@ class Limiter:
             release_ms=self.release_ms,
         )
         return _process_audio(lim, samples, sample_rate)
+
+
+@dataclass
+class Reverb:
+    """Reverb effect.
+
+    Adds spatial reverberation to audio using a simple algorithmic reverb.
+
+    Args:
+        room_size: Size of the virtual room (0.0 to 1.0).
+        damping: High-frequency damping (0.0 to 1.0).
+        wet_level: Wet signal level (0.0 to 1.0).
+        dry_level: Dry signal level (0.0 to 1.0).
+    """
+
+    room_size: float = 0.5
+    damping: float = 0.5
+    wet_level: float = 0.33
+    dry_level: float = 0.4
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply reverb to audio samples.
+
+        Args:
+            samples: Audio samples, shape (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Processed audio samples.
+        """
+        pb = _import_pedalboard()
+        reverb: Any = pb.Reverb(
+            room_size=self.room_size,
+            damping=self.damping,
+            wet_level=self.wet_level,
+            dry_level=self.dry_level,
+        )
+        return _process_audio(reverb, samples, sample_rate)
+
+
+@dataclass
+class Delay:
+    """Delay effect.
+
+    Adds an echo/delay effect to audio.
+
+    Args:
+        delay_seconds: Delay time in seconds.
+        feedback: Feedback amount (0.0 to 1.0).
+        mix: Wet/dry mix (0.0 = dry, 1.0 = wet).
+    """
+
+    delay_seconds: float = 0.25
+    feedback: float = 0.3
+    mix: float = 0.5
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply delay to audio samples.
+
+        Args:
+            samples: Audio samples, shape (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Processed audio samples.
+        """
+        pb = _import_pedalboard()
+        delay: Any = pb.Delay(
+            delay_seconds=self.delay_seconds,
+            feedback=self.feedback,
+            mix=self.mix,
+        )
+        return _process_audio(delay, samples, sample_rate)
+
+
+@dataclass
+class PitchShift:
+    """Pitch shift effect.
+
+    Shifts the pitch of audio without changing tempo.
+
+    Args:
+        semitones: Number of semitones to shift (positive = up, negative = down).
+    """
+
+    semitones: float = 0.0
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply pitch shift to audio samples.
+
+        Args:
+            samples: Audio samples, shape (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Processed audio samples.
+        """
+        pb = _import_pedalboard()
+        shift: Any = pb.PitchShift(semitones=self.semitones)
+        return _process_audio(shift, samples, sample_rate)
+
+
+@dataclass
+class NoiseReduction:
+    """Noise reduction effect.
+
+    Applies a noise gate to reduce background noise.
+
+    Args:
+        threshold_db: Gate threshold in decibels.
+        ratio: Reduction ratio.
+        attack_ms: Attack time in milliseconds.
+        release_ms: Release time in milliseconds.
+    """
+
+    threshold_db: float = -40.0
+    ratio: float = 10.0
+    attack_ms: float = 1.0
+    release_ms: float = 100.0
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply noise reduction to audio samples.
+
+        Args:
+            samples: Audio samples, shape (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Processed audio samples.
+        """
+        pb = _import_pedalboard()
+        gate: Any = pb.NoiseGate(
+            threshold_db=self.threshold_db,
+            ratio=self.ratio,
+            attack_ms=self.attack_ms,
+            release_ms=self.release_ms,
+        )
+        return _process_audio(gate, samples, sample_rate)
+
+
+@dataclass
+class LowPassFilter:
+    """Low-pass filter effect.
+
+    Passes frequencies below the cutoff and attenuates higher frequencies.
+
+    Args:
+        cutoff_hz: Cutoff frequency in Hz.
+    """
+
+    cutoff_hz: float = 5000.0
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply low-pass filter to audio samples.
+
+        Args:
+            samples: Audio samples, shape (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Processed audio samples.
+        """
+        pb = _import_pedalboard()
+        lpf: Any = pb.LowpassFilter(cutoff_frequency_hz=self.cutoff_hz)
+        return _process_audio(lpf, samples, sample_rate)
+
+
+@dataclass
+class HighPassFilter:
+    """High-pass filter effect.
+
+    Passes frequencies above the cutoff and attenuates lower frequencies.
+
+    Args:
+        cutoff_hz: Cutoff frequency in Hz.
+    """
+
+    cutoff_hz: float = 200.0
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply high-pass filter to audio samples.
+
+        Args:
+            samples: Audio samples, shape (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Processed audio samples.
+        """
+        pb = _import_pedalboard()
+        hpf: Any = pb.HighpassFilter(cutoff_frequency_hz=self.cutoff_hz)
+        return _process_audio(hpf, samples, sample_rate)

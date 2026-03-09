@@ -1,6 +1,6 @@
 """PyMotion — A Python-native, code-first video generation framework.
 
-Public API exports for Phase 0.4.
+Public API exports for v1.0.
 """
 
 from pymotion.animation.easing import (
@@ -10,7 +10,7 @@ from pymotion.animation.easing import (
     steps,
 )
 from pymotion.animation.interpolator import AnimatableValue, interpolate
-from pymotion.animation.keyframe import Keyframe, KeyframeTrack
+from pymotion.animation.keyframe import Keyframe, KeyframeTrack, animate
 from pymotion.animation.spring import spring
 from pymotion.audio.analysis import (
     BeatDetector,
@@ -18,12 +18,24 @@ from pymotion.audio.analysis import (
     WaveformExtractor,
     waveform_to_keyframes,
 )
-from pymotion.audio.effects import EQ, Compressor, EQBand, Limiter
+from pymotion.audio.effects import (
+    EQ,
+    Compressor,
+    Delay,
+    EQBand,
+    HighPassFilter,
+    Limiter,
+    LowPassFilter,
+    NoiseReduction,
+    PitchShift,
+    Reverb,
+)
 from pymotion.audio.mixer import AudioClipData, AudioMixer
-from pymotion.clip.audio import AudioClip
-from pymotion.clip.base import BlendMode, RenderContext, Resolution, TimeRange
+from pymotion.clip.audio import AudioClip, Silence
+from pymotion.clip.base import Align, BlendMode, RenderContext, Resolution, TimeRange
 from pymotion.clip.color import ColorClip, GradientClip
 from pymotion.clip.image import ImageClip
+from pymotion.clip.scene3d import Scene3D, Scene3DClip
 from pymotion.clip.shape import ShapeClip
 from pymotion.clip.text import Shadow, TextClip, download_google_font
 from pymotion.clip.video import VideoClip
@@ -66,6 +78,25 @@ from pymotion.effects.visual import (
     Vignette,
 )
 from pymotion.export.presets import OutputPreset, get_preset
+from pymotion.particle.system import (
+    Emitter,
+    ParticleSystem,
+    confetti,
+    fire,
+    rain,
+    smoke,
+    sparkles,
+    stars,
+)
+from pymotion.render.backend_3d import (
+    AmbientLight,
+    Camera,
+    DirectionalLight,
+    HDRIEnvironment,
+    PBRMaterial,
+    PointLight,
+    SpotLight,
+)
 from pymotion.render.color_pipeline import (
     tone_map_aces,
     tone_map_filmic,
@@ -128,6 +159,17 @@ from pymotion.transition.library import (
 from pymotion.utils.color import Color
 from pymotion.utils.math import Vec2, Vec3
 
+# Particle preset aliases (PRD uses capitalized names)
+Sparkles = sparkles
+Confetti = confetti
+Fire = fire
+Smoke = smoke
+Rain = rain
+Stars = stars
+
+# Text preset alias (PRD uses ScrambleText)
+ScrambleText = Scramble
+
 __all__ = [
     # Composition
     "Composition",
@@ -137,9 +179,23 @@ __all__ = [
     "ColorClip",
     "GradientClip",
     "ImageClip",
+    "Scene3DClip",
     "ShapeClip",
     "TextClip",
     "VideoClip",
+    # Helpers
+    "Silence",
+    "Keyframe",
+    "animate",
+    # 3D
+    "Scene3D",
+    "Camera",
+    "PointLight",
+    "DirectionalLight",
+    "SpotLight",
+    "AmbientLight",
+    "HDRIEnvironment",
+    "PBRMaterial",
     # Text helpers
     "Shadow",
     "download_google_font",
@@ -150,10 +206,12 @@ __all__ = [
     "KineticText",
     "LetterByLetter",
     "Scramble",
+    "ScrambleText",
     "SplitReveal",
     "Typewriter",
     "WordByWord",
     # Core types
+    "Align",
     "AnimatableValue",
     "BlendMode",
     "Color",
@@ -164,7 +222,6 @@ __all__ = [
     "Vec3",
     # Animation
     "EasingFn",
-    "Keyframe",
     "KeyframeTrack",
     "cubic_bezier",
     "get_easing",
@@ -203,18 +260,24 @@ __all__ = [
     "LensFlareLight",
     "LightLeak",
     "NeonGlow",
-    # Audio
+    # Audio effects
     "AudioClipData",
     "AudioMixer",
     "BeatDetector",
     "Compressor",
+    "Delay",
     "EQ",
     "EQBand",
+    "HighPassFilter",
     "Limiter",
+    "LowPassFilter",
+    "NoiseReduction",
     "OnsetDetector",
+    "PitchShift",
+    "Reverb",
     "WaveformExtractor",
     "waveform_to_keyframes",
-    # Transitions (all 39)
+    # Transitions
     "Transition",
     "CircularWipe",
     "CoverDown",
@@ -255,6 +318,21 @@ __all__ = [
     "ZoomBlur",
     "ZoomIn",
     "ZoomOut",
+    # Particles
+    "ParticleSystem",
+    "Emitter",
+    "Sparkles",
+    "Confetti",
+    "Fire",
+    "Smoke",
+    "Rain",
+    "Stars",
+    "sparkles",
+    "confetti",
+    "fire",
+    "smoke",
+    "rain",
+    "stars",
     # Export
     "OutputPreset",
     "get_preset",
@@ -270,6 +348,8 @@ __all__ = [
     "tone_map_aces",
     "tone_map_filmic",
     "tone_map_reinhard",
+    # CountUp (text)
+    "CountUp",
 ]
 
-__version__ = "0.9.0-rc"
+__version__ = "1.0.0"

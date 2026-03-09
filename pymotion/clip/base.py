@@ -29,6 +29,28 @@ class BlendMode(Enum):
     DIFFERENCE = "difference"
 
 
+class Align(Enum):
+    """Text and element alignment options.
+
+    Used by TextClip and layout utilities to control positioning
+    of content within a clip's bounding box.
+    """
+
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"
+    TOP = "top"
+    BOTTOM = "bottom"
+    TOP_LEFT = "top_left"
+    TOP_CENTER = "top_center"
+    TOP_RIGHT = "top_right"
+    CENTER_LEFT = "center_left"
+    CENTER_RIGHT = "center_right"
+    BOTTOM_LEFT = "bottom_left"
+    BOTTOM_CENTER = "bottom_center"
+    BOTTOM_RIGHT = "bottom_right"
+
+
 @dataclass(frozen=True)
 class Resolution:
     """Video resolution.

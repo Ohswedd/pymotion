@@ -308,3 +308,29 @@ class AudioClip:
     def sample_rate(self) -> int:
         """Audio sample rate."""
         return self._sample_rate
+
+
+@dataclass
+class Silence:
+    """A silent audio clip of a specified duration.
+
+    Useful as a placeholder or spacer in audio timelines.
+
+    Args:
+        duration_sec: Duration of silence in seconds.
+        sample_rate: Sample rate in Hz.
+        channels: Number of audio channels.
+    """
+
+    duration_sec: float = 1.0
+    sample_rate: int = 48000
+    channels: int = 2
+
+    def get_samples(self) -> np.ndarray:
+        """Return a zero-filled audio buffer.
+
+        Returns:
+            Float64 audio samples of shape (n_samples, channels).
+        """
+        n_samples = int(self.duration_sec * self.sample_rate)
+        return np.zeros((n_samples, self.channels), dtype=np.float64)

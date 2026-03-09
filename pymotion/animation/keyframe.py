@@ -17,6 +17,43 @@ from pymotion.utils.math import Vec2, Vec3
 AnimatableValue = float | Color | Vec2 | Vec3
 
 
+def animate(
+    start: AnimatableValue,
+    end: AnimatableValue,
+    duration: int,
+    *,
+    easing: str = "linear",
+    delay: int = 0,
+) -> KeyframeTrack:
+    """Shorthand for creating a simple 2-keyframe animation.
+
+    Creates a KeyframeTrack that animates from ``start`` to ``end`` over
+    ``duration`` frames, optionally starting after a delay.
+
+    Args:
+        start: Value at the beginning of the animation.
+        end: Value at the end of the animation.
+        duration: Number of frames for the animation.
+        easing: Name of the easing function to apply.
+        delay: Number of frames to wait before the animation starts.
+
+    Returns:
+        A KeyframeTrack with two keyframes.
+
+    Raises:
+        ValueError: If duration is not positive.
+    """
+    if duration <= 0:
+        msg = f"Duration must be positive, got {duration}"
+        raise ValueError(msg)
+    return KeyframeTrack(
+        keyframes=[
+            Keyframe(frame=delay, value=start, easing=easing),
+            Keyframe(frame=delay + duration, value=end),
+        ]
+    )
+
+
 @dataclass
 class Keyframe:
     """A single keyframe defining a value at a specific frame.
