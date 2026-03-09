@@ -48,9 +48,9 @@ Started: 2026-03-09
 - [x] __init__.py — final public API surface (all effects, transitions, audio, templates exported)
 - [x] tests/unit/test_effects.py — all effects tested
 - [x] tests/unit/test_template.py — validation, type errors, path security
-- [ ] tests/integration/test_encode.py — extend with all presets
-- [ ] tests/snapshot/ — 20 reference frames total
-- [ ] pip-audit added to CI and passing
+- [x] tests/integration/test_encode.py — extended with 4 preset parametrized tests
+- [x] tests/snapshot/ — 20 reference frames (effects, transitions, text, particles)
+- [x] pip-audit added to CI and passing (already in .github/workflows/ci.yml)
 
 ## Completed Phases
 
@@ -70,7 +70,7 @@ Started: 2026-03-09
 - Exit criteria: valid MP4 render
 
 ## In Progress
-Remaining: test_encode preset coverage, snapshot tests, pip-audit CI
+(none — Phase 0.4 checklist COMPLETE)
 
 ## Blocked / Issues
 (none)
@@ -94,4 +94,4 @@ Remaining: test_encode preset coverage, snapshot tests, pip-audit CI
 - structlog add_logger_name removed — incompatible with PrintLoggerFactory
 - Google Fonts download uses httpx with domain allowlist (fonts.googleapis.com, fonts.gstatic.com)
 - Variable font support via FontLoader.load_variable() with weight/width/slant axes
-- 956 tests pass, 85% coverage after Phase 0.4 implementation batch
+- 970 tests pass, 85% coverage — Phase 0.4 complete

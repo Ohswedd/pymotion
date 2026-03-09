@@ -14,8 +14,14 @@ import numpy as np
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
 from pymotion.clip.color import ColorClip, GradientClip
 from pymotion.clip.shape import ShapeClip
+from pymotion.effects.color import Brightness, Saturation
+from pymotion.effects.distortion import WaveWarp
+from pymotion.effects.light import NeonGlow
+from pymotion.effects.visual import GaussianBlur, Vignette
 from pymotion.particle.system import Emitter, ParticleSystem, sparkles
 from pymotion.render.color_pipeline import ColorGrade, apply_color_grade
+from pymotion.text.animated import Typewriter
+from pymotion.transition.library import CrossDissolve, IrisIn, WipeDiagonal
 from pymotion.utils.color import Color
 from pymotion.utils.math import Vec2
 
@@ -172,3 +178,91 @@ class TestShapeClipSnapshots:
         ctx = _make_ctx()
         frame = clip.render_frame(ctx)
         _save_or_compare("shape_rect_yellow", frame)
+
+
+class TestEffectSnapshots:
+    def test_gaussian_blur(self) -> None:
+        frame = np.zeros((48, 64, 4), dtype=np.uint8)
+        frame[20:28, 28:36, 2] = 255  # Red square
+        frame[:, :, 3] = 255
+        ctx = _make_ctx()
+        result = GaussianBlur(radius=3.0).apply(frame, ctx)
+        _save_or_compare("effect_gaussian_blur", result)
+
+    def test_vignette(self) -> None:
+        frame = np.full((48, 64, 4), 200, dtype=np.uint8)
+        frame[:, :, 3] = 255
+        ctx = _make_ctx()
+        result = Vignette(strength=0.8).apply(frame, ctx)
+        _save_or_compare("effect_vignette", result)
+
+    def test_neon_glow(self) -> None:
+        frame = np.zeros((48, 64, 4), dtype=np.uint8)
+        frame[20:28, 28:36] = [255, 0, 255, 255]  # Magenta square
+        ctx = _make_ctx()
+        result = NeonGlow(strength=1.0, radius=3.0).apply(frame, ctx)
+        _save_or_compare("effect_neon_glow", result)
+
+    def test_brightness(self) -> None:
+        frame = np.full((48, 64, 4), 100, dtype=np.uint8)
+        frame[:, :, 3] = 255
+        ctx = _make_ctx()
+        result = Brightness(value=1.5).apply(frame, ctx)
+        _save_or_compare("effect_brightness", result)
+
+    def test_saturation(self) -> None:
+        frame = np.zeros((48, 64, 4), dtype=np.uint8)
+        frame[:, :, 0] = 50
+        frame[:, :, 1] = 100
+        frame[:, :, 2] = 200
+        frame[:, :, 3] = 255
+        ctx = _make_ctx()
+        result = Saturation(value=0.0).apply(frame, ctx)
+        _save_or_compare("effect_desaturated", result)
+
+    def test_wave_warp(self) -> None:
+        frame = np.zeros((48, 64, 4), dtype=np.uint8)
+        for y in range(48):
+            frame[y, :, 1] = int(y / 48 * 255)
+        frame[:, :, 3] = 255
+        ctx = _make_ctx(frame=5)
+        result = WaveWarp(amplitude=5.0, frequency=2.0).apply(frame, ctx)
+        _save_or_compare("effect_wave_warp", result)
+
+
+class TestTransitionSnapshots:
+    def test_cross_dissolve_50(self) -> None:
+        a = np.zeros((48, 64, 4), dtype=np.uint8)
+        a[:, :, 2] = 255  # Red
+        a[:, :, 3] = 255
+        b = np.zeros((48, 64, 4), dtype=np.uint8)
+        b[:, :, 0] = 255  # Blue
+        b[:, :, 3] = 255
+        result = CrossDissolve().render_frame(a, b, 0.5)
+        _save_or_compare("transition_dissolve_50", result)
+
+    def test_iris_in_30(self) -> None:
+        a = np.full((48, 64, 4), 100, dtype=np.uint8)
+        a[:, :, 3] = 255
+        b = np.full((48, 64, 4), 200, dtype=np.uint8)
+        b[:, :, 3] = 255
+        result = IrisIn().render_frame(a, b, 0.3)
+        _save_or_compare("transition_iris_in_30", result)
+
+    def test_wipe_diagonal_50(self) -> None:
+        a = np.zeros((48, 64, 4), dtype=np.uint8)
+        a[:, :, 2] = 255
+        a[:, :, 3] = 255
+        b = np.zeros((48, 64, 4), dtype=np.uint8)
+        b[:, :, 1] = 255
+        b[:, :, 3] = 255
+        result = WipeDiagonal().render_frame(a, b, 0.5)
+        _save_or_compare("transition_wipe_diag_50", result)
+
+
+class TestAnimatedTextSnapshots:
+    def test_typewriter(self) -> None:
+        clip = Typewriter(text="Hello")
+        ctx = _make_ctx(width=120, height=60, frame=10, duration=60)
+        frame = clip.render_frame(ctx)
+        _save_or_compare("text_typewriter", frame)

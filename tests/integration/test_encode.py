@@ -1,4 +1,4 @@
-"""Integration tests for encoding pipeline — composition to MP4."""
+"""Integration tests for encoding pipeline — composition to MP4 and all presets."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import pytest
 from pymotion.clip.color import ColorClip
 from pymotion.clip.shape import ShapeClip
 from pymotion.composition import Composition
+from pymotion.export.presets import get_preset
 
 
 @pytest.fixture
@@ -76,6 +77,31 @@ class TestEncode:
 
         output = tmp_path / "test_output.mp4"
         result = comp.render(str(output), preset="h264_1080p")
+
+        assert result.exists()
+        assert result.stat().st_size > 0
+
+    @pytest.mark.parametrize(
+        "preset_name",
+        [
+            "h264_1080p",
+            "h265_1080p",
+            "webm_1080p",
+            "youtube_1080p",
+        ],
+    )
+    def test_render_presets(self, tmp_path: Path, has_ffmpeg: bool, preset_name: str) -> None:
+        """Test rendering with various presets."""
+        if not has_ffmpeg:
+            pytest.skip("FFmpeg not installed")
+
+        preset = get_preset(preset_name)
+        ext = preset.container
+        comp = Composition(width=320, height=240, fps=30, duration=5)
+        comp.add(ColorClip("#2A2A4E").set_duration(5))
+
+        output = tmp_path / f"test_{preset_name}.{ext}"
+        result = comp.render(str(output), preset=preset_name)
 
         assert result.exists()
         assert result.stat().st_size > 0
