@@ -1,58 +1,55 @@
 # PyMotion Development State
 
 ## Current Phase
-Phase: Beta 0.4 — Full Feature Completeness
+Phase: RC 0.9 — Polish & Production Readiness
 Started: 2026-03-09
 
-## Phase 0.4 Checklist
+## Phase RC 0.9 Checklist
 
-### Transitions
-- [x] transition/library.py — complete all 39 transitions (added 19 new)
+### Rendering & Performance
+- [ ] 4K rendering validated end-to-end (all presets at 3840×2160)
+- [ ] render/color_pipeline.py — ACES full color pipeline
+- [ ] render/pipeline.py — GPU instancing support (ModernGL)
 
-### Visual Effects
-- [x] effects/visual.py — MotionBlur, FilmGrain, Sharpen, ChromaticAberration, Glow, Bloom, LensFlare
-- [x] effects/color.py — Brightness, Contrast, Saturation, HSL, ColorBalance, Curves, LUT, SplitToning, BleachBypass
-- [x] effects/distortion.py — WaveWarp, Ripple, Twirl, PerspectiveWarp, Fisheye
-- [x] effects/light.py — LensFlareLight, GodRays, NeonGlow, LightLeak
-
-### Particles
-- [x] particle/system.py — remaining presets: Stars, Dust, Explosion, Bubbles
+### 3D Backend
+- [ ] render/backend_3d.py — HDRI environment maps (actual EXR loading)
+- [ ] render/backend_3d.py — shadow mapping (directional + spot)
+- [ ] render/backend_3d.py — skeletal animation (GLTF skin/animation)
 
 ### Typography
-- [x] text/animated.py — 9 animated text presets (Typewriter, WordByWord, LetterByLetter, Scramble, KineticText, SplitReveal, CountUp, CountDown, GlitchText)
-- [x] text/renderer.py — variable font support (weight, width, slant axes via load_variable)
-- [x] clip/text.py — Google Fonts download (download_google_font with httpx, caching, domain allowlist)
+- [ ] clip/text.py — variable fonts full axis support
 
-### Audio
-- [x] audio/mixer.py — volume keyframe automation, pan automation
-- [x] audio/analysis.py — waveform-to-keyframe converter
+### Preview & CLI
+- [ ] preview/server.py — Jupyter widget (export_frame inline + preview_widget)
+- [ ] cli/commands.py — pymotion doctor (checks all system deps)
 
-### Template System
-- [x] template/base.py — Template ABC with validation
+### Configuration
+- [ ] utils/asset.py — configurable LRU cache size via PyMotionConfig
+- [ ] pymotion/config.py — PyMotionConfig (allow_network, cache_size, etc.)
 
-### Export
-- [x] export/encoder.py — frame sequence support (PNG/EXR via encode_frame_sequence)
-- [x] export/presets.py — all 15 presets (added AV1, ProRes4444, ProResHQ, DNxHD, GIF, frame_sequence_png)
+### Quality Gates
+- [ ] All mypy --strict errors: zero
+- [ ] All ruff errors: zero
+- [ ] Test coverage: ≥ 85%
+- [ ] Performance regression tests in CI (baseline from benchmark command)
 
-### Security
-- [x] security/validation.py — all 5 validators + tests (added validate_file_size)
+### Documentation
+- [ ] docs/ — MkDocs + Material setup with mkdocstrings
+- [ ] docs/api/ — auto-generated from all public modules
+- [ ] docs/guides/ — minimum 5 guides: getting-started, keyframe-animation, audio-mixing, 3d-scenes, batch-generation
 
-### Rendering
-- [x] render/pipeline.py — frame cache for static layers
-- [x] render/compositor.py — all 8 blend modes
-
-### CLI
-- [x] cli/commands.py — benchmark, validate, new commands added
-
-### Integration
-- [x] __init__.py — final public API surface (all effects, transitions, audio, templates exported)
-- [x] tests/unit/test_effects.py — all effects tested
-- [x] tests/unit/test_template.py — validation, type errors, path security
-- [x] tests/integration/test_encode.py — extended with 4 preset parametrized tests
-- [x] tests/snapshot/ — 20 reference frames (effects, transitions, text, particles)
-- [x] pip-audit added to CI and passing (already in .github/workflows/ci.yml)
+### Examples & Packaging
+- [ ] examples/ — 10 working example scripts
+- [ ] Docker image — Dockerfile + build verified
+- [ ] CHANGELOG.md — complete from phase 0.1 to 0.9
+- [ ] README.md — complete with install, quickstart, feature matrix
 
 ## Completed Phases
+
+### Phase 0.4 — Full Feature Completeness (COMPLETE)
+- All 24 checklist items complete
+- 976 tests pass, 85% coverage
+- Exit criteria: batch-render 5 Templates with transitions, particles, effects, audio DSP
 
 ### Phase 0.3 — 3D, Particles, Advanced Audio (COMPLETE)
 - All 9 checklist items complete
@@ -70,7 +67,7 @@ Started: 2026-03-09
 - Exit criteria: valid MP4 render
 
 ## In Progress
-(none — Phase 0.4 checklist COMPLETE)
+(none)
 
 ## Blocked / Issues
 (none)
@@ -94,4 +91,4 @@ Started: 2026-03-09
 - structlog add_logger_name removed — incompatible with PrintLoggerFactory
 - Google Fonts download uses httpx with domain allowlist (fonts.googleapis.com, fonts.gstatic.com)
 - Variable font support via FontLoader.load_variable() with weight/width/slant axes
-- 970 tests pass, 85% coverage — Phase 0.4 complete
+- Effects use .apply(frame, ctx) pattern — not added to clips directly

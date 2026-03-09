@@ -257,4 +257,4 @@ __all__ = [
     "TemplateValidationError",
 ]
 
-__version__ = "0.4.0-alpha"
+__version__ = "0.9.0-rc"
