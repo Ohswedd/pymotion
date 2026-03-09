@@ -202,6 +202,106 @@ class FontLoader:
         msg = f"Font not found: '{font}'. Searched system directories for {system}."
         raise FileNotFoundError(msg)
 
+    def load_variable(
+        self,
+        font: str,
+        size: float = 24.0,
+        *,
+        weight: float | None = None,
+        width: float | None = None,
+        slant: float | None = None,
+    ) -> Any:
+        """Load a variable font with axis settings.
+
+        Supports OpenType variable fonts (e.g., .ttf files with fvar table).
+        Falls back to the default instance if axes are not available.
+
+        Args:
+            font: Font file path or font name.
+            size: Font size in points.
+            weight: Weight axis value (e.g., 100–900). None = font default.
+            width: Width axis value (e.g., 75–125). None = font default.
+            slant: Slant/italic axis value (e.g., -12 to 0). None = font default.
+
+        Returns:
+            A FreeType Face with variable axes applied.
+
+        Raises:
+            FileNotFoundError: If the font cannot be found.
+        """
+        axes = {"wght": weight, "wdth": width, "slnt": slant}
+        active = {k: v for k, v in axes.items() if v is not None}
+        cache_key = f"{font}:{size}:var:{active}"
+
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        font_path = self._resolve_font_path(font)
+        face = self._load_face(font_path, size)
+
+        # Apply variable font axes if supported
+        self._apply_variation_axes(face, active)
+
+        # LRU eviction
+        if len(self._cache) >= self._max_cache_size:
+            oldest = self._cache_order.pop(0)
+            self._cache.pop(oldest, None)
+            self._font_data_cache.pop(oldest, None)
+
+        self._cache[cache_key] = face
+        self._cache_order.append(cache_key)
+
+        logger.debug(
+            "variable_font_loaded",
+            font=font,
+            size=size,
+            axes=active,
+            path=str(font_path),
+        )
+        return face
+
+    @staticmethod
+    def _apply_variation_axes(face: Any, axes: dict[str, float]) -> None:
+        """Apply variation axis values to a FreeType face.
+
+        Uses FreeType's Multiple Masters / GX var API to set design
+        coordinates on variable fonts. Falls back gracefully if the
+        font is not variable or axes are unavailable.
+
+        Args:
+            face: FreeType Face with potential variable font support.
+            axes: Dict of axis tag to value (e.g., {"wght": 700}).
+        """
+        if not axes:
+            return
+
+        try:
+            # freetype-py exposes set_var_design_coordinates on variable fonts
+            if not hasattr(face, "set_var_design_coordinates"):
+                logger.debug("font_not_variable", msg="Face lacks set_var_design_coordinates")
+                return
+
+            # Get the font's axis definitions
+            has_axes = hasattr(face, "get_var_axis_list")
+            axis_list: list[Any] = face.get_var_axis_list() if has_axes else []
+            if not axis_list:
+                logger.debug("font_no_axes", msg="No variation axes found")
+                return
+
+            # Build coordinate array matching axis order
+            coords: list[float] = []
+            for axis in axis_list:
+                tag = axis.tag.decode("ascii") if isinstance(axis.tag, bytes) else str(axis.tag)
+                if tag in axes:
+                    coords.append(axes[tag])
+                else:
+                    coords.append(float(axis.default))
+
+            face.set_var_design_coordinates(coords)
+            logger.debug("variation_axes_applied", axes=axes)
+        except (AttributeError, TypeError, OSError) as exc:
+            logger.debug("variable_font_fallback", error=str(exc))
+
     def _load_face(self, path: Path, size: float) -> Any:
         """Load a FreeType face from a font file.
 

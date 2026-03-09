@@ -1,4 +1,4 @@
-"""CLI command definitions — render, export-frame, and preview.
+"""CLI command definitions — render, export-frame, preview, benchmark, validate, new.
 
 Provides the main CLI entry point using Click.
 """
@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import time
 from pathlib import Path
 
 import click
@@ -116,3 +117,100 @@ def preview(file: str, port: int, frame: int, output: str) -> None:
     result = comp.export_frame(frame, output)
     click.echo(f"Preview frame {frame} saved to: {result}")
     click.echo(f"(Full preview server on port {port} will be available in a future release)")
+
+
+@main.command()
+@click.argument("file")
+@click.option("--frames", "-n", default=30, type=int, help="Number of frames to benchmark.")
+def benchmark(file: str, frames: int) -> None:
+    """Profile render performance for a composition."""
+    from pymotion.composition import Composition
+
+    comp = _load_composition(file)
+    if not isinstance(comp, Composition):
+        msg = f"'comp' must be a Composition instance, got {type(comp).__name__}"
+        raise click.ClickException(msg)
+
+    click.echo(f"Benchmarking {frames} frames...")
+    start = time.perf_counter()
+
+    for i in range(frames):
+        comp._render_frame(i)  # noqa: SLF001
+
+    elapsed = time.perf_counter() - start
+    fps = frames / elapsed if elapsed > 0 else 0
+    ms_per_frame = (elapsed / frames * 1000) if frames > 0 else 0
+
+    click.echo(f"Rendered {frames} frames in {elapsed:.2f}s")
+    click.echo(f"  {fps:.1f} fps | {ms_per_frame:.1f} ms/frame")
+
+
+@main.command()
+@click.argument("file")
+def validate(file: str) -> None:
+    """Validate a composition without rendering."""
+    from pymotion.composition import Composition
+
+    comp = _load_composition(file)
+    if not isinstance(comp, Composition):
+        msg = f"'comp' must be a Composition instance, got {type(comp).__name__}"
+        raise click.ClickException(msg)
+
+    # Basic validation checks
+    errors: list[str] = []
+
+    if comp.duration <= 0:
+        errors.append("Composition duration must be > 0")
+
+    w = comp.resolution.width
+    h = comp.resolution.height
+    if w <= 0 or h <= 0:
+        errors.append(f"Invalid resolution: {w}x{h}")
+
+    if comp.fps <= 0:
+        errors.append(f"Invalid FPS: {comp.fps}")
+
+    if not comp.tracks:
+        errors.append("Composition has no tracks")
+
+    if errors:
+        for err in errors:
+            click.echo(f"  ERROR: {err}", err=True)
+        raise click.ClickException(f"Validation failed with {len(errors)} error(s)")
+
+    click.echo(f"Composition valid: {w}x{h} @ {comp.fps}fps, {comp.duration} frames")
+    click.echo(f"  Tracks: {len(comp.tracks)}")
+
+
+@main.command()
+@click.argument("directory")
+def new(directory: str) -> None:
+    """Scaffold a new PyMotion project."""
+    project_dir = Path(directory).resolve()
+
+    if project_dir.exists():
+        msg = f"Directory already exists: {project_dir}"
+        raise click.ClickException(msg)
+
+    project_dir.mkdir(parents=True)
+    (project_dir / "assets").mkdir()
+
+    comp_file = project_dir / "comp.py"
+    comp_file.write_text(
+        '"""PyMotion composition."""\n'
+        "\n"
+        "from pymotion import Composition, ColorClip, Resolution, Color\n"
+        "\n"
+        "comp = Composition(\n"
+        "    width=1920,\n"
+        "    height=1080,\n"
+        "    fps=30,\n"
+        "    duration=90,\n"
+        ")\n"
+        "\n"
+        'bg = ColorClip(color=Color.parse("#1a1a2e"))\n'
+        "comp.add_clip(bg, track=0)\n"
+    )
+
+    click.echo(f"Created new project at: {project_dir}")
+    click.echo(f"  Edit {comp_file.name} and run: pymotion render {comp_file.name}")

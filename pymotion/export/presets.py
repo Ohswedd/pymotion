@@ -134,16 +134,85 @@ TIKTOK = OutputPreset(
     extra_flags=["-preset", "fast", "-s", "1080x1920"],
 )
 
+AV1_1080P = OutputPreset(
+    name="av1_1080p",
+    codec="libaom-av1",
+    pixel_format="yuv420p",
+    crf=28,
+    audio_codec="libopus",
+    audio_bitrate="128k",
+    container="webm",
+    extra_flags=["-cpu-used", "4", "-row-mt", "1"],
+)
+
+PRORES_4444 = OutputPreset(
+    name="prores_4444",
+    codec="prores_ks",
+    pixel_format="yuva444p10le",
+    audio_codec="pcm_s24le",
+    audio_bitrate="0",
+    container="mov",
+    extra_flags=["-profile:v", "4"],
+)
+
+PRORES_HQ = OutputPreset(
+    name="prores_hq",
+    codec="prores_ks",
+    pixel_format="yuv422p10le",
+    audio_codec="pcm_s24le",
+    audio_bitrate="0",
+    container="mov",
+    extra_flags=["-profile:v", "3"],
+)
+
+DNXHD_1080P = OutputPreset(
+    name="dnxhd_1080p",
+    codec="dnxhd",
+    pixel_format="yuv422p",
+    bitrate="185M",
+    audio_codec="pcm_s24le",
+    audio_bitrate="0",
+    container="mov",
+)
+
+GIF_1080P = OutputPreset(
+    name="gif_1080p",
+    codec="gif",
+    pixel_format="pal8",
+    audio_codec="none",
+    audio_bitrate="0",
+    container="gif",
+    extra_flags=[
+        "-vf",
+        "fps=15,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse=dither=sierra2_4a",
+    ],
+)
+
+FRAME_SEQUENCE_PNG = OutputPreset(
+    name="frame_sequence_png",
+    codec="png",
+    pixel_format="rgba",
+    audio_codec="none",
+    audio_bitrate="0",
+    container="image2",
+)
+
 _PRESET_REGISTRY: dict[str, OutputPreset] = {
     "h264_1080p": H264_1080P,
     "h264_4k": H264_4K,
     "h265_1080p": H265_1080P,
     "h265_4k": H265_4K,
+    "av1_1080p": AV1_1080P,
+    "prores_4444": PRORES_4444,
+    "prores_hq": PRORES_HQ,
+    "dnxhd_1080p": DNXHD_1080P,
     "webm_1080p": WEBM_1080P,
+    "gif_1080p": GIF_1080P,
     "instagram_reel": INSTAGRAM_REEL,
     "youtube_1080p": YOUTUBE_1080P,
     "youtube_4k": YOUTUBE_4K,
     "tiktok": TIKTOK,
+    "frame_sequence_png": FRAME_SEQUENCE_PNG,
 }
 
 

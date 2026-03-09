@@ -134,6 +134,48 @@ def validate_asset_magic(path: Path, expected_types: list[str]) -> None:
     raise ValueError(msg)
 
 
+# File size limits per §9.1
+_FILE_SIZE_LIMITS: dict[str, int] = {
+    "image": 100 * 1024 * 1024,  # 100 MB
+    "audio": 500 * 1024 * 1024,  # 500 MB
+    "video": 500 * 1024 * 1024,  # 500 MB (no explicit limit in PRD, match audio)
+    "model": 200 * 1024 * 1024,  # 200 MB (3D models)
+}
+
+
+def validate_file_size(path: Path, asset_type: str) -> None:
+    """Validate that a file does not exceed the size limit for its type.
+
+    Args:
+        path: Path to the file.
+        asset_type: Asset type key ("image", "audio", "video", "model").
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the file exceeds the size limit or type is unknown.
+    """
+    if not path.exists():
+        msg = f"File does not exist: {path}"
+        raise FileNotFoundError(msg)
+
+    limit = _FILE_SIZE_LIMITS.get(asset_type)
+    if limit is None:
+        msg = f"Unknown asset type '{asset_type}'. Known: {list(_FILE_SIZE_LIMITS.keys())}"
+        raise ValueError(msg)
+
+    size = path.stat().st_size
+    if size > limit:
+        limit_mb = limit / (1024 * 1024)
+        size_mb = size / (1024 * 1024)
+        msg = (
+            f"File '{path.name}' ({size_mb:.1f} MB) exceeds "
+            f"{asset_type} size limit of {limit_mb:.0f} MB"
+        )
+        raise ValueError(msg)
+
+    logger.debug("file_size_validated", path=str(path), size=size, type=asset_type)
+
+
 def sanitize_text(text: str, max_length: int = 10_000) -> str:
     """Strip null bytes and control characters from user-provided text.
 

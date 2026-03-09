@@ -1,6 +1,6 @@
 """PyMotion — A Python-native, code-first video generation framework.
 
-Public API exports for Phase 0.2.
+Public API exports for Phase 0.4.
 """
 
 from pymotion.animation.easing import (
@@ -12,6 +12,12 @@ from pymotion.animation.easing import (
 from pymotion.animation.interpolator import AnimatableValue, interpolate
 from pymotion.animation.keyframe import Keyframe, KeyframeTrack
 from pymotion.animation.spring import spring
+from pymotion.audio.analysis import (
+    BeatDetector,
+    OnsetDetector,
+    WaveformExtractor,
+    waveform_to_keyframes,
+)
 from pymotion.audio.effects import EQ, Compressor, EQBand, Limiter
 from pymotion.audio.mixer import AudioClipData, AudioMixer
 from pymotion.clip.audio import AudioClip
@@ -19,32 +25,97 @@ from pymotion.clip.base import BlendMode, RenderContext, Resolution, TimeRange
 from pymotion.clip.color import ColorClip, GradientClip
 from pymotion.clip.image import ImageClip
 from pymotion.clip.shape import ShapeClip
-from pymotion.clip.text import Shadow, TextClip
+from pymotion.clip.text import Shadow, TextClip, download_google_font
 from pymotion.clip.video import VideoClip
 from pymotion.composition import Composition, Track
 from pymotion.effects.base import Effect
-from pymotion.effects.visual import GaussianBlur, Vignette
+from pymotion.effects.color import (
+    BleachBypass,
+    Brightness,
+    ColorBalance,
+    Contrast,
+    Curves,
+    HueSaturationLuminance,
+    LUTEffect,
+    Saturation,
+    SplitToning,
+)
+from pymotion.effects.distortion import (
+    Fisheye,
+    PerspectiveWarp,
+    Ripple,
+    Twirl,
+    WaveWarp,
+)
+from pymotion.effects.light import (
+    GodRays,
+    LensFlareLight,
+    LightLeak,
+    NeonGlow,
+)
+from pymotion.effects.visual import (
+    Bloom,
+    ChromaticAberration,
+    FilmGrain,
+    GaussianBlur,
+    Glow,
+    LensFlare,
+    MotionBlur,
+    Sharpen,
+    Vignette,
+)
 from pymotion.export.presets import OutputPreset, get_preset
+from pymotion.template.base import Template, TemplateValidationError
+from pymotion.text.animated import (
+    CountDown,
+    CountUp,
+    GlitchText,
+    KineticText,
+    LetterByLetter,
+    Scramble,
+    SplitReveal,
+    Typewriter,
+    WordByWord,
+)
 from pymotion.transition.base import Transition
 from pymotion.transition.library import (
+    CircularWipe,
+    CoverDown,
     CoverLeft,
     CoverRight,
+    CoverUp,
     CrossDissolve,
     Cut,
     DipToColor,
     Fade,
     FadeToBlack,
     FadeToWhite,
+    FilmBurn,
+    Glitch,
+    IrisIn,
+    IrisOut,
+    MorphWarp,
+    PageTurn,
+    PixelDissolve,
     PushDown,
     PushLeft,
     PushRight,
     PushUp,
+    RevealDown,
     RevealLeft,
     RevealRight,
+    RevealUp,
+    ScaleDissolve,
+    Shatter,
     SlideDown,
     SlideLeft,
     SlideRight,
     SlideUp,
+    Vortex,
+    WipeDiagonal,
+    WipeLeft,
+    WipeRight,
+    ZoomBlur,
     ZoomIn,
     ZoomOut,
 )
@@ -65,6 +136,17 @@ __all__ = [
     "VideoClip",
     # Text helpers
     "Shadow",
+    "download_google_font",
+    # Animated text presets
+    "CountDown",
+    "CountUp",
+    "GlitchText",
+    "KineticText",
+    "LetterByLetter",
+    "Scramble",
+    "SplitReveal",
+    "Typewriter",
+    "WordByWord",
     # Core types
     "AnimatableValue",
     "BlendMode",
@@ -83,42 +165,96 @@ __all__ = [
     "interpolate",
     "spring",
     "steps",
-    # Effects
+    # Visual effects
     "Effect",
+    "Bloom",
+    "ChromaticAberration",
+    "FilmGrain",
     "GaussianBlur",
+    "Glow",
+    "LensFlare",
+    "MotionBlur",
+    "Sharpen",
     "Vignette",
-    # Audio effects
+    # Color effects
+    "BleachBypass",
+    "Brightness",
+    "ColorBalance",
+    "Contrast",
+    "Curves",
+    "HueSaturationLuminance",
+    "LUTEffect",
+    "Saturation",
+    "SplitToning",
+    # Distortion effects
+    "Fisheye",
+    "PerspectiveWarp",
+    "Ripple",
+    "Twirl",
+    "WaveWarp",
+    # Light effects
+    "GodRays",
+    "LensFlareLight",
+    "LightLeak",
+    "NeonGlow",
+    # Audio
     "AudioClipData",
     "AudioMixer",
+    "BeatDetector",
     "Compressor",
     "EQ",
     "EQBand",
     "Limiter",
-    # Transitions
+    "OnsetDetector",
+    "WaveformExtractor",
+    "waveform_to_keyframes",
+    # Transitions (all 39)
     "Transition",
+    "CircularWipe",
+    "CoverDown",
     "CoverLeft",
     "CoverRight",
+    "CoverUp",
     "CrossDissolve",
     "Cut",
     "DipToColor",
     "Fade",
     "FadeToBlack",
     "FadeToWhite",
+    "FilmBurn",
+    "Glitch",
+    "IrisIn",
+    "IrisOut",
+    "MorphWarp",
+    "PageTurn",
+    "PixelDissolve",
     "PushDown",
     "PushLeft",
     "PushRight",
     "PushUp",
+    "RevealDown",
     "RevealLeft",
     "RevealRight",
+    "RevealUp",
+    "ScaleDissolve",
+    "Shatter",
     "SlideDown",
     "SlideLeft",
     "SlideRight",
     "SlideUp",
+    "Vortex",
+    "WipeDiagonal",
+    "WipeLeft",
+    "WipeRight",
+    "ZoomBlur",
     "ZoomIn",
     "ZoomOut",
     # Export
     "OutputPreset",
     "get_preset",
+    # Template
+    "Template",
+    "TemplateValidationError",
 ]
 
-__version__ = "0.2.0-alpha"
+__version__ = "0.4.0-alpha"

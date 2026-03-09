@@ -2,11 +2,16 @@
 
 Delegates rendering to the text/renderer.py GlyphRenderer, producing
 BGRA frames with text rendered at clip resolution.
+
+Includes a Google Fonts downloader for fetching web fonts on demand.
 """
 
 from __future__ import annotations
 
+import hashlib
+import re as _re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, Self
 
 import numpy as np
@@ -18,6 +23,90 @@ from pymotion.utils.color import Color, ColorInput
 from pymotion.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Google Fonts download config per PRD §9.3
+_GOOGLE_FONTS_CSS_URL = "https://fonts.googleapis.com/css2"
+_ALLOWED_DOMAINS = ("fonts.googleapis.com", "fonts.gstatic.com")
+_FONT_CACHE_DIR = Path.home() / ".cache" / "pymotion" / "fonts"
+_FONT_NAME_RE = _re.compile(r"^[a-zA-Z0-9 _-]+$")
+
+
+def download_google_font(
+    family: str,
+    *,
+    weight: int = 400,
+    cache_dir: Path | None = None,
+    timeout: float = 10.0,
+    max_size: int = 10 * 1024 * 1024,
+) -> Path:
+    """Download a Google Font and cache it locally.
+
+    Args:
+        family: Font family name (e.g., "Roboto", "Open Sans").
+        weight: Font weight (100–900). Default 400 (regular).
+        cache_dir: Directory for font cache. Default ~/.cache/pymotion/fonts.
+        timeout: HTTP request timeout in seconds.
+        max_size: Maximum font file size in bytes (default 10 MB).
+
+    Returns:
+        Path to the cached .ttf font file.
+
+    Raises:
+        ValueError: If the family name is invalid.
+        RuntimeError: If the download fails or response is too large.
+    """
+    import httpx
+
+    if not _FONT_NAME_RE.match(family):
+        msg = f"Invalid font family name: {family!r}. Use alphanumeric, spaces, hyphens."
+        raise ValueError(msg)
+
+    dest_dir = cache_dir or _FONT_CACHE_DIR
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    # Stable cache filename
+    cache_key = f"{family}-{weight}"
+    cache_hash = hashlib.sha256(cache_key.encode()).hexdigest()[:16]
+    cached_path = dest_dir / f"{cache_hash}.ttf"
+
+    if cached_path.exists():
+        logger.debug("google_font_cached", family=family, weight=weight, path=str(cached_path))
+        return cached_path
+
+    # Fetch CSS to find .ttf URL
+    css_url = f"{_GOOGLE_FONTS_CSS_URL}?family={family.replace(' ', '+')}:wght@{weight}"
+
+    with httpx.Client(
+        timeout=timeout,
+        max_redirects=2,
+        follow_redirects=True,
+    ) as client:
+        css_resp = client.get(
+            css_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        css_resp.raise_for_status()
+        css_text = css_resp.text
+
+        # Extract .ttf URL from CSS
+        ttf_match = _re.search(r"url\((https://fonts\.gstatic\.com/[^)]+\.ttf)\)", css_text)
+        if not ttf_match:
+            msg = f"Could not find .ttf URL in Google Fonts CSS for '{family}'"
+            raise RuntimeError(msg)
+
+        ttf_url = ttf_match.group(1)
+        font_resp = client.get(ttf_url)
+        font_resp.raise_for_status()
+
+        if len(font_resp.content) > max_size:
+            msg = f"Font file exceeds {max_size} bytes limit"
+            raise RuntimeError(msg)
+
+        cached_path.write_bytes(font_resp.content)
+
+    logger.info("google_font_downloaded", family=family, weight=weight, path=str(cached_path))
+    return cached_path
+
 
 # Module-level shared instances (not global mutable state — they're caches)
 _font_loader = FontLoader()

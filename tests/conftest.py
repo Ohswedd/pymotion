@@ -8,6 +8,11 @@ import pytest
 from pymotion.clip.base import Resolution
 from pymotion.composition import Composition
 
+# Ensure structlog is properly configured before any loggers are created
+from pymotion.utils.logging import configure_logging  # noqa: E402
+
+configure_logging(debug=False)
+
 
 @pytest.fixture
 def blank_comp() -> Composition:

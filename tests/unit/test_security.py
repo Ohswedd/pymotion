@@ -1,4 +1,4 @@
-"""Unit tests for pymotion.security.validation — all 4 validators."""
+"""Unit tests for pymotion.security.validation — all 5 validators."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pymotion.security.validation import (
     sanitize_text,
     validate_asset_magic,
     validate_color,
+    validate_file_size,
     validate_path,
 )
 from pymotion.utils.color import Color
@@ -119,3 +120,47 @@ class TestSanitizeText:
     def test_max_length_ok(self) -> None:
         result = sanitize_text("x" * 100, max_length=100)
         assert len(result) == 100
+
+
+class TestValidateFileSize:
+    """Test file size validation."""
+
+    def test_within_limit(self, tmp_path: Path) -> None:
+        f = tmp_path / "small.png"
+        f.write_bytes(b"\x89PNG" + b"\x00" * 100)
+        validate_file_size(f, "image")
+
+    def test_exceeds_limit(self, tmp_path: Path) -> None:
+        f = tmp_path / "huge.png"
+        # Write just over the minimum to test logic (use tiny limit)
+        f.write_bytes(b"\x00" * 200)
+        # Monkey-patch the limit for testing
+        from pymotion.security import validation
+
+        original = validation._FILE_SIZE_LIMITS["image"]
+        validation._FILE_SIZE_LIMITS["image"] = 100
+        try:
+            with pytest.raises(ValueError, match="exceeds"):
+                validate_file_size(f, "image")
+        finally:
+            validation._FILE_SIZE_LIMITS["image"] = original
+
+    def test_nonexistent_file(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            validate_file_size(tmp_path / "nope.bin", "image")
+
+    def test_unknown_type(self, tmp_path: Path) -> None:
+        f = tmp_path / "test.bin"
+        f.write_bytes(b"\x00" * 10)
+        with pytest.raises(ValueError, match="Unknown asset type"):
+            validate_file_size(f, "unknown_type")
+
+    def test_audio_limit(self, tmp_path: Path) -> None:
+        f = tmp_path / "small.wav"
+        f.write_bytes(b"RIFF" + b"\x00" * 100)
+        validate_file_size(f, "audio")
+
+    def test_model_limit(self, tmp_path: Path) -> None:
+        f = tmp_path / "small.glb"
+        f.write_bytes(b"\x00" * 100)
+        validate_file_size(f, "model")

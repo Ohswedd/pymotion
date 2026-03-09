@@ -150,6 +150,105 @@ class FFmpegEncoder:
         )
         return output
 
+    def encode_frame_sequence(
+        self,
+        frame_iter: Iterator[np.ndarray],
+        output_dir: Path,
+        width: int,
+        height: int,
+        fps: int,
+        fmt: str = "png",
+    ) -> Path:
+        """Encode frames as an image sequence to a directory.
+
+        Args:
+            frame_iter: Iterator yielding BGRA numpy arrays.
+            output_dir: Directory to write frame files to.
+            width: Frame width.
+            height: Frame height.
+            fps: Frames per second (stored in metadata if supported).
+            fmt: Image format ("png" or "exr").
+
+        Returns:
+            Path to the output directory.
+
+        Raises:
+            RuntimeError: If FFmpeg exits with an error.
+            ValueError: If format is not supported.
+        """
+        if fmt not in ("png", "exr"):
+            msg = f"Unsupported frame sequence format: {fmt}. Use 'png' or 'exr'."
+            raise ValueError(msg)
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        pattern = str(output_dir / f"frame_%06d.{fmt}")
+
+        if fmt == "png":
+            codec = "png"
+            pix_fmt = "rgba"
+        else:
+            codec = "exr"
+            pix_fmt = "gbrpf32le"
+
+        cmd = [
+            self._ffmpeg_path,
+            "-y",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "bgra",
+            "-s",
+            f"{width}x{height}",
+            "-r",
+            str(fps),
+            "-i",
+            "pipe:0",
+            "-c:v",
+            codec,
+            "-pix_fmt",
+            pix_fmt,
+            pattern,
+        ]
+
+        logger.info("ffmpeg_frame_seq_start", output_dir=str(output_dir), fmt=fmt)
+
+        process = subprocess.Popen(  # noqa: S603
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+
+        frame_count = 0
+        try:
+            if process.stdin is None:
+                msg = "FFmpeg stdin pipe not available"
+                raise RuntimeError(msg)
+            for frame in frame_iter:
+                process.stdin.write(frame.tobytes())
+                frame_count += 1
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
+
+        process.wait()
+        _stdout = process.stdout.read() if process.stdout else b""
+        stderr = process.stderr.read() if process.stderr else b""
+
+        if process.returncode != 0:
+            error_msg = stderr.decode("utf-8", errors="replace")
+            msg = f"FFmpeg frame sequence failed with code {process.returncode}: {error_msg}"
+            raise RuntimeError(msg)
+
+        logger.info(
+            "ffmpeg_frame_seq_complete",
+            output_dir=str(output_dir),
+            frames=frame_count,
+            fmt=fmt,
+        )
+        return output_dir
+
     def encode_frame_to_png(
         self,
         frame: np.ndarray,
