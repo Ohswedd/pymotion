@@ -1,0 +1,1 @@
+"""Effect abstract base class."""

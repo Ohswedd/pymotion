@@ -1,0 +1,1 @@
+"""Transition abstract base class."""
