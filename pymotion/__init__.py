@@ -91,6 +91,7 @@ from pymotion.effects.visual import (
     Vignette,
 )
 from pymotion.export.presets import OutputPreset, get_preset
+from pymotion.expressions import ExpressionContext, ExpressionFn, loop_in, loop_out, wiggle
 from pymotion.layout import grid, pip, split_screen, stack
 from pymotion.masking import (
     BezierMask,
@@ -250,6 +251,12 @@ __all__ = [
     "SplitReveal",
     "Typewriter",
     "WordByWord",
+    # Expressions
+    "ExpressionContext",
+    "ExpressionFn",
+    "loop_in",
+    "loop_out",
+    "wiggle",
     # Parenting
     "NullObject",
     # Core types

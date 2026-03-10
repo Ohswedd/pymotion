@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         TimeRemappedClip,
     )
     from pymotion.effects.base import Effect
+    from pymotion.expressions import ExpressionFn
     from pymotion.masking import MaskGroup, MaskOp
     from pymotion.proxy import ProxyClip
     from pymotion.tracking import StabilizedClip
@@ -202,6 +203,94 @@ class Clip(ABC):
     _effects: list[Effect] = field(default_factory=list)
     _masks: list[MaskGroup] = field(default_factory=list)
     _parent: Clip | None = field(default=None, repr=False)
+    _expressions: dict[str, ExpressionFn] = field(default_factory=dict, repr=False)
+
+    # ------------------------------------------------------------------
+    # Expressions
+    # ------------------------------------------------------------------
+
+    def set_expression(
+        self,
+        prop: str,
+        fn: ExpressionFn,
+    ) -> Self:
+        """Attach a Python callable expression to an animatable property.
+
+        The expression is evaluated each frame during
+        :meth:`render_with_effects` and the result is applied to the
+        property before rendering.
+
+        Supported properties: ``position.x``, ``position.y``,
+        ``scale.x``, ``scale.y``, ``rotation``, ``opacity``.
+
+        Args:
+            prop: Property name to drive.
+            fn: Callable receiving :class:`ExpressionContext` and
+                returning a float.
+
+        Returns:
+            Self for method chaining.
+
+        Raises:
+            ValueError: If the property name is not supported.
+        """
+        from pymotion.expressions import EXPRESSION_PROPERTIES
+
+        if prop not in EXPRESSION_PROPERTIES:
+            msg = (
+                f"Unsupported expression property '{prop}'. Valid: {sorted(EXPRESSION_PROPERTIES)}"
+            )
+            raise ValueError(msg)
+        self._expressions[prop] = fn
+        return self
+
+    def clear_expressions(self) -> Self:
+        """Remove all expressions from this clip.
+
+        Returns:
+            Self for method chaining.
+        """
+        self._expressions.clear()
+        return self
+
+    def _apply_expressions(self, ctx: RenderContext) -> None:
+        """Evaluate and apply all expression results to clip properties.
+
+        Called internally before rendering each frame.
+
+        Args:
+            ctx: Render context for the current frame.
+        """
+        if not self._expressions:
+            return
+
+        from pymotion.expressions import ExpressionContext, evaluate_expressions
+
+        expr_ctx = ExpressionContext(
+            frame=ctx.frame,
+            time=ctx.local_frame / ctx.fps if ctx.fps > 0 else 0.0,
+            fps=ctx.fps,
+            comp_width=ctx.resolution.width,
+            comp_height=ctx.resolution.height,
+            progress=ctx.progress,
+            local_frame=ctx.local_frame,
+        )
+
+        values = evaluate_expressions(self._expressions, expr_ctx)
+
+        for prop, val in values.items():
+            if prop == "position.x":
+                self._position = Vec2(val, self._position.y)
+            elif prop == "position.y":
+                self._position = Vec2(self._position.x, val)
+            elif prop == "scale.x":
+                self._scale = Vec2(val, self._scale.y)
+            elif prop == "scale.y":
+                self._scale = Vec2(self._scale.x, val)
+            elif prop == "rotation":
+                self._rotation = val
+            elif prop == "opacity":
+                self._opacity = max(0.0, min(1.0, val))
 
     # ------------------------------------------------------------------
     # Parenting
@@ -353,7 +442,7 @@ class Clip(ABC):
     def render_with_effects(self, ctx: RenderContext) -> np.ndarray:
         """Render a frame, apply all effects, then apply masks.
 
-        The pipeline is: render_frame() → effects → masks (alpha).
+        The pipeline is: expressions → render_frame() → effects → masks.
 
         Args:
             ctx: The render context for this frame.
@@ -361,6 +450,7 @@ class Clip(ABC):
         Returns:
             BGRA numpy array with all effects and masks applied.
         """
+        self._apply_expressions(ctx)
         frame = self.render_frame(ctx)
         for effect in self._effects:
             frame = effect.apply(frame, ctx)
