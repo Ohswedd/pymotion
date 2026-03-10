@@ -102,6 +102,18 @@ from pymotion.clip.scene3d import Scene3D, Scene3DClip
 from pymotion.clip.shape import ShapeClip
 from pymotion.clip.text import Shadow, TextClip, download_google_font
 from pymotion.clip.video import VideoClip
+from pymotion.color_science import (
+    HDR10_PRESET,
+    HLG_PRESET,
+    ColorMatch,
+    HistogramClip,
+    HSLSecondary,
+    ParadeScopeClip,
+    VectorscopeClip,
+    WaveformScopeClip,
+    aces_to_srgb,
+    srgb_to_aces,
+)
 from pymotion.composition import AdjustmentLayer, Composition, CompositionClip, Track
 from pymotion.config import PyMotionConfig, get_config, reset_config, set_config
 from pymotion.effects.base import Effect
@@ -182,7 +194,6 @@ from pymotion.render.color_pipeline import (
     tone_map_reinhard,
 )
 from pymotion.template.base import Template, TemplateValidationError
-from pymotion.tts import TTSClip
 from pymotion.text.animated import (
     CountDown,
     CountUp,
@@ -237,6 +248,7 @@ from pymotion.transition.library import (
     ZoomIn,
     ZoomOut,
 )
+from pymotion.tts import TTSClip
 from pymotion.utils.color import Color
 from pymotion.utils.math import Vec2, Vec3
 
@@ -526,6 +538,17 @@ __all__ = [
     "tone_map_aces",
     "tone_map_filmic",
     "tone_map_reinhard",
+    # Color science
+    "ColorMatch",
+    "HDR10_PRESET",
+    "HLG_PRESET",
+    "HSLSecondary",
+    "HistogramClip",
+    "ParadeScopeClip",
+    "VectorscopeClip",
+    "WaveformScopeClip",
+    "aces_to_srgb",
+    "srgb_to_aces",
     # CountUp (text)
     "CountUp",
 ]

@@ -368,6 +368,128 @@ class Composition:
         logger.info("frame_exported", frame=frame, output=str(output_path))
         return output_path
 
+    def export_edl(self, path: str | Path) -> None:
+        """Export the composition as a CMX 3600 EDL file.
+
+        Only :class:`~pymotion.clip.video.VideoClip` instances produce
+        source entries — other clip types are skipped.
+
+        Args:
+            path: Destination file path for the EDL.
+        """
+        from pymotion.clip.video import VideoClip  # noqa: PLC0415
+
+        out = Path(path).resolve()
+
+        lines: list[str] = []
+        lines.append(f"TITLE: {out.stem}")
+        lines.append(f"FCM: {'NON-DROP FRAME' if self.fps in (24, 25, 30) else 'DROP FRAME'}")
+        lines.append("")
+
+        event_num = 1
+        for track in self.tracks:
+            for clip in track.clips:
+                if not isinstance(clip, VideoClip):
+                    continue
+                src_name = clip.source.stem[:8].upper().ljust(8) if clip.source.name else "AX      "
+                rec_in = self._frames_to_tc(clip.start)
+                rec_out = self._frames_to_tc(clip.end)
+                src_in = self._frames_to_tc(0)
+                src_out = self._frames_to_tc(clip.end - clip.start)
+
+                lines.append(
+                    f"{event_num:03d}  {src_name} V     C        "
+                    f"{src_in} {src_out} {rec_in} {rec_out}"
+                )
+                if clip.source.name:
+                    lines.append(f"* FROM CLIP NAME: {clip.source.name}")
+                lines.append("")
+                event_num += 1
+
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("\n".join(lines), encoding="utf-8")
+        logger.info("edl_exported", path=str(out), events=event_num - 1)
+
+    def export_otio(self, path: str | Path) -> None:
+        """Export the composition as an OpenTimelineIO file.
+
+        Requires the ``opentimelineio`` package.
+
+        Args:
+            path: Destination file path (typically ``.otio``).
+
+        Raises:
+            ImportError: If opentimelineio is not installed.
+        """
+        try:
+            import opentimelineio as otio  # type: ignore[import-not-found]  # noqa: PLC0415
+        except ImportError:
+            msg = (
+                "opentimelineio is required for OTIO export. "
+                "Install it with: pip install opentimelineio"
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        from pymotion.clip.video import VideoClip  # noqa: PLC0415
+
+        out = Path(path).resolve()
+
+        rate = float(self.fps)
+        timeline = otio.schema.Timeline(name=out.stem)
+
+        for track in self.tracks:
+            otio_track = otio.schema.Track(name=track.name)
+            for clip in track.clips:
+                if not isinstance(clip, VideoClip):
+                    # Represent non-video clips as gaps
+                    gap_dur = clip.end - clip.start
+                    if gap_dur > 0:
+                        otio_track.append(
+                            otio.schema.Gap(
+                                source_range=otio.opentime.TimeRange(
+                                    start_time=otio.opentime.RationalTime(0, rate),
+                                    duration=otio.opentime.RationalTime(gap_dur, rate),
+                                )
+                            )
+                        )
+                    continue
+                clip_dur = clip.end - clip.start
+                media_ref = otio.schema.ExternalReference(
+                    target_url=str(clip.source),
+                )
+                otio_clip = otio.schema.Clip(
+                    name=clip.source.stem,
+                    source_range=otio.opentime.TimeRange(
+                        start_time=otio.opentime.RationalTime(0, rate),
+                        duration=otio.opentime.RationalTime(clip_dur, rate),
+                    ),
+                    media_reference=media_ref,
+                )
+                otio_track.append(otio_clip)
+
+            timeline.tracks.append(otio_track)
+
+        out.parent.mkdir(parents=True, exist_ok=True)
+        otio.adapters.write_to_file(timeline, str(out))
+        logger.info("otio_exported", path=str(out))
+
+    def _frames_to_tc(self, frames: int) -> str:
+        """Convert a frame count to SMPTE timecode HH:MM:SS:FF.
+
+        Args:
+            frames: Frame count.
+
+        Returns:
+            Timecode string.
+        """
+        fps = self.fps
+        f = frames % fps
+        total_seconds = frames // fps
+        s = total_seconds % 60
+        m = (total_seconds // 60) % 60
+        h = total_seconds // 3600
+        return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
+
     def to_clip(self) -> CompositionClip:
         """Convert this composition to a clip for nesting inside another.
 
