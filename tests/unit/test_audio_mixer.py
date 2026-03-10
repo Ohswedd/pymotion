@@ -5,7 +5,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pymotion.audio.mixer import AudioClipData, AudioMixer
+from pymotion.audio.mixer import (
+    STEREO_CHANNELS,
+    SURROUND_51_CHANNELS,
+    AudioClipData,
+    AudioMixer,
+    ChannelLayout,
+    SurroundChannel,
+)
 
 
 class TestAudioMixer:
@@ -130,3 +137,242 @@ class TestAudioClipData:
         samples = np.zeros(100, dtype=np.float64)
         clip = AudioClipData(samples=samples, start_sample=1000)
         assert clip.start_sample == 1000
+
+
+class TestSurroundChannel:
+    """Tests for SurroundChannel enum."""
+
+    def test_channel_indices(self) -> None:
+        assert SurroundChannel.L == 0
+        assert SurroundChannel.R == 1
+        assert SurroundChannel.C == 2
+        assert SurroundChannel.LFE == 3
+        assert SurroundChannel.LS == 4
+        assert SurroundChannel.RS == 5
+
+    def test_channel_count(self) -> None:
+        assert len(SurroundChannel) == 6
+
+
+class TestChannelLayout:
+    """Tests for ChannelLayout enum."""
+
+    def test_layout_values(self) -> None:
+        assert ChannelLayout.MONO == 1
+        assert ChannelLayout.STEREO == 2
+        assert ChannelLayout.SURROUND_51 == 6
+
+
+class TestChannelMaps:
+    """Tests for channel name-to-index mappings."""
+
+    def test_stereo_channels(self) -> None:
+        assert STEREO_CHANNELS == {"L": 0, "R": 1}
+
+    def test_surround_51_channels(self) -> None:
+        assert SURROUND_51_CHANNELS == {
+            "L": 0,
+            "R": 1,
+            "C": 2,
+            "LFE": 3,
+            "Ls": 4,
+            "Rs": 5,
+        }
+
+
+class TestSurroundMixing:
+    """Tests for 5.1 surround audio mixing."""
+
+    def test_surround_mixer_init(self) -> None:
+        """Create a 5.1 surround mixer."""
+        mixer = AudioMixer(channels=6)
+        assert mixer.channels == 6
+
+    def test_surround_render_empty(self) -> None:
+        """Rendering empty 5.1 mixer returns empty array."""
+        mixer = AudioMixer(channels=6)
+        result = mixer.render()
+        assert len(result) == 0
+        assert result.dtype == np.int32
+
+    def test_surround_render_mono_clip(self) -> None:
+        """Mono clip in 6-channel mixer duplicates across all channels."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 0.5
+        mixer.add(AudioClipData(samples=samples))
+        result = mixer.render()
+        # 100 samples * 6 channels interleaved
+        assert len(result) == 100 * 6
+
+    def test_surround_routing_center_only(self) -> None:
+        """Route a track to center channel only."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 0.8
+        mixer.add(AudioClipData(samples=samples), track="dialogue")
+        mixer.set_routing("dialogue", {"C": 1.0})
+        result = mixer.render()
+
+        # Reshape to (100, 6) to inspect per-channel
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        reshaped = result.reshape(-1, 6)
+
+        # Center channel (index 2) should have signal
+        assert reshaped[0, SurroundChannel.C] != 0
+        # L, R, LFE, Ls, Rs should be silent
+        assert reshaped[0, SurroundChannel.L] == 0
+        assert reshaped[0, SurroundChannel.R] == 0
+        assert reshaped[0, SurroundChannel.LFE] == 0
+        assert reshaped[0, SurroundChannel.LS] == 0
+        assert reshaped[0, SurroundChannel.RS] == 0
+        # Center should be close to 0.8 * max_val
+        expected = int(0.8 * max_val)
+        assert abs(reshaped[0, SurroundChannel.C] - expected) < 2
+
+    def test_surround_routing_lfe(self) -> None:
+        """Route a track to LFE with reduced gain."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 1.0
+        mixer.add(AudioClipData(samples=samples), track="bass")
+        mixer.set_routing("bass", {"LFE": 0.5})
+        result = mixer.render()
+        reshaped = result.reshape(-1, 6)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        expected = int(0.5 * max_val)
+        assert abs(reshaped[0, SurroundChannel.LFE] - expected) < 2
+        # Other channels silent
+        assert reshaped[0, SurroundChannel.L] == 0
+        assert reshaped[0, SurroundChannel.C] == 0
+
+    def test_surround_routing_multiple_channels(self) -> None:
+        """Route a track to front L, R, and center simultaneously."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 0.5
+        mixer.add(AudioClipData(samples=samples), track="music")
+        mixer.set_routing("music", {"L": 1.0, "R": 1.0, "C": 0.5})
+        result = mixer.render()
+        reshaped = result.reshape(-1, 6)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        # L and R should be at 0.5 * max
+        assert abs(reshaped[0, SurroundChannel.L] - int(0.5 * max_val)) < 2
+        assert abs(reshaped[0, SurroundChannel.R] - int(0.5 * max_val)) < 2
+        # C should be at 0.25 * max (0.5 signal * 0.5 gain)
+        assert abs(reshaped[0, SurroundChannel.C] - int(0.25 * max_val)) < 2
+        # Surround channels silent
+        assert reshaped[0, SurroundChannel.LS] == 0
+        assert reshaped[0, SurroundChannel.RS] == 0
+
+    def test_surround_routing_with_enum_keys(self) -> None:
+        """Route using SurroundChannel enum values as keys."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 0.6
+        mixer.add(AudioClipData(samples=samples), track="fx")
+        mixer.set_routing("fx", {SurroundChannel.LS: 0.8, SurroundChannel.RS: 0.8})
+        result = mixer.render()
+        reshaped = result.reshape(-1, 6)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        expected = int(0.6 * 0.8 * max_val)
+        assert abs(reshaped[0, SurroundChannel.LS] - expected) < 2
+        assert abs(reshaped[0, SurroundChannel.RS] - expected) < 2
+        assert reshaped[0, SurroundChannel.C] == 0
+
+    def test_surround_routing_with_int_keys(self) -> None:
+        """Route using integer channel indices as keys."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 0.7
+        mixer.add(AudioClipData(samples=samples), track="narration")
+        mixer.set_routing("narration", {2: 1.0})  # Center channel
+        result = mixer.render()
+        reshaped = result.reshape(-1, 6)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        assert abs(reshaped[0, 2] - int(0.7 * max_val)) < 2
+
+    def test_surround_routing_nonexistent_track_raises(self) -> None:
+        """Setting routing on nonexistent track should raise ValueError."""
+        mixer = AudioMixer(channels=6)
+        with pytest.raises(ValueError, match="Track.*not found"):
+            mixer.set_routing("ghost", {"C": 1.0})
+
+    def test_surround_routing_invalid_channel_name_raises(self) -> None:
+        """Invalid channel name should raise ValueError."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64)
+        mixer.add(AudioClipData(samples=samples), track="t")
+        with pytest.raises(ValueError, match="Unknown channel name"):
+            mixer.set_routing("t", {"INVALID": 1.0})
+
+    def test_surround_routing_channel_index_out_of_range_raises(self) -> None:
+        """Channel index beyond mixer channels should raise ValueError."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64)
+        mixer.add(AudioClipData(samples=samples), track="t")
+        with pytest.raises(ValueError, match="out of range"):
+            mixer.set_routing("t", {10: 1.0})
+
+    def test_surround_routing_negative_index_raises(self) -> None:
+        """Negative channel index should raise ValueError."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64)
+        mixer.add(AudioClipData(samples=samples), track="t")
+        with pytest.raises(ValueError, match="out of range"):
+            mixer.set_routing("t", {-1: 1.0})
+
+    def test_surround_multiple_tracks_different_routing(self) -> None:
+        """Multiple tracks with different routing should mix correctly."""
+        mixer = AudioMixer(channels=6)
+        dialogue = np.ones(100, dtype=np.float64) * 0.4
+        music = np.ones(100, dtype=np.float64) * 0.3
+
+        mixer.add(AudioClipData(samples=dialogue), track="dialogue")
+        mixer.add(AudioClipData(samples=music), track="music")
+
+        mixer.set_routing("dialogue", {"C": 1.0})
+        mixer.set_routing("music", {"L": 1.0, "R": 1.0})
+
+        result = mixer.render()
+        reshaped = result.reshape(-1, 6)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        # Center: dialogue at 0.4
+        assert abs(reshaped[0, SurroundChannel.C] - int(0.4 * max_val)) < 2
+        # L/R: music at 0.3
+        assert abs(reshaped[0, SurroundChannel.L] - int(0.3 * max_val)) < 2
+        assert abs(reshaped[0, SurroundChannel.R] - int(0.3 * max_val)) < 2
+
+    def test_surround_routing_with_volume(self) -> None:
+        """Track volume should combine with routing gain."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 1.0
+        mixer.add(AudioClipData(samples=samples), track="fx")
+        mixer.set_volume("fx", 0.5)
+        mixer.set_routing("fx", {"Ls": 1.0, "Rs": 1.0})
+        result = mixer.render()
+        reshaped = result.reshape(-1, 6)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        # Volume 0.5 * routing gain 1.0 * signal 1.0 = 0.5
+        expected = int(0.5 * max_val)
+        assert abs(reshaped[0, SurroundChannel.LS] - expected) < 2
+
+    def test_stereo_routing_with_string_keys(self) -> None:
+        """Routing works for stereo mixers too (L/R names)."""
+        mixer = AudioMixer(channels=2)
+        samples = np.ones(100, dtype=np.float64) * 0.6
+        mixer.add(AudioClipData(samples=samples), track="mono_src")
+        mixer.set_routing("mono_src", {"L": 1.0})  # Left only
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        assert abs(reshaped[0, 0] - int(0.6 * max_val)) < 2
+        assert reshaped[0, 1] == 0  # Right silent
+
+    def test_channel_layout_as_mixer_channels(self) -> None:
+        """ChannelLayout enum values work as mixer channel count."""
+        mixer = AudioMixer(channels=ChannelLayout.SURROUND_51)
+        assert mixer.channels == 6
+        mixer_stereo = AudioMixer(channels=ChannelLayout.STEREO)
+        assert mixer_stereo.channels == 2

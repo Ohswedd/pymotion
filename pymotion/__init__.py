@@ -30,7 +30,14 @@ from pymotion.audio.effects import (
     PitchShift,
     Reverb,
 )
-from pymotion.audio.mixer import AudioClipData, AudioMixer
+from pymotion.audio.mixer import (
+    STEREO_CHANNELS,
+    SURROUND_51_CHANNELS,
+    AudioClipData,
+    AudioMixer,
+    ChannelLayout,
+    SurroundChannel,
+)
 from pymotion.clip.audio import AudioClip, Silence
 from pymotion.clip.base import Align, BlendMode, NullObject, RenderContext, Resolution, TimeRange
 from pymotion.clip.chart import (
@@ -364,6 +371,10 @@ __all__ = [
     # Audio effects
     "AudioClipData",
     "AudioMixer",
+    "ChannelLayout",
+    "SurroundChannel",
+    "STEREO_CHANNELS",
+    "SURROUND_51_CHANNELS",
     "BeatDetector",
     "Compressor",
     "Delay",
