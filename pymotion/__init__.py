@@ -43,6 +43,12 @@ from pymotion.audio.mixer import (
     SurroundChannel,
 )
 from pymotion.clip.audio import AudioClip, Silence
+from pymotion.clip.audio_viz import (
+    AudioReactiveEffect,
+    SpectrogramClip,
+    SpectrumClip,
+    WaveformClip,
+)
 from pymotion.clip.base import Align, BlendMode, NullObject, RenderContext, Resolution, TimeRange
 from pymotion.clip.chart import (
     AreaChartClip,
@@ -375,6 +381,7 @@ __all__ = [
     # Audio effects
     "AudioBus",
     "AudioClipData",
+    "AudioReactiveEffect",
     "AudioMixer",
     "ChannelLayout",
     "SurroundChannel",
@@ -396,6 +403,9 @@ __all__ = [
     "Reverb",
     "WaveformExtractor",
     "audio_crossfade",
+    "SpectrogramClip",
+    "SpectrumClip",
+    "WaveformClip",
     "waveform_to_keyframes",
     # Transitions
     "Transition",
