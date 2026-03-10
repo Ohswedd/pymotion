@@ -975,6 +975,33 @@ class Clip(ABC):
 
         return self
 
+    def follow_path(
+        self,
+        svg_path_str: str,
+        duration: int,
+        align: bool = True,
+    ) -> Self:
+        """Animate this clip's center along an SVG path.
+
+        Sets expressions on position.x, position.y, and optionally rotation
+        to follow the path over the given duration in frames.
+
+        Args:
+            svg_path_str: SVG path data string (M, L, C, Z commands).
+            duration: Number of frames for the animation.
+            align: If True, rotate the clip to follow the path tangent.
+
+        Returns:
+            Self for method chaining.
+
+        Raises:
+            ValueError: If the path is empty or duration is not positive.
+        """
+        from pymotion.path_animation import follow_path as _follow_path
+
+        _follow_path(self, svg_path_str, duration, align=align)
+        return self
+
     @abstractmethod
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a single frame of this clip.

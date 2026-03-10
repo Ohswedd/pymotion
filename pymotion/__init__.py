@@ -114,6 +114,7 @@ from pymotion.particle.system import (
     sparkles,
     stars,
 )
+from pymotion.path_animation import StrokeClip, follow_path, morph_paths
 from pymotion.proxy import ProxyClip, clear_proxy_cache, proxy_cache_size
 from pymotion.render.backend_3d import (
     AmbientLight,
@@ -257,6 +258,10 @@ __all__ = [
     "loop_in",
     "loop_out",
     "wiggle",
+    # Path animation
+    "StrokeClip",
+    "follow_path",
+    "morph_paths",
     # Parenting
     "NullObject",
     # Core types

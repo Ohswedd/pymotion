@@ -315,3 +315,34 @@ class ShapeClip(Clip):
             )
             cr.set_line_width(self.stroke_width)
             cr.stroke()
+
+    def morph(
+        self,
+        path_a: str,
+        path_b: str,
+        progress: float,
+    ) -> Self:
+        """Set this shape's SVG path to an interpolation of two paths.
+
+        Both paths must have the same number of segments and the same
+        command structure. The shape_type is changed to ``"path"`` and
+        the interpolated SVG data is stored in ``params["d"]``.
+
+        Args:
+            path_a: Start SVG path data string.
+            path_b: End SVG path data string.
+            progress: Interpolation factor (0.0 = path_a, 1.0 = path_b).
+
+        Returns:
+            Self for method chaining.
+
+        Raises:
+            ValueError: If paths have different segment counts.
+        """
+        from pymotion.path_animation import morph_paths
+
+        self.shape_type = "path"
+        self.params["d"] = 0.0  # placeholder float for type consistency
+        self._morph_svg = morph_paths(path_a, path_b, progress)
+        self._cached_frame = None
+        return self
