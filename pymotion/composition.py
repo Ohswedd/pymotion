@@ -167,7 +167,7 @@ class Composition:
                         progress=progress,
                     )
 
-                    rendered = clip.render_frame(ctx)
+                    rendered = clip.render_with_effects(ctx)
                     # Combine clip and track opacity
                     effective_opacity = clip._opacity * track.opacity
                     # Track blend mode overrides clip when non-NORMAL

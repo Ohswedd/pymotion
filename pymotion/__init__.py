@@ -72,6 +72,7 @@ from pymotion.effects.distortion import (
     Twirl,
     WaveWarp,
 )
+from pymotion.effects.keying import ChromaKey, ColorKey, DifferenceKey, LumaKey
 from pymotion.effects.light import (
     GodRays,
     LensFlareLight,
@@ -272,6 +273,11 @@ __all__ = [
     "LUTEffect",
     "Saturation",
     "SplitToning",
+    # Keying effects
+    "ChromaKey",
+    "ColorKey",
+    "DifferenceKey",
+    "LumaKey",
     # Distortion effects
     "Fisheye",
     "PerspectiveWarp",

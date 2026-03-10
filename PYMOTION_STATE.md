@@ -79,11 +79,11 @@ Started: 2026-03-10
 - [x] Optical flow interpolation for slow-motion: `clip.speed(0.5, interpolation="optical_flow")` uses `cv2.calcOpticalFlowFarneback`; falls back to frame duplication if OpenCV unavailable
 
 ### 1.2.3 Chroma Key & Keying
-- [ ] `ChromaKey` effect — YCbCr-based green/blue screen removal; params: `color`, `tolerance`, `edge_softness`, `spill_suppression`
-- [ ] `LumaKey` effect — key on luminance threshold; params: `threshold`, `softness`, `invert`
-- [ ] `ColorKey` effect — key any arbitrary color using Lab color distance; params: `color`, `tolerance`, `softness`
-- [ ] `DifferenceKey` effect — key based on pixel difference from a reference frame
-- [ ] Shared keying utilities in `effects/keying.py`: `_feather_mask`, `_choke_mask`, `_despill`
+- [x] `ChromaKey` effect — YCbCr-based green/blue screen removal; params: `color`, `tolerance`, `edge_softness`, `spill_suppression`
+- [x] `LumaKey` effect — key on luminance threshold; params: `threshold`, `softness`, `invert`
+- [x] `ColorKey` effect — key any arbitrary color using Lab color distance; params: `color`, `tolerance`, `softness`
+- [x] `DifferenceKey` effect — key based on pixel difference from a reference frame
+- [x] Shared keying utilities in `effects/keying.py`: `_feather_mask`, `_choke_mask`, `_despill`
 
 ### 1.2.4 Picture-in-Picture & Layout Helpers
 - [ ] `pm.pip(main, overlay, position, size, border=None, shadow=None)` — composite overlay onto main; position accepts pixel tuple or named anchor

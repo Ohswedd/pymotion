@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         SubClip,
         TimeRemappedClip,
     )
+    from pymotion.effects.base import Effect
 
 
 class BlendMode(Enum):
@@ -173,6 +174,35 @@ class Clip(ABC):
     _scale: Vec2 = field(default_factory=lambda: Vec2(1.0, 1.0))
     _rotation: float = 0.0
     blend_mode: BlendMode = BlendMode.NORMAL
+    _effects: list[Effect] = field(default_factory=list)
+
+    def add_effect(self, effect: Effect) -> Self:
+        """Add a visual effect to this clip.
+
+        Effects are applied in order after the clip renders its frame.
+
+        Args:
+            effect: The effect to add.
+
+        Returns:
+            Self for method chaining.
+        """
+        self._effects.append(effect)
+        return self
+
+    def render_with_effects(self, ctx: RenderContext) -> np.ndarray:
+        """Render a frame and apply all attached effects.
+
+        Args:
+            ctx: The render context for this frame.
+
+        Returns:
+            BGRA numpy array with all effects applied.
+        """
+        frame = self.render_frame(ctx)
+        for effect in self._effects:
+            frame = effect.apply(frame, ctx)
+        return frame
 
     def set_duration(self, frames: int) -> Self:
         """Set the duration of this clip in frames.
