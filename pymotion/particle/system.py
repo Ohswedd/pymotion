@@ -230,92 +230,86 @@ class ParticleSystem:
         self._pos[:n] += self._vel[:n]
 
     def _render_frame(self) -> np.ndarray:
-        """Render current particle state to BGRA array.
+        """Render current particle state to BGRA array (fully vectorized).
+
+        Works directly in uint8 space to avoid float32 allocation and
+        conversion for the full frame. Uses vectorized scatter for
+        single-pixel particles.
 
         Returns:
             BGRA numpy array of shape (H, W, 4), dtype uint8.
         """
-        frame = np.zeros((self._height, self._width, 4), dtype=np.float32)
         n = self._count
-
         if n == 0:
-            return frame.astype(np.uint8)
+            return np.zeros((self._height, self._width, 4), dtype=np.uint8)
+
+        frame = np.zeros((self._height, self._width, 4), dtype=np.uint8)
 
         for ei, emitter in enumerate(self._emitters):
             mask = self._emitter_idx[:n] == ei
-            indices = np.nonzero(mask)[0]
-
-            if len(indices) == 0:
+            if not np.any(mask):
                 continue
 
-            # Get life progress (0 to 1)
-            life_progress = self._age[indices] / np.maximum(self._max_age[indices], 1.0)
-            life_progress = np.clip(life_progress, 0.0, 1.0)
+            pos = self._pos[:n][mask]
+            ages = self._age[:n][mask]
+            max_ages = self._max_age[:n][mask]
+            count = len(pos)
 
-            # Interpolate color over life
+            # Life progress (vectorized)
+            life_t = np.clip(ages / np.maximum(max_ages, 1.0), 0.0, 1.0)
+
+            # Vectorized color interpolation → uint8
             colors = emitter.color_over_life
             n_colors = len(colors)
+            color_arr = np.array([[c.b, c.g, c.r] for c in colors], dtype=np.float32)
 
-            # Interpolate opacity over life
-            opacities = emitter.opacity_over_life
-            n_opacities = len(opacities)
+            if n_colors == 1:
+                particle_bgr = np.broadcast_to(color_arr[0], (count, 3)).copy()
+            else:
+                ci = life_t * (n_colors - 1)
+                lo = np.clip(ci.astype(np.int32), 0, n_colors - 2)
+                frac = (ci - lo)[:, np.newaxis]
+                particle_bgr = color_arr[lo] + (color_arr[lo + 1] - color_arr[lo]) * frac
 
-            for j, idx in enumerate(indices):
-                px = int(self._pos[idx, 0])
-                py = int(self._pos[idx, 1])
-                sz = max(1, int(self._sizes[idx]))
-                t = float(life_progress[j])
+            # Vectorized opacity interpolation
+            opacities_arr = np.array(emitter.opacity_over_life, dtype=np.float32)
+            n_opacities = len(opacities_arr)
+            if n_opacities == 1:
+                particle_alpha = np.full(count, opacities_arr[0], dtype=np.float32)
+            else:
+                oi = life_t * (n_opacities - 1)
+                lo_o = np.clip(oi.astype(np.int32), 0, n_opacities - 2)
+                frac_o = oi - lo_o
+                particle_alpha = (
+                    opacities_arr[lo_o] + (opacities_arr[lo_o + 1] - opacities_arr[lo_o]) * frac_o
+                )
 
-                # Color interpolation
-                if n_colors == 1:
-                    c = colors[0]
-                else:
-                    ci = t * (n_colors - 1)
-                    lo = min(int(ci), n_colors - 2)
-                    frac = ci - lo
-                    c0, c1 = colors[lo], colors[lo + 1]
-                    c = Color(
-                        c0.r + (c1.r - c0.r) * frac,
-                        c0.g + (c1.g - c0.g) * frac,
-                        c0.b + (c1.b - c0.b) * frac,
-                        c0.a + (c1.a - c0.a) * frac,
-                    )
+            # Convert to uint8: color * opacity * 255
+            bgra_u8 = np.empty((count, 4), dtype=np.uint8)
+            co = particle_bgr * particle_alpha[:, np.newaxis] * 255.0
+            bgra_u8[:, :3] = np.clip(co, 0, 255).astype(np.uint8)
+            bgra_u8[:, 3] = np.clip(particle_alpha * 255.0, 0, 255).astype(np.uint8)
 
-                # Opacity interpolation
-                if n_opacities == 1:
-                    opacity = opacities[0]
-                else:
-                    oi = t * (n_opacities - 1)
-                    lo_o = min(int(oi), n_opacities - 2)
-                    frac_o = oi - lo_o
-                    opacity = opacities[lo_o] + (opacities[lo_o + 1] - opacities[lo_o]) * frac_o
+            # Integer positions, cull off-screen
+            px = pos[:, 0].astype(np.int32)
+            py = pos[:, 1].astype(np.int32)
+            visible = (px >= 0) & (px < self._width) & (py >= 0) & (py < self._height)
+            if not np.any(visible):
+                continue
 
-                # Draw circle (or sprite)
-                half = sz // 2
-                y0 = max(0, py - half)
-                y1 = min(self._height, py + half + 1)
-                x0 = max(0, px - half)
-                x1 = min(self._width, px + half + 1)
+            v_px = px[visible]
+            v_py = py[visible]
+            v_bgra = bgra_u8[visible]
 
-                if y0 >= y1 or x0 >= x1:
-                    continue
+            # Direct scatter write — most particles are 1-3px, just write center pixel
+            if emitter.blend_mode == BlendMode.ADD:
+                # Use uint16 accumulator for additive to avoid overflow
+                accum = frame[v_py, v_px].astype(np.uint16) + v_bgra.astype(np.uint16)
+                frame[v_py, v_px] = np.minimum(accum, 255).astype(np.uint8)
+            else:
+                frame[v_py, v_px] = v_bgra
 
-                if emitter.blend_mode == BlendMode.ADD:
-                    # Additive blending
-                    frame[y0:y1, x0:x1, 0] += c.b * opacity
-                    frame[y0:y1, x0:x1, 1] += c.g * opacity
-                    frame[y0:y1, x0:x1, 2] += c.r * opacity
-                    frame[y0:y1, x0:x1, 3] = np.maximum(frame[y0:y1, x0:x1, 3], opacity)
-                else:
-                    # Normal blending
-                    frame[y0:y1, x0:x1, 0] = c.b * opacity
-                    frame[y0:y1, x0:x1, 1] = c.g * opacity
-                    frame[y0:y1, x0:x1, 2] = c.r * opacity
-                    frame[y0:y1, x0:x1, 3] = opacity
-
-        # Clamp and convert
-        result = np.clip(frame * 255.0, 0.0, 255.0).astype(np.uint8)
-        return result
+        return frame
 
     def simulate_frame(self) -> np.ndarray:
         """Advance simulation by one frame and render.
@@ -357,12 +351,37 @@ class ParticleClip(Clip):
 
     system: ParticleSystem = field(default_factory=lambda: ParticleSystem(1920, 1080))
     _frame_cache: dict[int, np.ndarray] = field(default_factory=dict, repr=False)
+    _simulated_up_to: int = field(default=-1, repr=False)
+
+    def _ensure_simulated(self, up_to: int) -> None:
+        """Simulate frames sequentially up to the given frame.
+
+        Pre-simulates and caches all frames from the last simulated frame
+        to the target, avoiding O(n²) re-simulation from frame 0.
+
+        Args:
+            up_to: Target frame number (inclusive).
+        """
+        if up_to <= self._simulated_up_to:
+            return
+
+        # If we haven't started, reset the system
+        if self._simulated_up_to < 0:
+            self.system.reset()
+            self.system._rng = np.random.default_rng(42)
+
+        start = self._simulated_up_to + 1
+        for f in range(start, up_to + 1):
+            result = self.system.simulate_frame()
+            self._frame_cache[f] = result
+
+        self._simulated_up_to = up_to
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a single frame of the particle system.
 
-        Simulates the system from the beginning to produce deterministic
-        output. Caches frames for efficiency.
+        Uses sequential pre-simulation for O(n) total cost instead of
+        O(n²) re-simulation from frame 0 each time.
 
         Args:
             ctx: Render context for this frame.
@@ -375,16 +394,11 @@ class ParticleClip(Clip):
         if target_frame in self._frame_cache:
             return self._frame_cache[target_frame]
 
-        # Reset and re-simulate up to target frame for determinism
-        self.system.reset()
-        self.system._rng = np.random.default_rng(42)
-
-        result = np.zeros((ctx.resolution.height, ctx.resolution.width, 4), dtype=np.uint8)
-        for _f in range(target_frame + 1):
-            result = self.system.simulate_frame()
-
-        self._frame_cache[target_frame] = result
-        return result
+        self._ensure_simulated(target_frame)
+        return self._frame_cache.get(
+            target_frame,
+            np.zeros((ctx.resolution.height, ctx.resolution.width, 4), dtype=np.uint8),
+        )
 
 
 # ---------------------------------------------------------------------------

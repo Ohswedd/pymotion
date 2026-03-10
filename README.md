@@ -10,7 +10,7 @@ professional-grade video content entirely through Python code.
 | **2D Rendering** | Color, image, shape, gradient, and text clips with Cairo backend |
 | **3D Rendering** | PBR materials, multiple light types, SSAO/bloom/DOF post-FX (ModernGL) |
 | **Animation** | Keyframe tracks, 30+ easings, spring physics, cubic bezier |
-| **Typography** | FreeType + HarfBuzz, variable fonts, animated text presets |
+| **Typography** | FreeType + HarfBuzz, variable fonts, 9 animated text presets |
 | **Audio** | Mixing, EQ/compressor/limiter, beat detection, waveform analysis |
 | **Effects** | 30+ visual/color/distortion/light effects |
 | **Transitions** | 39 built-in transitions (fade, slide, wipe, zoom, glitch, etc.) |
@@ -44,22 +44,44 @@ pip install "pymotion[dev]"         # Development tools
 ## Quick Start
 
 ```python
-from pymotion import Composition, ColorClip, TextClip, Fade
+from pymotion import Composition, ColorClip, TextClip, Track
 
 # Create a 1080p, 30fps, 5-second composition
 comp = Composition(1920, 1080, fps=30, duration=150)
 
 # Add a background
-bg = ColorClip(color="#1a1a2e", duration=150, width=1920, height=1080)
-comp.add(bg)
+track = Track(name="main")
+bg = ColorClip(color="#1a1a2e")
+bg.set_duration(150)
+track.add(bg)
 
 # Add text
 title = TextClip("Hello, PyMotion!", font="Arial", size=72.0, color="#FFFFFF")
-title.set_position(960, 540).set_duration(150)
-comp.add(title)
+title.set_duration(150).set_position(480.0, 500.0)
+track.add(title)
 
-# Render to file
+comp.add_track(track)
 comp.render("output.mp4", preset="h264_1080p")
+```
+
+## Examples
+
+Five production-ready examples are included, each targeting a real-world niche:
+
+| # | Example | Niche | Features Used |
+|---|---------|-------|---------------|
+| 01 | Real Estate Tour | Property listings | ImageClip, Typewriter text, sparkle particles, multi-track z-ordering |
+| 02 | Tech Review Intro | YouTube intros | Typewriter, CountUp, radial/conic gradients, fire particles |
+| 03 | Fitness Social Ad | Instagram/TikTok | CountDown, CountUp, LetterByLetter, confetti, vertical (1080x1920) |
+| 04 | Restaurant Menu | Menu promos | WordByWord, Typewriter, stars particles, ShapeClip polygons |
+| 05 | Educational Explainer | E-learning | LetterByLetter, CountUp, sparkle particles, diagram shapes |
+
+```bash
+# Download stock assets (~5 MB)
+python examples/download_assets.py
+
+# Run any example
+python examples/01_real_estate_tour.py
 ```
 
 ## Batch Generation with Templates
@@ -73,7 +95,8 @@ class ProductTemplate(Template):
 
     def build(self) -> Composition:
         comp = Composition(1920, 1080, fps=30, duration=150)
-        bg = ColorClip(color=self.brand_color, duration=150, width=1920, height=1080)
+        bg = ColorClip(color=self.brand_color)
+        bg.set_duration(150)
         comp.add(bg)
         return comp
 
@@ -119,10 +142,8 @@ cd pymotion
 pip install -e ".[dev]"
 
 # Run checks
-ruff format pymotion/ tests/
-ruff check pymotion/ tests/
-mypy --strict pymotion/
-pytest tests/ -v
+make lint    # ruff format + ruff check + mypy --strict
+make test    # pytest with coverage
 ```
 
 ## License

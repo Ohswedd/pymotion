@@ -2,6 +2,22 @@
 
 Each preset creates one or more TextClip instances with per-character or
 per-word animation configured via render_frame overrides.
+
+Architecture
+------------
+Text-reveal presets (Typewriter, WordByWord, LetterByLetter) use a
+**reveal-mask** approach for flicker-free animation:
+
+1. The FULL final text is rendered once (cached) to a BGRA image.
+2. Each frame, a horizontal alpha mask smoothly reveals the text
+   left-to-right with a soft gradient edge.
+3. Already-revealed pixels are bit-for-bit identical every frame
+   because they come from the same cached image.
+4. The soft edge (configurable, default ~10 px) provides a
+   professional fade-in instead of an abrupt character pop.
+
+CountUp / CountDown use an ease-out timing curve so numbers
+decelerate smoothly toward the final value.
 """
 
 from __future__ import annotations
@@ -38,6 +54,51 @@ def _get_renderer() -> GlyphRenderer:
     return _cached_renderer
 
 
+# ---------------------------------------------------------------------------
+# Caches
+# ---------------------------------------------------------------------------
+_text_render_cache: dict[tuple[str, float, tuple[int, int, int, int], str], np.ndarray] = {}
+_char_positions_cache: dict[tuple[str, float, str], list[int]] = {}
+
+
+def _measure_char_positions(
+    text: str,
+    font_size: float,
+    font: str = "Arial",
+) -> list[int]:
+    """Return the cumulative x-advance after each character.
+
+    ``result[i]`` is the pixel x position of the right edge of
+    character ``text[i]``.  Used to compute the reveal-mask boundary.
+
+    Args:
+        text: The text to measure.
+        font_size: Font size in points.
+        font: Font name or path.
+
+    Returns:
+        List of cumulative pixel widths (length == len(text)).
+    """
+    key = (text, font_size, font)
+    cached = _char_positions_cache.get(key)
+    if cached is not None:
+        return cached
+
+    renderer = _get_renderer()
+    face = renderer._font_loader.load(font, font_size)
+    positions: list[int] = []
+    pen_x = 0
+    for ch in text:
+        face.load_char(ch)
+        pen_x += face.glyph.advance.x >> 6
+        positions.append(pen_x)
+
+    if len(_char_positions_cache) > 200:
+        _char_positions_cache.clear()
+    _char_positions_cache[key] = positions
+    return positions
+
+
 def _render_text_simple(
     text: str,
     width: int,
@@ -49,12 +110,15 @@ def _render_text_simple(
 ) -> np.ndarray:
     """Render text to a BGRA frame using FreeType via GlyphRenderer.
 
+    Uses a glyph cache keyed on (text, font_size, color, font) to avoid
+    redundant FreeType calls for identical text across frames.
+
     Args:
         text: Text to render.
         width: Frame width.
         height: Frame height.
         font_size: Font size in points.
-        color: BGRA color tuple (ignored, color comes from Color object).
+        color: BGRA color tuple.
         position: Text position (x, y).
         font: Font name or path.
 
@@ -65,72 +129,129 @@ def _render_text_simple(
     if not text.strip():
         return frame
 
-    # Convert BGRA uint8 tuple back to Color
-    b, g, r, a = color
-    text_color = Color(r / 255.0, g / 255.0, b / 255.0, a / 255.0)
+    cache_key = (text, font_size, color, font)
+    text_img = _text_render_cache.get(cache_key)
 
-    try:
+    if text_img is None:
+        b, g, r, a = color
+        text_color = Color(r / 255.0, g / 255.0, b / 255.0, a / 255.0)
         renderer = _get_renderer()
-        text_img = renderer.render_text(
-            text,
-            font,
-            font_size,
-            text_color,
-        )
+        text_img = renderer.render_text(text, font, font_size, text_color)
+        if len(_text_render_cache) > 500:
+            _text_render_cache.clear()
+        _text_render_cache[cache_key] = text_img
 
-        # Composite text image onto frame at position
-        th, tw = text_img.shape[:2]
-        px = int(position.x)
-        py = int(position.y)
+    th, tw = text_img.shape[:2]
+    px = int(position.x)
+    py = int(position.y)
 
-        src_y0 = max(0, -py)
-        src_x0 = max(0, -px)
-        dst_y0 = max(0, py)
-        dst_x0 = max(0, px)
-        copy_h = min(th - src_y0, height - dst_y0)
-        copy_w = min(tw - src_x0, width - dst_x0)
+    src_y0 = max(0, -py)
+    src_x0 = max(0, -px)
+    dst_y0 = max(0, py)
+    dst_x0 = max(0, px)
+    copy_h = min(th - src_y0, height - dst_y0)
+    copy_w = min(tw - src_x0, width - dst_x0)
 
-        if copy_h > 0 and copy_w > 0:
-            frame[dst_y0 : dst_y0 + copy_h, dst_x0 : dst_x0 + copy_w] = text_img[
-                src_y0 : src_y0 + copy_h, src_x0 : src_x0 + copy_w
-            ]
-    except (FileNotFoundError, OSError):
-        # Fallback: draw block characters if font not available
-        logger.debug("animated_text_font_fallback", font=font)
-        char_w = max(1, int(font_size * 0.6))
-        char_h = max(1, int(font_size))
-        x = int(position.x)
-        y = int(position.y)
-        for ch in text:
-            if ch == "\n":
-                x = int(position.x)
-                y += char_h + 2
-                continue
-            if ch == " ":
-                x += char_w
-                continue
-            x0 = max(0, x)
-            y0 = max(0, y)
-            x1 = min(width, x + char_w)
-            y1 = min(height, y + char_h)
-            if x0 < x1 and y0 < y1:
-                frame[y0:y1, x0:x1] = color
-            x += char_w + 1
+    if copy_h > 0 and copy_w > 0:
+        frame[dst_y0 : dst_y0 + copy_h, dst_x0 : dst_x0 + copy_w] = text_img[
+            src_y0 : src_y0 + copy_h, src_x0 : src_x0 + copy_w
+        ]
 
     return frame
 
 
+# ---------------------------------------------------------------------------
+# Reveal-mask helper
+# ---------------------------------------------------------------------------
+
+# Default soft-edge width for the reveal gradient (pixels).
+_REVEAL_FADE_PX = 10
+
+
+def _apply_reveal_mask(
+    frame: np.ndarray,
+    reveal_x: int,
+    position_x: int,
+    fade_px: int = _REVEAL_FADE_PX,
+) -> np.ndarray:
+    """Zero-out alpha past *reveal_x* with a soft gradient edge.
+
+    Pixels to the left of ``reveal_x - fade_px`` are untouched.
+    Pixels in the gradient zone fade linearly from full to zero alpha.
+    Pixels to the right of ``reveal_x`` are fully transparent.
+
+    Operates in-place on *frame* and returns it.
+
+    Args:
+        frame: BGRA frame (H, W, 4) uint8 — modified in place.
+        reveal_x: Absolute x position (in frame coords) where text
+            is fully visible up to.
+        position_x: The x position where the text starts.
+        fade_px: Width of the soft gradient edge in pixels.
+
+    Returns:
+        The same *frame* array (modified in place).
+    """
+    w = frame.shape[1]
+    # Clamp to valid range
+    reveal_x = max(position_x, min(reveal_x, w))
+    fade_start = max(position_x, reveal_x - fade_px)
+
+    # Everything right of reveal_x → transparent
+    if reveal_x < w:
+        frame[:, reveal_x:, 3] = 0
+
+    # Gradient zone
+    if fade_start < reveal_x:
+        n = reveal_x - fade_start
+        gradient = np.linspace(1.0, 0.0, n, dtype=np.float32)
+        alpha_region = frame[:, fade_start:reveal_x, 3].astype(np.float32)
+        alpha_region *= gradient[np.newaxis, :]
+        frame[:, fade_start:reveal_x, 3] = alpha_region.astype(np.uint8)
+
+    return frame
+
+
+# ---------------------------------------------------------------------------
+# Ease-out helper for CountUp / CountDown
+# ---------------------------------------------------------------------------
+
+def _ease_out_quint(t: float) -> float:
+    """Quintic ease-out: fast start, smooth deceleration.
+
+    Stronger than cubic — the counter reaches ~97% by halfway through,
+    so it spends the second half barely changing (settling effect).
+
+    Args:
+        t: Linear progress in [0, 1].
+
+    Returns:
+        Eased progress in [0, 1].
+    """
+    return 1.0 - (1.0 - t) ** 5
+
+
+# ═══════════════════════════════════════════════════════════════
+# TEXT-REVEAL PRESETS
+# ═══════════════════════════════════════════════════════════════
+
+
 @dataclass
 class Typewriter(Clip):
-    """Typewriter animated text — characters appear one by one.
+    """Typewriter animated text — characters revealed with a smooth wipe.
+
+    Renders the full text once and reveals it left-to-right using a
+    soft horizontal mask.  Each new character fades in over a few
+    pixels rather than popping in at full opacity.
 
     Args:
         text: The text to animate.
         font_size: Font size in pixels.
         color: Text color.
-        chars_per_frame: How many characters appear per frame.
-        cursor: Whether to show a blinking cursor.
+        chars_per_frame: How many characters are revealed per frame.
+        cursor: Whether to show a blinking cursor at the reveal edge.
         position: Text position.
+        fade_px: Width of the soft reveal edge in pixels.
     """
 
     text: str = ""
@@ -139,6 +260,7 @@ class Typewriter(Clip):
     chars_per_frame: float = 0.5
     cursor: bool = True
     position: Vec2 = Vec2(50.0, 50.0)
+    fade_px: int = _REVEAL_FADE_PX
 
     def __post_init__(self) -> None:
         """Sanitize text input."""
@@ -153,27 +275,68 @@ class Typewriter(Clip):
         Returns:
             BGRA frame.
         """
-        n_chars = min(len(self.text), int(ctx.local_frame * self.chars_per_frame))
-        visible = self.text[:n_chars]
-
-        # Add blinking cursor
-        if self.cursor and ctx.local_frame % 30 < 15:
-            visible += "|"
-
         b, g, r, a = self.color.to_bgra_uint8()
-        return _render_text_simple(
-            visible,
-            ctx.resolution.width,
-            ctx.resolution.height,
-            self.font_size,
-            (b, g, r, a),
-            self.position,
+        w = ctx.resolution.width
+        h = ctx.resolution.height
+        px = int(self.position.x)
+
+        # How far we've revealed (fractional characters)
+        reveal_chars = min(float(len(self.text)), ctx.local_frame * self.chars_per_frame)
+        n_full = int(reveal_chars)
+
+        if n_full >= len(self.text):
+            # Fully revealed — return cached full text (no mask needed)
+            frame = _render_text_simple(
+                self.text, w, h, self.font_size, (b, g, r, a), self.position,
+            )
+            if self.cursor and ctx.local_frame % 30 < 15:
+                cursor_frame = _render_text_simple(
+                    "|", w, h, self.font_size, (b, g, r, a),
+                    Vec2(self.position.x + self._text_width(), self.position.y),
+                )
+                np.maximum(frame, cursor_frame, out=frame)
+            return frame
+
+        if reveal_chars <= 0.0:
+            return np.zeros((h, w, 4), dtype=np.uint8)
+
+        # Render full text
+        frame = _render_text_simple(
+            self.text, w, h, self.font_size, (b, g, r, a), self.position,
         )
+
+        # Compute reveal boundary from character positions
+        positions = _measure_char_positions(self.text, self.font_size)
+        # Interpolate between character boundaries for sub-character reveal
+        frac = reveal_chars - n_full
+        left_edge = positions[n_full - 1] if n_full > 0 else 0
+        right_edge = positions[n_full] if n_full < len(positions) else left_edge
+        reveal_px = int(left_edge + (right_edge - left_edge) * frac)
+
+        _apply_reveal_mask(frame, px + reveal_px, px, self.fade_px)
+
+        # Blinking cursor at reveal edge
+        if self.cursor and ctx.local_frame % 30 < 15:
+            cursor_frame = _render_text_simple(
+                "|", w, h, self.font_size, (b, g, r, a),
+                Vec2(float(px + reveal_px), self.position.y),
+            )
+            np.maximum(frame, cursor_frame, out=frame)
+
+        return frame
+
+    def _text_width(self) -> float:
+        """Get the full text width in pixels."""
+        positions = _measure_char_positions(self.text, self.font_size)
+        return float(positions[-1]) if positions else 0.0
 
 
 @dataclass
 class WordByWord(Clip):
-    """Word-by-word animated text — each word fades in sequentially.
+    """Word-by-word animated text — each word revealed with a smooth wipe.
+
+    Renders the full text once and reveals it word-by-word using a
+    soft horizontal mask.
 
     Args:
         text: The text to animate.
@@ -181,6 +344,7 @@ class WordByWord(Clip):
         color: Text color.
         frames_per_word: Frames between each word appearing.
         position: Text position.
+        fade_px: Width of the soft reveal edge in pixels.
     """
 
     text: str = ""
@@ -188,6 +352,7 @@ class WordByWord(Clip):
     color: Color = Color(1.0, 1.0, 1.0, 1.0)
     frames_per_word: int = 10
     position: Vec2 = Vec2(50.0, 50.0)
+    fade_px: int = _REVEAL_FADE_PX
 
     def __post_init__(self) -> None:
         """Sanitize text input."""
@@ -202,24 +367,54 @@ class WordByWord(Clip):
         Returns:
             BGRA frame.
         """
+        b, g, r, a = self.color.to_bgra_uint8()
+        w = ctx.resolution.width
+        h = ctx.resolution.height
+        px = int(self.position.x)
+
         words = self.text.split()
         n_words = min(len(words), ctx.local_frame // max(self.frames_per_word, 1) + 1)
-        visible = " ".join(words[:n_words])
 
-        b, g, r, a = self.color.to_bgra_uint8()
-        return _render_text_simple(
-            visible,
-            ctx.resolution.width,
-            ctx.resolution.height,
-            self.font_size,
-            (b, g, r, a),
-            self.position,
+        if n_words >= len(words):
+            return _render_text_simple(
+                self.text, w, h, self.font_size, (b, g, r, a), self.position,
+            )
+
+        if n_words <= 0:
+            return np.zeros((h, w, 4), dtype=np.uint8)
+
+        # Render full text
+        frame = _render_text_simple(
+            self.text, w, h, self.font_size, (b, g, r, a), self.position,
         )
+
+        # Find the character index at the end of the n-th word
+        visible = " ".join(words[:n_words])
+        char_idx = len(visible)
+
+        # Compute reveal boundary
+        positions = _measure_char_positions(self.text, self.font_size)
+
+        # Fractional word progress for smooth transition
+        word_local = ctx.local_frame % max(self.frames_per_word, 1)
+        word_frac = word_local / max(self.frames_per_word, 1)
+
+        # Reveal up to end of current word plus fractional progress into next
+        reveal_px = positions[min(char_idx - 1, len(positions) - 1)] if char_idx > 0 else 0
+        if char_idx < len(positions):
+            next_px = positions[min(char_idx, len(positions) - 1)]
+            reveal_px = int(reveal_px + (next_px - reveal_px) * word_frac)
+
+        _apply_reveal_mask(frame, px + reveal_px, px, self.fade_px)
+        return frame
 
 
 @dataclass
 class LetterByLetter(Clip):
-    """Letter-by-letter animated text — each letter has independent animation.
+    """Letter-by-letter animated text — each letter revealed with a smooth wipe.
+
+    Renders the full text once and reveals it character-by-character
+    using a soft horizontal mask.
 
     Args:
         text: The text to animate.
@@ -227,6 +422,7 @@ class LetterByLetter(Clip):
         color: Text color.
         frames_per_letter: Frames between each letter appearing.
         position: Text position.
+        fade_px: Width of the soft reveal edge in pixels.
     """
 
     text: str = ""
@@ -234,6 +430,7 @@ class LetterByLetter(Clip):
     color: Color = Color(1.0, 1.0, 1.0, 1.0)
     frames_per_letter: int = 3
     position: Vec2 = Vec2(50.0, 50.0)
+    fade_px: int = _REVEAL_FADE_PX
 
     def __post_init__(self) -> None:
         """Sanitize text input."""
@@ -248,18 +445,36 @@ class LetterByLetter(Clip):
         Returns:
             BGRA frame.
         """
-        n_chars = min(len(self.text), ctx.local_frame // max(self.frames_per_letter, 1) + 1)
-        visible = self.text[:n_chars]
-
         b, g, r, a = self.color.to_bgra_uint8()
-        return _render_text_simple(
-            visible,
-            ctx.resolution.width,
-            ctx.resolution.height,
-            self.font_size,
-            (b, g, r, a),
-            self.position,
+        w = ctx.resolution.width
+        h = ctx.resolution.height
+        px = int(self.position.x)
+
+        fpl = max(self.frames_per_letter, 1)
+        # Fractional character reveal for smooth sub-character wipe
+        reveal_chars = min(float(len(self.text)), (ctx.local_frame + 1) / fpl)
+        n_full = int(reveal_chars)
+
+        if n_full >= len(self.text):
+            return _render_text_simple(
+                self.text, w, h, self.font_size, (b, g, r, a), self.position,
+            )
+
+        if reveal_chars <= 0.0:
+            return np.zeros((h, w, 4), dtype=np.uint8)
+
+        frame = _render_text_simple(
+            self.text, w, h, self.font_size, (b, g, r, a), self.position,
         )
+
+        positions = _measure_char_positions(self.text, self.font_size)
+        frac = reveal_chars - n_full
+        left_edge = positions[n_full - 1] if n_full > 0 else 0
+        right_edge = positions[n_full] if n_full < len(positions) else left_edge
+        reveal_px = int(left_edge + (right_edge - left_edge) * frac)
+
+        _apply_reveal_mask(frame, px + reveal_px, px, self.fade_px)
+        return frame
 
 
 @dataclass
@@ -304,7 +519,6 @@ class Scramble(Clip):
             if ctx.local_frame >= settle_frame:
                 result_chars.append(ch)
             else:
-                # Random character
                 result_chars.append(chr(rng.integers(33, 127)))
 
         b, g, r, a = self.color.to_bgra_uint8()
@@ -362,7 +576,6 @@ class KineticText(Clip):
             if ctx.local_frame < word_start:
                 break
 
-            # Ease in: slide from right
             progress = min(1.0, (ctx.local_frame - word_start) / max(self.frames_per_word, 1))
             ease = 1.0 - (1.0 - progress) ** 3  # Cubic ease-out
 
@@ -376,8 +589,7 @@ class KineticText(Clip):
                 Vec2(float(word_x), self.position.y),
             )
 
-            # Additive composite
-            frame = np.maximum(frame, word_frame)
+            np.maximum(frame, word_frame, out=frame)
             x_offset += len(word) * (char_w + 1) + char_w
 
         return frame
@@ -418,23 +630,16 @@ class SplitReveal(Clip):
         b, g, r, a = self.color.to_bgra_uint8()
 
         full = _render_text_simple(
-            self.text,
-            w,
-            h,
-            self.font_size,
-            (b, g, r, a),
-            self.position,
+            self.text, w, h, self.font_size, (b, g, r, a), self.position,
         )
 
         progress = min(1.0, ctx.local_frame / max(self.reveal_frames, 1))
-        ease = 1.0 - (1.0 - progress) ** 2  # Quadratic ease-out
+        ease = 1.0 - (1.0 - progress) ** 2
 
-        # Split at text center height
         mid_y = int(self.position.y + self.font_size / 2)
         offset = int((1.0 - ease) * self.font_size)
 
         result = np.zeros_like(full)
-        # Top half slides down from above
         if mid_y > 0:
             top_src_start = max(0, -offset)
             top_dst_start = max(0, mid_y - offset - (mid_y - top_src_start))
@@ -443,7 +648,6 @@ class SplitReveal(Clip):
                 result[max(0, mid_y - offset - copy_h) : max(0, mid_y - offset), :] = full[
                     top_src_start : top_src_start + copy_h, :
                 ]
-        # Bottom half slides up from below
         if mid_y < h:
             bot_start = min(h, mid_y + offset)
             bot_copy = min(h - mid_y, h - bot_start)
@@ -453,9 +657,19 @@ class SplitReveal(Clip):
         return result
 
 
+# ═══════════════════════════════════════════════════════════════
+# COUNTER PRESETS
+# ═══════════════════════════════════════════════════════════════
+
+
 @dataclass
 class CountUp(Clip):
     """Count-up animated number — animates from start_value to end_value.
+
+    Uses a quintic ease-out curve (reaches ~97% at halfway) and
+    frame-stepping so the displayed number only changes every
+    *step_frames* frames.  This prevents the rapid-digit-change
+    flicker of updating 30 times per second.
 
     Args:
         start_value: Starting number.
@@ -466,6 +680,8 @@ class CountUp(Clip):
         suffix: Text suffix after the number.
         decimals: Decimal places to show.
         position: Text position.
+        step_frames: The displayed value updates once every this many
+            frames.  Higher = fewer visual changes = smoother.
     """
 
     start_value: float = 0.0
@@ -476,6 +692,13 @@ class CountUp(Clip):
     suffix: str = ""
     decimals: int = 0
     position: Vec2 = Vec2(50.0, 50.0)
+    step_frames: int = 3
+
+    def _format(self, value: float) -> str:
+        """Format the counter value as display text."""
+        if self.decimals == 0:
+            return f"{self.prefix}{int(value)}{self.suffix}"
+        return f"{self.prefix}{value:.{self.decimals}f}{self.suffix}"
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render count-up animation frame.
@@ -486,13 +709,15 @@ class CountUp(Clip):
         Returns:
             BGRA frame.
         """
-        t = ctx.progress
-        current = self.start_value + (self.end_value - self.start_value) * t
+        # Snap local_frame to step grid so the number holds for
+        # *step_frames* consecutive frames.
+        step = max(self.step_frames, 1)
+        snapped = (ctx.local_frame // step) * step
+        clip_len = max(ctx.time_range.end - ctx.time_range.start - 1, 1)
+        t = _ease_out_quint(snapped / clip_len)
+        current = self.start_value + (self.end_value - self.start_value) * min(t, 1.0)
 
-        if self.decimals == 0:
-            text = f"{self.prefix}{int(current)}{self.suffix}"
-        else:
-            text = f"{self.prefix}{current:.{self.decimals}f}{self.suffix}"
+        text = self._format(current)
 
         b, g, r, a = self.color.to_bgra_uint8()
         return _render_text_simple(
@@ -509,6 +734,9 @@ class CountUp(Clip):
 class CountDown(Clip):
     """Count-down animated number — animates from start_value down to end_value.
 
+    Uses a quintic ease-out curve and frame-stepping for smooth,
+    flicker-free counting.
+
     Args:
         start_value: Starting number.
         end_value: Ending number.
@@ -518,6 +746,7 @@ class CountDown(Clip):
         suffix: Text suffix.
         decimals: Decimal places to show.
         position: Text position.
+        step_frames: The displayed value updates once every this many frames.
     """
 
     start_value: float = 100.0
@@ -528,6 +757,13 @@ class CountDown(Clip):
     suffix: str = ""
     decimals: int = 0
     position: Vec2 = Vec2(50.0, 50.0)
+    step_frames: int = 3
+
+    def _format(self, value: float) -> str:
+        """Format the counter value as display text."""
+        if self.decimals == 0:
+            return f"{self.prefix}{int(value)}{self.suffix}"
+        return f"{self.prefix}{value:.{self.decimals}f}{self.suffix}"
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render count-down animation frame.
@@ -538,13 +774,13 @@ class CountDown(Clip):
         Returns:
             BGRA frame.
         """
-        t = ctx.progress
-        current = self.start_value + (self.end_value - self.start_value) * t
+        step = max(self.step_frames, 1)
+        snapped = (ctx.local_frame // step) * step
+        clip_len = max(ctx.time_range.end - ctx.time_range.start - 1, 1)
+        t = _ease_out_quint(snapped / clip_len)
+        current = self.start_value + (self.end_value - self.start_value) * min(t, 1.0)
 
-        if self.decimals == 0:
-            text = f"{self.prefix}{int(current)}{self.suffix}"
-        else:
-            text = f"{self.prefix}{current:.{self.decimals}f}{self.suffix}"
+        text = self._format(current)
 
         b, g, r, a = self.color.to_bgra_uint8()
         return _render_text_simple(
@@ -610,12 +846,11 @@ class GlitchText(Clip):
             self.position,
         )
 
-        # Add chromatic offset on glitch frames
         if rng.random() < self.glitch_intensity:
             offset = rng.integers(1, 4)
             frame_shifted = frame.copy()
-            frame_shifted[:, :, 2] = np.roll(frame[:, :, 2], offset, axis=1)  # R shift
-            frame_shifted[:, :, 0] = np.roll(frame[:, :, 0], -offset, axis=1)  # B shift
+            frame_shifted[:, :, 2] = np.roll(frame[:, :, 2], offset, axis=1)
+            frame_shifted[:, :, 0] = np.roll(frame[:, :, 0], -offset, axis=1)
             return frame_shifted
 
         return frame

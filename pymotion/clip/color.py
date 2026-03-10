@@ -24,6 +24,7 @@ class ColorClip(Clip):
     """
 
     color: Color = Color(0.0, 0.0, 0.0, 1.0)
+    _cached_frame: np.ndarray | None = None
 
     def __init__(self, color: ColorInput = "#000000", **kwargs: object) -> None:
         """Initialize a ColorClip with the given color.
@@ -34,9 +35,10 @@ class ColorClip(Clip):
         """
         super().__init__()
         self.color = Color.parse(color)
+        self._cached_frame = None
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
-        """Render a solid color frame.
+        """Render a solid color frame (cached after first render).
 
         Args:
             ctx: The render context for this frame.
@@ -46,12 +48,17 @@ class ColorClip(Clip):
         """
         h = ctx.resolution.height
         w = ctx.resolution.width
+
+        if self._cached_frame is not None and self._cached_frame.shape[:2] == (h, w):
+            return self._cached_frame
+
         frame = np.zeros((h, w, 4), dtype=np.uint8)
         b, g, r, a = self.color.to_bgra_uint8()
         frame[:, :, 0] = b
         frame[:, :, 1] = g
         frame[:, :, 2] = r
         frame[:, :, 3] = a
+        self._cached_frame = frame
         return frame
 
 
@@ -109,6 +116,7 @@ class GradientClip(Clip):
         self.center_x = center_x
         self.center_y = center_y
         self.radius = radius
+        self._cached_frame: np.ndarray | None = None
 
     def set_colors(self, start: ColorInput, end: ColorInput) -> Self:
         """Set the gradient colors.
@@ -125,7 +133,7 @@ class GradientClip(Clip):
         return self
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
-        """Render a gradient frame.
+        """Render a gradient frame (cached after first render).
 
         Args:
             ctx: The render context for this frame.
@@ -136,6 +144,9 @@ class GradientClip(Clip):
         h = ctx.resolution.height
         w = ctx.resolution.width
 
+        if self._cached_frame is not None and self._cached_frame.shape[:2] == (h, w):
+            return self._cached_frame
+
         if self.gradient_type == "radial":
             t = self._radial_gradient(h, w)
         elif self.gradient_type == "conic":
@@ -143,7 +154,9 @@ class GradientClip(Clip):
         else:
             t = self._linear_gradient(h, w)
 
-        return self._apply_gradient(t, h, w)
+        frame = self._apply_gradient(t, h, w)
+        self._cached_frame = frame
+        return frame
 
     def _linear_gradient(self, h: int, w: int) -> np.ndarray:
         """Generate linear gradient parameter field.

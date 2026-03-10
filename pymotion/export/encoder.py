@@ -6,6 +6,7 @@ explicit argument lists, no user input in command strings.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from collections.abc import Iterator
@@ -79,9 +80,14 @@ class FFmpegEncoder:
         """
         output_str = str(output.resolve())
 
+        # Use available CPU threads for encoding (cap at 8)
+        threads = str(min(os.cpu_count() or 2, 8))
+
         cmd = [
             self._ffmpeg_path,
             "-y",  # overwrite output
+            "-threads",
+            threads,
             # Input: raw video from pipe
             "-f",
             "rawvideo",
@@ -93,11 +99,16 @@ class FFmpegEncoder:
             str(fps),
             "-i",
             "pipe:0",
+            # High-quality chroma scaling for text/graphics
+            "-sws_flags",
+            "lanczos+accurate_rnd+full_chroma_int",
             # Output codec
             "-c:v",
             preset.codec,
             "-pix_fmt",
             preset.pixel_format,
+            "-threads",
+            threads,
         ]
 
         # Add CRF or bitrate
@@ -127,10 +138,14 @@ class FFmpegEncoder:
             if process.stdin is None:
                 msg = "FFmpeg stdin pipe not available"
                 raise RuntimeError(msg)
+            stdin = process.stdin
             for frame in frame_iter:
-                process.stdin.write(frame.tobytes())
+                # Ensure contiguous memory for efficient pipe writes
+                if not frame.flags["C_CONTIGUOUS"]:
+                    frame = np.ascontiguousarray(frame)
+                stdin.write(frame.data)
                 frame_count += 1
-            process.stdin.close()
+            stdin.close()
         except BrokenPipeError:
             pass
 

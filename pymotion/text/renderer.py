@@ -22,12 +22,22 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Fallback font chain per platform — tried in order when the requested font is missing
+_FONT_FALLBACK_CHAIN: dict[str, list[str]] = {
+    "Darwin": ["Helvetica", "Arial", "SF Pro", "Menlo", "Courier New"],
+    "Linux": ["DejaVu Sans", "Liberation Sans", "Noto Sans", "FreeSans", "Ubuntu"],
+    "Windows": ["Arial", "Segoe UI", "Calibri", "Tahoma", "Verdana"],
+}
+
 # System font directories per platform
+# On macOS, Supplemental fonts (.ttf) are preferred over system .ttc files
+# which may use Apple Core Text and not render correctly with FreeType.
 _SYSTEM_FONT_DIRS: dict[str, list[Path]] = {
     "Darwin": [
-        Path("/System/Library/Fonts"),
+        Path("/System/Library/Fonts/Supplemental"),
         Path("/Library/Fonts"),
         Path.home() / "Library/Fonts",
+        Path("/System/Library/Fonts"),
     ],
     "Linux": [
         Path("/usr/share/fonts"),
@@ -166,6 +176,9 @@ class FontLoader:
     def _resolve_font_path(self, font: str) -> Path:
         """Resolve a font string to an actual file path.
 
+        Tries the given font name first, then falls back through a chain
+        of common system fonts to ensure text is always renderable.
+
         Args:
             font: Font file path or font name.
 
@@ -173,34 +186,92 @@ class FontLoader:
             Resolved font file path.
 
         Raises:
-            FileNotFoundError: If the font cannot be found.
+            FileNotFoundError: If no usable font can be found at all.
         """
         # Direct path
         path = Path(font)
         if path.is_file():
             return path.resolve()
 
-        # Search system font dirs
         system = platform.system()
         search_dirs = _SYSTEM_FONT_DIRS.get(system, [])
+
+        # Try the requested font first, then fallback chain
+        fallbacks = _FONT_FALLBACK_CHAIN.get(system, [])
+        candidates_to_try = [font] + [f for f in fallbacks if f.lower() != font.lower()]
+
+        for font_name in candidates_to_try:
+            result = self._search_font_in_dirs(font_name, search_dirs)
+            if result is not None:
+                if font_name != font:
+                    logger.debug(
+                        "font_fallback",
+                        requested=font,
+                        resolved=font_name,
+                        path=str(result),
+                    )
+                return result
+
+        msg = f"Font not found: '{font}'. No fallback fonts available for {system}."
+        raise FileNotFoundError(msg)
+
+    @staticmethod
+    def _search_font_in_dirs(font: str, search_dirs: list[Path]) -> Path | None:
+        """Search for a font by name in the given directories.
+
+        Prefers .ttf/.otf over .ttc (TrueType Collections can have rendering
+        issues with FreeType on macOS). Also prefers exact stem matches over
+        partial matches to avoid picking up HarfBuzz-optimized variants.
+
+        Args:
+            font: Font name to search for.
+            search_dirs: Directories to search in.
+
+        Returns:
+            Path to the font file, or None if not found.
+        """
+        # Prefer standalone .ttf/.otf first, then .ttc as fallback
+        preferred_exts = (".ttf", ".otf", ".TTF", ".OTF")
+        fallback_exts = (".ttc", ".TTC")
 
         for font_dir in search_dirs:
             if not font_dir.is_dir():
                 continue
-            # Search for exact filename or font name match
-            for ext in (".ttf", ".otf", ".ttc", ".TTF", ".OTF", ".TTC"):
+            # Try exact filename match (preferred formats first)
+            for ext in (*preferred_exts, *fallback_exts):
                 candidate = font_dir / f"{font}{ext}"
                 if candidate.is_file():
                     return candidate.resolve()
 
-            # Recursive search for partial matches
-            for f in font_dir.rglob("*"):
-                if f.suffix.lower() in (".ttf", ".otf", ".ttc"):
-                    if font.lower() in f.stem.lower():
-                        return f.resolve()
+        # Second pass: recursive search — exact stem match first, then partial
+        exact_matches: list[Path] = []
+        partial_matches: list[Path] = []
 
-        msg = f"Font not found: '{font}'. Searched system directories for {system}."
-        raise FileNotFoundError(msg)
+        for font_dir in search_dirs:
+            if not font_dir.is_dir():
+                continue
+            for f in font_dir.rglob("*"):
+                if f.suffix.lower() not in (".ttf", ".otf", ".ttc"):
+                    continue
+                stem_lower = f.stem.lower()
+                font_lower = font.lower()
+                if stem_lower == font_lower:
+                    exact_matches.append(f)
+                elif font_lower in stem_lower:
+                    partial_matches.append(f)
+
+        # Sort: prefer .ttf/.otf over .ttc within each group
+        def _sort_key(p: Path) -> int:
+            return 0 if p.suffix.lower() in (".ttf", ".otf") else 1
+
+        if exact_matches:
+            exact_matches.sort(key=_sort_key)
+            return exact_matches[0].resolve()
+        if partial_matches:
+            partial_matches.sort(key=_sort_key)
+            return partial_matches[0].resolve()
+
+        return None
 
     def load_variable(
         self,

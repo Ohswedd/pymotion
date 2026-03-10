@@ -2,6 +2,41 @@
 
 All notable changes to PyMotion are documented here.
 
+## [1.0.1] — 2026-03-10
+
+### Fixed
+- **Critical: compositor alpha cache memory aliasing** — `_alpha_cache` in `compositor.py`
+  used numpy memory pointers (`ctypes.data`) as cache keys. When numpy reused memory
+  addresses for new frame allocations, the cache returned stale alpha info from previous
+  frames, causing the compositor to randomly skip text and clip layers (visible as
+  flickering/disappearing text in rendered videos). Fixed by clearing the cache at the
+  start of each `composite_layers()` call.
+- **Text animation reveal-mask architecture** — Rewrote Typewriter, WordByWord, and
+  LetterByLetter presets to use a cached full-text render with a horizontal alpha reveal
+  mask. Already-revealed pixels are now bit-for-bit identical across frames. CountUp and
+  CountDown use quintic ease-out with frame-stepping (`step_frames=3`) for smooth
+  deceleration.
+
+### Changed
+- **H.264 encoding quality** — CRF 18 → 10, preset `faster` → `medium` for all H.264
+  presets. Added `no-dct-decimate` and `no-fast-pskip` x264 params to eliminate temporal
+  text shimmer. Added Lanczos chroma scaling (`-sws_flags lanczos+accurate_rnd+full_chroma_int`)
+  for better colored text quality during RGB → YUV420p conversion.
+- **H.265 encoding quality** — CRF 22 → 16, preset `faster` → `medium`.
+- **Instagram/TikTok presets** — Added `-tune animation` for better text/graphics quality.
+- **FreeType text renderer** — Replaced block-character fallback with proper FreeType
+  glyph rendering in `_render_text_simple`. Added glyph cache and character position
+  measurement for reveal-mask animations.
+
+### Improved
+- **Examples rewritten** — All 5 example scripts (`01_real_estate_tour` through
+  `05_educational_explainer`) rewritten as complete, production-ready runnable demos
+  showcasing real-world niches (real estate, tech review, fitness, restaurant, education).
+  Each uses multiple PyMotion features: ImageClip, TextClip, ShapeClip, GradientClip,
+  animated text, particles, blend modes, and multi-track composition.
+- **Stock assets** — Added `download_assets.py` script and 19 stock image/audio assets
+  for the example scripts.
+
 ## [1.0.0] — 2026-03-09
 
 ### Added

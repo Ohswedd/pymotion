@@ -40,44 +40,52 @@ H264_1080P = OutputPreset(
     name="h264_1080p",
     codec="libx264",
     pixel_format="yuv420p",
-    crf=18,
+    crf=10,
     audio_codec="aac",
     audio_bitrate="320k",
     container="mp4",
-    extra_flags=["-preset", "medium"],
+    extra_flags=[
+        "-preset", "medium", "-tune", "animation",
+        "-x264-params", "no-dct-decimate=1:no-fast-pskip=1",
+        "-movflags", "+faststart",
+    ],
 )
 
 H264_4K = OutputPreset(
     name="h264_4k",
     codec="libx264",
     pixel_format="yuv420p",
-    crf=18,
+    crf=10,
     audio_codec="aac",
     audio_bitrate="320k",
     container="mp4",
-    extra_flags=["-preset", "medium"],
+    extra_flags=[
+        "-preset", "medium", "-tune", "animation",
+        "-x264-params", "no-dct-decimate=1:no-fast-pskip=1",
+        "-movflags", "+faststart",
+    ],
 )
 
 H265_1080P = OutputPreset(
     name="h265_1080p",
     codec="libx265",
     pixel_format="yuv420p",
-    crf=22,
+    crf=16,
     audio_codec="aac",
     audio_bitrate="320k",
     container="mp4",
-    extra_flags=["-preset", "medium"],
+    extra_flags=["-preset", "medium", "-movflags", "+faststart"],
 )
 
 H265_4K = OutputPreset(
     name="h265_4k",
     codec="libx265",
     pixel_format="yuv420p",
-    crf=22,
+    crf=16,
     audio_codec="aac",
     audio_bitrate="320k",
     container="mp4",
-    extra_flags=["-preset", "medium"],
+    extra_flags=["-preset", "medium", "-movflags", "+faststart"],
 )
 
 WEBM_1080P = OutputPreset(
@@ -98,25 +106,29 @@ INSTAGRAM_REEL = OutputPreset(
     audio_codec="aac",
     audio_bitrate="192k",
     container="mp4",
-    extra_flags=["-preset", "fast", "-s", "1080x1920"],
+    extra_flags=["-preset", "medium", "-tune", "animation", "-s", "1080x1920"],
 )
 
 YOUTUBE_1080P = OutputPreset(
     name="youtube_1080p",
     codec="libx264",
     pixel_format="yuv420p",
-    crf=18,
+    crf=10,
     audio_codec="aac",
     audio_bitrate="320k",
     container="mp4",
-    extra_flags=["-preset", "medium", "-movflags", "+faststart"],
+    extra_flags=[
+        "-preset", "medium", "-tune", "animation",
+        "-x264-params", "no-dct-decimate=1:no-fast-pskip=1",
+        "-movflags", "+faststart",
+    ],
 )
 
 YOUTUBE_4K = OutputPreset(
     name="youtube_4k",
     codec="libx265",
     pixel_format="yuv420p",
-    crf=18,
+    crf=14,
     audio_codec="aac",
     audio_bitrate="320k",
     container="mp4",
@@ -131,7 +143,7 @@ TIKTOK = OutputPreset(
     audio_codec="aac",
     audio_bitrate="192k",
     container="mp4",
-    extra_flags=["-preset", "fast", "-s", "1080x1920"],
+    extra_flags=["-preset", "medium", "-tune", "animation", "-s", "1080x1920"],
 )
 
 AV1_1080P = OutputPreset(

@@ -32,10 +32,12 @@ class TestFontLoader:
         except FileNotFoundError:
             pytest.skip("Helvetica not found on this system")
 
-    def test_load_nonexistent_font(self) -> None:
+    def test_load_nonexistent_font_uses_fallback(self) -> None:
+        """A missing font should resolve to a fallback system font."""
         loader = FontLoader()
-        with pytest.raises(FileNotFoundError, match="Font not found"):
-            loader.load("ThisFontDefinitelyDoesNotExist12345", 24.0)
+        # The fallback chain should find a usable font instead of raising
+        face = loader.load("ThisFontDefinitelyDoesNotExist12345", 24.0)
+        assert face is not None
 
     def test_cache_hit(self) -> None:
         """Second load should return cached face."""

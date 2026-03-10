@@ -37,6 +37,7 @@ class ShapeClip(Clip):
     stroke_color: Color | None = None
     stroke_width: float = 0.0
     params: dict[str, float] = field(default_factory=dict)
+    _cached_frame: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     @classmethod
     def rect(
@@ -200,6 +201,8 @@ class ShapeClip(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render the shape to a BGRA frame using Cairo.
 
+        Shapes are static, so the result is cached after the first render.
+
         Args:
             ctx: The render context for this frame.
 
@@ -208,6 +211,9 @@ class ShapeClip(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+
+        if self._cached_frame is not None and self._cached_frame.shape[:2] == (h, w):
+            return self._cached_frame
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
@@ -251,8 +257,9 @@ class ShapeClip(Clip):
         # Convert Cairo surface to numpy array
         # Cairo ARGB32 is stored as BGRA in memory on little-endian systems
         buf = surface.get_data()
-        frame = np.ndarray(shape=(h, w, 4), dtype=np.uint8, buffer=bytes(buf))
-        return frame.copy()
+        frame = np.ndarray(shape=(h, w, 4), dtype=np.uint8, buffer=bytes(buf)).copy()
+        self._cached_frame = frame
+        return frame
 
     def _draw_rect(self, cr: cairo.Context[cairo.ImageSurface]) -> None:
         """Draw a rectangle path."""

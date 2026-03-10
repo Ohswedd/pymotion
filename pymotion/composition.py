@@ -15,7 +15,6 @@ import numpy as np
 from pymotion.clip.base import BlendMode, Clip, RenderContext, Resolution, TimeRange
 from pymotion.export.encoder import FFmpegEncoder
 from pymotion.export.presets import get_preset
-from pymotion.render.color_pipeline import apply_color_pipeline
 from pymotion.render.compositor import composite_layers
 from pymotion.utils.color import Color, ColorInput
 from pymotion.utils.logging import get_logger
@@ -92,6 +91,7 @@ class Composition:
         self.tracks: list[Track] = []
         self._default_track: Track = Track(name="default")
         self.tracks.append(self._default_track)
+        self._bg_frame: np.ndarray | None = None
 
     def add(self, *clips: Clip) -> Composition:
         """Add clips to the default track.
@@ -117,6 +117,26 @@ class Composition:
         self.tracks.append(track)
         return self
 
+    def _get_bg_frame(self) -> np.ndarray:
+        """Get the pre-computed background frame (cached).
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        if self._bg_frame is not None:
+            return self._bg_frame
+
+        w = self.resolution.width
+        h = self.resolution.height
+        bg = np.zeros((h, w, 4), dtype=np.uint8)
+        b_val, g_val, r_val, a_val = self.background.to_bgra_uint8()
+        bg[:, :, 0] = b_val
+        bg[:, :, 1] = g_val
+        bg[:, :, 2] = r_val
+        bg[:, :, 3] = a_val
+        self._bg_frame = bg
+        return bg
+
     def _render_frame(self, frame: int) -> np.ndarray:
         """Render a single frame of the composition.
 
@@ -126,21 +146,11 @@ class Composition:
         Returns:
             BGRA numpy array of shape (H, W, 4), dtype uint8.
         """
-        w = self.resolution.width
-        h = self.resolution.height
-
-        # Start with background
-        bg = np.zeros((h, w, 4), dtype=np.uint8)
-        b_val, g_val, r_val, a_val = self.background.to_bgra_uint8()
-        bg[:, :, 0] = b_val
-        bg[:, :, 1] = g_val
-        bg[:, :, 2] = r_val
-        bg[:, :, 3] = a_val
-
+        bg = self._get_bg_frame().copy()
         layers: list[tuple[np.ndarray, BlendMode, float]] = []
 
         for track in self.tracks:
-            if not track.visible:
+            if not track.visible or track.opacity <= 0.0:
                 continue
             for clip in track.clips:
                 if clip.start <= frame < clip.end:
@@ -158,13 +168,18 @@ class Composition:
                     )
 
                     rendered = clip.render_frame(ctx)
-                    layers.append((rendered, clip.blend_mode, clip._opacity))
+                    # Combine clip and track opacity
+                    effective_opacity = clip._opacity * track.opacity
+                    # Track blend mode overrides clip when non-NORMAL
+                    blend = (
+                        track.blend_mode
+                        if track.blend_mode != BlendMode.NORMAL
+                        else clip.blend_mode
+                    )
+                    layers.append((rendered, blend, effective_opacity))
 
         # Composite all layers
         result = composite_layers(bg, layers)
-
-        # Apply color pipeline
-        result = apply_color_pipeline(result)
 
         return result
 
