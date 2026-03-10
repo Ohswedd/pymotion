@@ -44,6 +44,8 @@ from pymotion.clip.chart import (
     ScatterPlotClip,
 )
 from pymotion.clip.color import ColorClip, GradientClip
+from pymotion.clip.image import ImageClip
+from pymotion.clip.mockup import BrowserMockup, DesktopMockup, PhoneMockup
 from pymotion.clip.motion_graphics import (
     CallToAction,
     Countdown,
@@ -55,7 +57,6 @@ from pymotion.clip.motion_graphics import (
     TransitionTitle,
     Watermark,
 )
-from pymotion.clip.image import ImageClip
 from pymotion.clip.operations import (
     ConcatenatedClip,
     FreezeFrameClip,
@@ -230,13 +231,16 @@ __all__ = [
     "AreaChartClip",
     "AudioClip",
     "BarChartClip",
+    "BrowserMockup",
     "CallToAction",
     "Countdown",
+    "DesktopMockup",
     "Divider",
     "LineChartClip",
     "LogoReveal",
     "LowerThird",
     "NumberCounter",
+    "PhoneMockup",
     "PieChartClip",
     "ProgressBar",
     "QuoteCard",
