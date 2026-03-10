@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/PyMotion-v1.0.1-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
+  <img src="https://img.shields.io/badge/PyMotion-v1.2.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
 </p>
 
 <h1 align="center">PyMotion</h1>
@@ -22,7 +22,7 @@
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-85%25-brightgreen" alt="Coverage"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/ruff-clean-purple" alt="Ruff"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/pip--audit-passing-green" alt="Security Audit"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1116%20passed-brightgreen" alt="Tests"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1285%20passed-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -65,6 +65,12 @@ That's a full 1080p video in 12 lines.
 | **Typography** | FreeType + HarfBuzz shaping, variable fonts, 9 animated text presets (Typewriter, CountUp, Scramble, ...) |
 | **Audio** | Mixing, EQ, compressor, limiter, reverb, delay, pitch shift, beat detection, waveform analysis |
 | **Effects** | 30+ visual/color/distortion/light effects (blur, grain, glow, LUT, wave warp, god rays, ...) |
+| **Keying** | ChromaKey, LumaKey, ColorKey, DifferenceKey — with feathering, choking, despill |
+| **Editing** | Split, join, subclip, repeat, freeze frame, concatenate with transitions |
+| **Speed/Time** | Uniform speed, speed ramp, reverse, time remap, optical flow slow-motion |
+| **Layout** | Picture-in-picture, grid, split screen, stack — named anchor positioning |
+| **Tracking** | Motion tracking, video stabilization, follow-tracker binding |
+| **Proxy** | Low-res proxy generation with disk cache for fast preview |
 | **Transitions** | 39 built-in (fade, slide, wipe, zoom, glitch, film burn, shatter, vortex, ...) |
 | **Particles** | 9 presets — fire, sparkles, confetti, rain, smoke, stars, dust, explosion, bubbles |
 | **Export** | 15 presets — H.264, H.265, ProRes, AV1, WebM, GIF, PNG/EXR frame sequences |
@@ -263,7 +269,7 @@ make clean     # remove caches and build artifacts
 ### Running Tests
 
 ```bash
-pytest -v                              # full suite (1116 tests)
+pytest -v                              # full suite (1285 tests)
 pytest tests/unit/ -v                  # unit tests only
 pytest tests/integration/ -v           # integration tests
 pytest --cov=pymotion --cov-report=html  # coverage report
