@@ -1319,7 +1319,7 @@ class ModernGLRenderer(RendererInterface):
         bgra = arr_clipped.copy()
         bgra[:, :, 0] = arr_clipped[:, :, 2]  # B
         bgra[:, :, 2] = arr_clipped[:, :, 0]  # R
-        return bgra
+        return bgra  # type: ignore[no-any-return,unused-ignore]
 
     def _set_lights(self, lights: list[Light]) -> None:
         """Upload light data to shader uniforms.
@@ -1584,7 +1584,7 @@ class ModernGLRenderer(RendererInterface):
         bgra = arr_clipped.copy()
         bgra[:, :, 0] = arr_clipped[:, :, 2]
         bgra[:, :, 2] = arr_clipped[:, :, 0]
-        return bgra
+        return bgra  # type: ignore[no-any-return,unused-ignore]
 
     def release(self) -> None:
         """Release all OpenGL resources."""
