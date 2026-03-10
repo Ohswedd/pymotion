@@ -182,6 +182,7 @@ from pymotion.render.color_pipeline import (
     tone_map_reinhard,
 )
 from pymotion.template.base import Template, TemplateValidationError
+from pymotion.tts import TTSClip
 from pymotion.text.animated import (
     CountDown,
     CountUp,
@@ -307,6 +308,8 @@ __all__ = [
     "parse_ass",
     "parse_srt",
     "parse_vtt",
+    # TTS
+    "TTSClip",
     # Helpers
     "Silence",
     "Keyframe",
