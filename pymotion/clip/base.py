@@ -163,6 +163,26 @@ def _interp_speed(keyframes: list[tuple[int, float]], frame: int) -> float:
     return keyframes[-1][1]
 
 
+def _check_circular_parent(proposed_parent: Clip, child: Clip) -> None:
+    """Raise ValueError if assigning *proposed_parent* would create a cycle.
+
+    Args:
+        proposed_parent: The clip to be assigned as parent.
+        child: The clip that would become the child.
+
+    Raises:
+        ValueError: If a cycle is detected.
+    """
+    visited: set[int] = {id(child)}
+    current: Clip | None = proposed_parent
+    while current is not None:
+        if id(current) in visited:
+            msg = "Circular parenting detected"
+            raise ValueError(msg)
+        visited.add(id(current))
+        current = current._parent
+
+
 @dataclass
 class Clip(ABC):
     """Abstract base class for all clips.
@@ -181,6 +201,97 @@ class Clip(ABC):
     blend_mode: BlendMode = BlendMode.NORMAL
     _effects: list[Effect] = field(default_factory=list)
     _masks: list[MaskGroup] = field(default_factory=list)
+    _parent: Clip | None = field(default=None, repr=False)
+
+    # ------------------------------------------------------------------
+    # Parenting
+    # ------------------------------------------------------------------
+
+    @property
+    def parent(self) -> Clip | None:
+        """The parent clip whose transforms are inherited.
+
+        Setting a parent causes this clip to inherit the parent's
+        position, scale, and rotation each frame.  Independent local
+        offsets are applied on top of the inherited transform.
+
+        Raises:
+            ValueError: If assigning the parent would create a cycle.
+        """
+        return self._parent
+
+    @parent.setter
+    def parent(self, value: Clip | None) -> None:
+        if value is not None:
+            _check_circular_parent(value, self)
+        self._parent = value
+
+    def position_at(self, frame: int) -> Vec2:
+        """Return the effective position at a frame, including parent chain.
+
+        The parent's world position is added to this clip's local position,
+        and the parent's scale is applied to this clip's local offset.
+
+        Args:
+            frame: The frame to evaluate at (currently unused since
+                position is not keyframed; reserved for future use).
+
+        Returns:
+            Accumulated position as Vec2.
+        """
+        pos = self._position
+        if self._parent is not None:
+            parent_pos = self._parent.position_at(frame)
+            parent_scale = self._parent.scale_at(frame)
+            pos = Vec2(
+                parent_pos.x + pos.x * parent_scale.x,
+                parent_pos.y + pos.y * parent_scale.y,
+            )
+        return pos
+
+    def scale_at(self, frame: int) -> Vec2:
+        """Return the effective scale at a frame, including parent chain.
+
+        Scales are multiplied down the hierarchy.
+
+        Args:
+            frame: The frame to evaluate at.
+
+        Returns:
+            Accumulated scale as Vec2.
+        """
+        sc = self._scale
+        if self._parent is not None:
+            parent_sc = self._parent.scale_at(frame)
+            sc = Vec2(sc.x * parent_sc.x, sc.y * parent_sc.y)
+        return sc
+
+    def rotation_at(self, frame: int) -> float:
+        """Return the effective rotation at a frame, including parent chain.
+
+        Rotations are summed down the hierarchy.
+
+        Args:
+            frame: The frame to evaluate at.
+
+        Returns:
+            Accumulated rotation in degrees.
+        """
+        rot = self._rotation
+        if self._parent is not None:
+            rot += self._parent.rotation_at(frame)
+        return rot
+
+    def opacity_at(self, frame: int) -> float:
+        """Return the opacity at a frame.
+
+        Args:
+            frame: The frame to evaluate at (reserved for future use).
+
+        Returns:
+            Opacity value (0.0–1.0).
+        """
+        return self._opacity
 
     def add_effect(self, effect: Effect) -> Self:
         """Add a visual effect to this clip.
@@ -785,3 +896,30 @@ class Clip(ABC):
             BGRA numpy array of shape (H, W, 4), dtype uint8.
         """
         ...
+
+
+@dataclass
+class NullObject(Clip):
+    """An invisible clip used as a transform group anchor.
+
+    NullObject has no visual output (fully transparent) but carries
+    position, scale, and rotation properties that child clips inherit
+    via the parenting system.
+
+    Example::
+
+        anchor = NullObject()
+        anchor.set_position(100, 100).set_duration(60)
+        child.parent = anchor
+    """
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Return a fully transparent frame.
+
+        Args:
+            ctx: The render context for this frame.
+
+        Returns:
+            Transparent BGRA numpy array.
+        """
+        return np.zeros((ctx.resolution.height, ctx.resolution.width, 4), dtype=np.uint8)
