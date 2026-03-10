@@ -21,18 +21,24 @@ sudo apt install libcairo2-dev pkg-config ffmpeg
 ### Install PyMotion
 
 ```bash
-pip install pymotion
+pip install pymotion-studio
+```
+
+The import name is `pymotion` (no hyphen):
+
+```python
+from pymotion import Composition, ColorClip, Track
 ```
 
 For development with linting, type checking, and test tools:
 
 ```bash
-git clone https://github.com/your-org/pymotion.git
+git clone https://github.com/Ohswedd/pymotion.git
 cd pymotion
 pip install -e ".[dev]"
 ```
 
-Python 3.11 or later is required.
+Python 3.12 or later is required.
 
 ## Core concepts
 
@@ -176,6 +182,9 @@ comp.render("output.gif", preset="gif_480p")
 
 ## Next steps
 
+- [Clip Operations](clip-operations.md) -- split, join, speed, reverse, and time-remap clips.
+- [Keying Effects](keying.md) -- chroma key, luma key, color key, and difference key.
+- [Layout, Tracking & Proxy](layout-tracking-proxy.md) -- PiP, grid, split screen, motion tracking, stabilization, and proxy workflow.
 - [Keyframe Animation](keyframe-animation.md) -- animate any property over time.
 - [Audio Mixing](audio-mixing.md) -- add music, sound effects, and voice-overs.
 - [3D Scenes](3d-scenes.md) -- render 3D models with PBR materials.

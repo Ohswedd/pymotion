@@ -19,6 +19,9 @@ nav:
   - Getting Started: guides/getting-started.md
   - Guides:
     - Keyframe Animation: guides/keyframe-animation.md
+    - Clip Operations: guides/clip-operations.md
+    - Keying Effects: guides/keying.md
+    - Layout, Tracking & Proxy: guides/layout-tracking-proxy.md
     - Audio Mixing: guides/audio-mixing.md
     - 3D Scenes: guides/3d-scenes.md
     - Batch Generation: guides/batch-generation.md
@@ -30,8 +33,12 @@ nav:
   - API Reference:
     - Composition: api/composition.md
     - Clips: api/clips.md
+    - Clip Operations: api/clip-operations.md
     - Effects: api/effects.md
+    - Keying: api/keying.md
     - Transitions: api/transitions.md
+    - Layout: api/layout.md
+    - Tracking & Proxy: api/tracking.md
     - Audio: api/audio.md
     - Animation: api/animation.md
     - Templates: api/templates.md

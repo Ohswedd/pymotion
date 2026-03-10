@@ -183,11 +183,36 @@ for name in ["Widget Pro", "Gadget X", "Tool Kit"]:
     ProductVideo(product_name=name).render(f"{name.lower().replace(' ', '_')}.mp4")
 ```
 
+### Video Editing Operations
+
+```python
+from pymotion import ColorClip, concatenate, CrossDissolve, pip, grid
+
+# Split, speed, reverse
+clip = ColorClip(color="#e94560")
+clip.set_duration(120)
+first, second = clip.split(60)
+slow = first.speed(0.5)
+backwards = second.reverse()
+
+# Concatenate with transitions
+final = concatenate([slow, backwards], transition=CrossDissolve(), transition_duration=15)
+
+# Picture-in-picture
+main = ColorClip(color="#1a1a2e").set_duration(90)
+overlay = ColorClip(color="#e94560").set_duration(90)
+comp = pip(main, overlay, position="bottom-right", size=(320, 180))
+
+# Grid layout
+clips = [ColorClip(color=c).set_duration(90) for c in ["#e94560", "#0f3460", "#533483", "#16213e"]]
+comp = grid(clips, rows=2, cols=2, gap=10)
+```
+
 ---
 
 ## Examples
 
-Five production-ready scripts ship with the repo, each targeting a real-world use case:
+Six production-ready scripts ship with the repo, each targeting a real-world use case:
 
 | # | Script | Niche | What It Demonstrates |
 |---|--------|-------|----------------------|
@@ -196,6 +221,7 @@ Five production-ready scripts ship with the repo, each targeting a real-world us
 | 03 | `fitness_social_ad.py` | Instagram/TikTok | Vertical 1080x1920, CountDown timer, confetti, LetterByLetter |
 | 04 | `restaurant_menu_promo.py` | Menu promotions | WordByWord reveals, stars particles, ShapeClip polygons |
 | 05 | `educational_explainer.py` | E-learning | LetterByLetter titles, CountUp counters, diagram shapes |
+| 06 | `video_editing_showcase.py` | Post-production | split/join/speed/reverse, ChromaKey, grid/pip/split_screen, proxy workflow |
 
 ```bash
 python examples/download_assets.py     # grab stock images (~5 MB)

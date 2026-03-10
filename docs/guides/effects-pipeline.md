@@ -146,6 +146,27 @@ Twirl(center=Vec2(0.5, 0.5), angle=1.0, radius=100.0)
 Fisheye(strength=0.5)
 ```
 
+## Keying effects
+
+Keying effects remove parts of a frame based on color or luminance for
+compositing. See the [Keying guide](keying.md) for full details.
+
+```python
+from pymotion.effects.keying import ChromaKey, LumaKey, ColorKey, DifferenceKey
+
+# Green screen removal
+ChromaKey(color="#00FF00", tolerance=0.3, edge_softness=0.05)
+
+# Remove dark areas
+LumaKey(threshold=0.2, softness=0.1)
+
+# Key any color
+ColorKey(color="#FF0000", tolerance=0.25)
+
+# Key by difference from a reference frame
+DifferenceKey(reference_frame=0, threshold=0.15)
+```
+
 ## Stacking effects
 
 Effects are applied in order. The output of one effect becomes the input
