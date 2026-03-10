@@ -2,6 +2,27 @@
 
 All notable changes to PyMotion are documented here.
 
+## [1.2.0] — 2026-03-10
+
+### Added
+- **Clip manipulation** — `clip.split()`, `clip.join()`, `clip.subclip()`, `clip.repeat()`,
+  `clip.freeze_frame()`, `pm.concatenate()` with optional transitions between clips.
+- **Speed & time operations** — `clip.speed()` with uniform speed change (0.1×–10×),
+  `clip.speed_ramp()` for variable speed, `clip.reverse()`, `clip.time_remap()` for
+  arbitrary time remapping via keyframe curves. Optical flow interpolation via OpenCV
+  with automatic fallback to linear blending.
+- **Chroma key & keying effects** — `ChromaKey` (YCbCr-based), `LumaKey`, `ColorKey`,
+  `DifferenceKey` with shared utilities for feathering, choking, and despill.
+- **Picture-in-Picture & layout helpers** — `pm.pip()`, `pm.grid()`, `pm.split_screen()`,
+  `pm.stack()` for composing multi-clip layouts with named anchor positioning.
+- **Motion tracking & stabilization** — `MotionTracker` for region tracking across frames,
+  `clip.stabilize()` for video stabilization, `clip.follow_tracker()` to wire tracking
+  data to clip properties.
+- **Proxy workflow** — `clip.create_proxy()` for low-res preview proxies cached on disk,
+  `pm.clear_proxy_cache()`, `pm.proxy_cache_size()` for cache management.
+- **Effect system on clips** — `clip.add_effect()` and `clip.render_with_effects()` for
+  storing and applying effects directly on clip instances.
+
 ## [1.0.1] — 2026-03-10
 
 ### Fixed
