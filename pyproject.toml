@@ -22,12 +22,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-[project.urls]
-Homepage = "https://github.com/Ohswedd/pymotion"
-Repository = "https://github.com/Ohswedd/pymotion"
-Changelog = "https://github.com/Ohswedd/pymotion/blob/main/CHANGELOG.md"
-Issues = "https://github.com/Ohswedd/pymotion/issues"
-
 dependencies = [
     "numpy>=1.26,<3.0",
     "Pillow>=10.0,<12.0",
@@ -50,6 +44,12 @@ dependencies = [
     "watchfiles>=0.21",
     "aiohttp>=3.9",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Ohswedd/pymotion"
+Repository = "https://github.com/Ohswedd/pymotion"
+Changelog = "https://github.com/Ohswedd/pymotion/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Ohswedd/pymotion/issues"
 
 [project.optional-dependencies]
 3d-extras = ["panda3d>=1.10", "pygltflib>=1.16"]
