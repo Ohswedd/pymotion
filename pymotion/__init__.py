@@ -42,6 +42,18 @@ from pymotion.audio.mixer import (
     ChannelLayout,
     SurroundChannel,
 )
+from pymotion.captions import (
+    AutoCaptions,
+    CaptionSegment,
+    SubtitleClip,
+    WordTimestamp,
+    export_subtitles,
+    get_caption_style,
+    import_subtitles,
+    parse_ass,
+    parse_srt,
+    parse_vtt,
+)
 from pymotion.clip.audio import AudioClip, Silence
 from pymotion.clip.audio_viz import (
     AudioReactiveEffect,
@@ -284,6 +296,17 @@ __all__ = [
     "SubClip",
     "TimeRemappedClip",
     "concatenate",
+    # Captions & Subtitles
+    "AutoCaptions",
+    "CaptionSegment",
+    "SubtitleClip",
+    "WordTimestamp",
+    "export_subtitles",
+    "get_caption_style",
+    "import_subtitles",
+    "parse_ass",
+    "parse_srt",
+    "parse_vtt",
     # Helpers
     "Silence",
     "Keyframe",
