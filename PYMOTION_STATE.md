@@ -86,11 +86,11 @@ Started: 2026-03-10
 - [x] Shared keying utilities in `effects/keying.py`: `_feather_mask`, `_choke_mask`, `_despill`
 
 ### 1.2.4 Picture-in-Picture & Layout Helpers
-- [ ] `pm.pip(main, overlay, position, size, border=None, shadow=None)` — composite overlay onto main; position accepts pixel tuple or named anchor
-- [ ] `pm.grid(clips, rows, cols, gap=0, background="#000000")` — arrange clips in an R×C grid; auto-scale each clip to its cell
-- [ ] `pm.split_screen(clips, layout)` — layout: `"horizontal"`, `"vertical"`, `"quad"`, or list of normalized `(x, y, w, h)` rects
-- [ ] `pm.stack(clips, direction, gap=0)` — stack clips side-by-side or top-to-bottom; auto-calculates output resolution
-- [ ] `_resolve_position(anchor, clip_size, container_size)` in `utils/layout.py` — resolve named anchors to pixel coords
+- [x] `pm.pip(main, overlay, position, size, border=None, shadow=None)` — composite overlay onto main; position accepts pixel tuple or named anchor
+- [x] `pm.grid(clips, rows, cols, gap=0, background="#000000")` — arrange clips in an R×C grid; auto-scale each clip to its cell
+- [x] `pm.split_screen(clips, layout)` — layout: `"horizontal"`, `"vertical"`, `"quad"`, or list of normalized `(x, y, w, h)` rects
+- [x] `pm.stack(clips, direction, gap=0)` — stack clips side-by-side or top-to-bottom; auto-calculates output resolution
+- [x] `_resolve_position(anchor, clip_size, container_size)` in `utils/layout.py` — resolve named anchors to pixel coords
 
 ### 1.2.5 Motion Tracking & Stabilization
 - [ ] `clip.stabilize(smoothing=30, border_mode="crop")` — feature tracking + affine smoothing; `border_mode`: `"crop"` | `"reflect"`; requires OpenCV

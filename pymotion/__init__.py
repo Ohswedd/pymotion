@@ -91,6 +91,7 @@ from pymotion.effects.visual import (
     Vignette,
 )
 from pymotion.export.presets import OutputPreset, get_preset
+from pymotion.layout import grid, pip, split_screen, stack
 from pymotion.particle.system import (
     Emitter,
     ParticleSystem,
@@ -362,6 +363,11 @@ __all__ = [
     "smoke",
     "rain",
     "stars",
+    # Layout helpers
+    "pip",
+    "grid",
+    "split_screen",
+    "stack",
     # Export
     "OutputPreset",
     "get_preset",
