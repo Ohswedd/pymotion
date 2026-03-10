@@ -82,7 +82,7 @@ That's a full 1080p video in 12 lines.
 
 ## Installation
 
-**Prerequisites:** Python 3.11+, FFmpeg, Cairo
+**Prerequisites:** Python 3.12+, FFmpeg, Cairo
 
 ```bash
 # macOS
