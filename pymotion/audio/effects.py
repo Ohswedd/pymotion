@@ -9,10 +9,12 @@ crossfade utilities.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
 
+from pymotion.security.validation import validate_path
 from pymotion.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -383,6 +385,153 @@ class HighPassFilter:
         pb = _import_pedalboard()
         hpf: Any = pb.HighpassFilter(cutoff_frequency_hz=self.cutoff_hz)
         return _process_audio(hpf, samples, sample_rate)
+
+
+@dataclass
+class ConvolutionReverb:
+    """Convolution reverb using an impulse response WAV file.
+
+    Convolves the input audio with an impulse response (IR) recording
+    to simulate the acoustic properties of a real space. Pure NumPy
+    implementation using FFT-based overlap-add convolution.
+
+    Args:
+        ir_path: Path to the impulse response WAV file.
+        wet: Wet signal level (0.0 to 1.0).
+        dry: Dry signal level (0.0 to 1.0).
+        pre_delay_ms: Pre-delay in milliseconds before reverb onset.
+    """
+
+    ir_path: str | Path
+    wet: float = 0.3
+    dry: float = 1.0
+    pre_delay_ms: float = 0.0
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply convolution reverb to audio samples.
+
+        Args:
+            samples: Audio samples, shape ``(n_samples,)`` for mono or
+                     ``(n_samples, channels)`` for multi-channel.
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Processed audio samples with reverb applied.
+
+        Raises:
+            FileNotFoundError: If the IR file doesn't exist.
+        """
+        ir = self._load_ir(sample_rate)
+
+        if len(samples) == 0 or len(ir) == 0:
+            return samples
+
+        was_1d = samples.ndim == 1
+        if was_1d:
+            work = samples[:, np.newaxis].astype(np.float64)
+        else:
+            work = samples.astype(np.float64)
+
+        # Ensure IR has same channel count
+        if ir.ndim == 1:
+            ir_2d = np.column_stack([ir] * work.shape[1])
+        elif ir.shape[1] < work.shape[1]:
+            ir_2d = np.column_stack([ir] + [ir[:, -1:]] * (work.shape[1] - ir.shape[1]))
+        else:
+            ir_2d = ir[:, : work.shape[1]]
+
+        # Pre-delay: insert zeros at start of IR
+        if self.pre_delay_ms > 0:
+            delay_samples = int(self.pre_delay_ms * 0.001 * sample_rate)
+            pad = np.zeros((delay_samples, ir_2d.shape[1]), dtype=np.float64)
+            ir_2d = np.concatenate([pad, ir_2d])
+
+        # FFT convolution per channel
+        n_out = len(work) + len(ir_2d) - 1
+        result = np.zeros((n_out, work.shape[1]), dtype=np.float64)
+        for ch in range(work.shape[1]):
+            conv: np.ndarray = np.fft.irfft(
+                np.fft.rfft(work[:, ch], n=n_out) * np.fft.rfft(ir_2d[:, ch], n=n_out),
+                n=n_out,
+            )
+            result[:, ch] = conv
+
+        # Trim to original length
+        result = result[: len(work)]
+
+        # Mix dry/wet
+        mixed = self.dry * work + self.wet * result
+
+        if was_1d:
+            mixed = mixed[:, 0]
+
+        out: np.ndarray = mixed.astype(samples.dtype)
+        return out
+
+    def _load_ir(self, target_sample_rate: int) -> np.ndarray:
+        """Load and decode the impulse response file.
+
+        Args:
+            target_sample_rate: Target sample rate for resampling.
+
+        Returns:
+            IR samples as float64 array.
+
+        Raises:
+            FileNotFoundError: If the IR file doesn't exist.
+        """
+        import shutil  # noqa: PLC0415
+        import subprocess  # noqa: PLC0415
+
+        ir_file = Path(self.ir_path).resolve()
+        validate_path(ir_file, [ir_file.parent])
+
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            msg = "ffmpeg not found on PATH."
+            raise RuntimeError(msg)
+
+        cmd = [
+            ffmpeg,
+            "-v",
+            "quiet",
+            "-i",
+            str(ir_file),
+            "-f",
+            "f64le",
+            "-acodec",
+            "pcm_f64le",
+            "-ar",
+            str(target_sample_rate),
+            "pipe:1",
+        ]
+
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            shell=False,
+            capture_output=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0 or len(result.stdout) == 0:
+            logger.warning("ir_load_failed", path=str(ir_file))
+            return np.zeros(0, dtype=np.float64)
+
+        raw = np.frombuffer(result.stdout, dtype=np.float64)
+
+        # Try to detect channel count from the IR file
+        # Default: assume stereo if sample count is even, else mono
+        if len(raw) % 2 == 0:
+            ir_samples: np.ndarray = raw.reshape(-1, 2)
+        else:
+            ir_samples = raw
+
+        # Normalize IR to prevent clipping
+        peak = np.max(np.abs(ir_samples))
+        if peak > 0:
+            ir_samples = ir_samples / peak
+
+        return ir_samples
 
 
 @dataclass

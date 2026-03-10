@@ -21,6 +21,7 @@ from pymotion.audio.analysis import (
 from pymotion.audio.effects import (
     EQ,
     Compressor,
+    ConvolutionReverb,
     Delay,
     EQBand,
     HighPassFilter,
@@ -381,6 +382,7 @@ __all__ = [
     "SURROUND_51_CHANNELS",
     "BeatDetector",
     "Compressor",
+    "ConvolutionReverb",
     "Delay",
     "EQ",
     "EQBand",
