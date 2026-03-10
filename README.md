@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/PyMotion-v1.2.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
+  <img src="https://img.shields.io/badge/PyMotion-v1.2.1-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
 </p>
 
 <h1 align="center">PyMotion</h1>

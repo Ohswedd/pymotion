@@ -2,6 +2,13 @@
 
 All notable changes to PyMotion are documented here.
 
+## [1.2.1] — 2026-03-10
+
+### Fixed
+- CI matrix updated to Python 3.12, 3.13, 3.14 (dropped 3.10/3.11)
+- Merged publish workflow into release workflow for reliable PyPI deploys
+- Relaxed Pillow dependency to `>=10.0,<14.0`
+
 ## [1.2.0] — 2026-03-10
 
 ### Added
