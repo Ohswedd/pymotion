@@ -120,6 +120,7 @@ class AudioMixer:
     _tracks: dict[str, _TrackState] = field(default_factory=dict, repr=False)
     _buses: dict[str, AudioBus] = field(default_factory=dict, repr=False)
     _duration_samples: int = 0
+    _target_lufs: float | None = field(default=None, repr=False)
 
     def add(
         self,
@@ -528,6 +529,143 @@ class AudioMixer:
 
         return bus_buf
 
+    def normalize(self, target_lufs: float = -14.0) -> None:
+        """Set loudness normalization target for the final mix.
+
+        When set, the rendered output is measured and a linear gain is
+        applied so the integrated loudness matches the target LUFS value.
+        Common targets:
+
+        - ``-14`` for streaming (Spotify, YouTube, Apple Music)
+        - ``-23`` for broadcast (EBU R128)
+        - ``-16`` for podcasts
+
+        Args:
+            target_lufs: Target integrated loudness in LUFS (Loudness
+                         Units relative to Full Scale).
+        """
+        self._target_lufs = target_lufs
+        logger.debug("normalization_set", target_lufs=target_lufs)
+
+    @staticmethod
+    def _measure_lufs(samples: np.ndarray, sample_rate: int) -> float:
+        """Measure integrated LUFS of audio using ITU-R BS.1770 simplified.
+
+        Applies K-weighting (pre-filter + RLB filter) then measures the
+        mean square level across all channels with channel weighting.
+
+        Args:
+            samples: Float64 audio, shape ``(n_samples, channels)``.
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Integrated loudness in LUFS.
+        """
+        if len(samples) == 0:
+            return -70.0
+
+        # Simplified K-weighting: high-shelf boost + high-pass
+        # Stage 1: Pre-filter (high-shelf +4dB at ~1681 Hz)
+        # Stage 2: RLB weighting (high-pass ~38 Hz)
+        # For simplicity, use biquad coefficients for 48kHz
+        # (close enough for other rates in practice)
+        weighted = samples.copy()
+
+        # Stage 1: Pre-filter (second-order high-shelf)
+        if sample_rate >= 44100:
+            # Coefficients for ~48kHz (ITU-R BS.1770-4)
+            f0 = 1681.974450955533
+            q = 0.7071752369554196
+            db_gain = 3.999843853973347
+            w0 = 2.0 * np.pi * f0 / sample_rate
+            a_val = 10.0 ** (db_gain / 40.0)
+            alpha = np.sin(w0) / (2.0 * q)
+            cos_w0 = np.cos(w0)
+
+            b0 = a_val * ((a_val + 1) + (a_val - 1) * cos_w0 + 2 * np.sqrt(a_val) * alpha)
+            b1 = -2 * a_val * ((a_val - 1) + (a_val + 1) * cos_w0)
+            b2 = a_val * ((a_val + 1) + (a_val - 1) * cos_w0 - 2 * np.sqrt(a_val) * alpha)
+            a0 = (a_val + 1) - (a_val - 1) * cos_w0 + 2 * np.sqrt(a_val) * alpha
+            a1 = 2 * ((a_val - 1) - (a_val + 1) * cos_w0)
+            a2 = (a_val + 1) - (a_val - 1) * cos_w0 - 2 * np.sqrt(a_val) * alpha
+
+            weighted = AudioMixer._apply_biquad_filter(
+                weighted, b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0
+            )
+
+            # Stage 2: High-pass ~38 Hz (RLB weighting)
+            f0_hp = 38.13547087602444
+            q_hp = 0.5003270373238773
+            w0_hp = 2.0 * np.pi * f0_hp / sample_rate
+            alpha_hp = np.sin(w0_hp) / (2.0 * q_hp)
+            cos_w0_hp = np.cos(w0_hp)
+
+            b0_h = (1.0 + cos_w0_hp) / 2.0
+            b1_h = -(1.0 + cos_w0_hp)
+            b2_h = b0_h
+            a0_h = 1.0 + alpha_hp
+            a1_h = -2.0 * cos_w0_hp
+            a2_h = 1.0 - alpha_hp
+
+            weighted = AudioMixer._apply_biquad_filter(
+                weighted, b0_h / a0_h, b1_h / a0_h, b2_h / a0_h, a1_h / a0_h, a2_h / a0_h
+            )
+
+        # Channel weighting (ITU-R BS.1770): surround channels get +1.5 dB
+        n_ch = weighted.shape[1]
+        weights = np.ones(n_ch, dtype=np.float64)
+        if n_ch >= 6:
+            # Ls and Rs channels get +1.5 dB weighting
+            weights[4] = 10.0 ** (1.5 / 10.0)
+            weights[5] = 10.0 ** (1.5 / 10.0)
+            weights[3] = 0.0  # LFE excluded from loudness measurement
+
+        # Mean square per channel, weighted sum
+        ms = np.mean(weighted**2, axis=0)
+        total = float(np.sum(ms * weights))
+
+        if total <= 0:
+            return -70.0
+
+        lufs: float = -0.691 + 10.0 * np.log10(total)
+        return lufs
+
+    @staticmethod
+    def _apply_biquad_filter(
+        samples: np.ndarray,
+        b0: float,
+        b1: float,
+        b2: float,
+        a1: float,
+        a2: float,
+    ) -> np.ndarray:
+        """Apply biquad filter to multi-channel audio.
+
+        Args:
+            samples: Input (n_samples, channels).
+            b0, b1, b2: Feed-forward coefficients.
+            a1, a2: Feed-back coefficients.
+
+        Returns:
+            Filtered samples.
+        """
+        n_samples, n_channels = samples.shape
+        out = np.zeros_like(samples)
+        for ch in range(n_channels):
+            x = samples[:, ch]
+            y = out[:, ch]
+            x1 = 0.0
+            x2 = 0.0
+            y1 = 0.0
+            y2 = 0.0
+            for n in range(n_samples):
+                y[n] = b0 * x[n] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+                x2 = x1
+                x1 = x[n]
+                y2 = y1
+                y1 = y[n]
+        return out
+
     def render(self) -> np.ndarray:
         """Mix all tracks and render to interleaved samples.
 
@@ -571,6 +709,20 @@ class AudioMixer:
             mix += bus_buf
 
         logger.debug("audio_mix_rendered", duration_samples=self._duration_samples)
+
+        # Apply LUFS normalization if requested
+        if self._target_lufs is not None:
+            current_lufs = self._measure_lufs(mix, self.sample_rate)
+            if current_lufs > -70.0:
+                gain_db = self._target_lufs - current_lufs
+                gain_linear = 10.0 ** (gain_db / 20.0)
+                mix = mix * gain_linear
+                logger.debug(
+                    "lufs_normalized",
+                    current_lufs=round(current_lufs, 1),
+                    target_lufs=self._target_lufs,
+                    gain_db=round(gain_db, 1),
+                )
 
         # Normalize and convert to int32
         max_val = 2 ** (self.bit_depth - 1) - 1

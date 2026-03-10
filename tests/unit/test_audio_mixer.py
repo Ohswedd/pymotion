@@ -629,3 +629,113 @@ class TestAudioBus:
         # 1.0 * 0.5 (track) * 0.5 (bus) = 0.25
         expected = int(0.25 * max_val)
         assert abs(reshaped[0, 0] - expected) < 2
+
+
+class TestLUFSNormalization:
+    """Tests for LUFS loudness normalization."""
+
+    def test_normalize_method_sets_target(self) -> None:
+        """normalize() stores the target LUFS value."""
+        mixer = AudioMixer()
+        mixer.normalize(target_lufs=-14.0)
+        assert mixer._target_lufs == -14.0
+
+    def test_normalize_default(self) -> None:
+        """Default target is -14 LUFS (streaming)."""
+        mixer = AudioMixer()
+        mixer.normalize()
+        assert mixer._target_lufs == -14.0
+
+    def test_measure_lufs_silence(self) -> None:
+        """Silent audio measures as very low LUFS."""
+        samples = np.zeros((48000, 2), dtype=np.float64)
+        lufs = AudioMixer._measure_lufs(samples, 48000)
+        assert lufs <= -60.0
+
+    def test_measure_lufs_empty(self) -> None:
+        """Empty audio returns -70 LUFS."""
+        samples = np.zeros((0, 2), dtype=np.float64)
+        lufs = AudioMixer._measure_lufs(samples, 48000)
+        assert lufs == -70.0
+
+    def test_measure_lufs_sine(self) -> None:
+        """A full-scale sine wave should measure near 0 LUFS."""
+        t = np.arange(48000 * 2, dtype=np.float64) / 48000  # 2 seconds
+        sine = np.sin(2 * np.pi * 1000 * t) * 1.0  # Full scale
+        stereo = np.column_stack([sine, sine])
+        lufs = AudioMixer._measure_lufs(stereo, 48000)
+        # Full-scale 1kHz sine should be around -3 to +3 LUFS
+        assert -5.0 < lufs < 5.0
+
+    def test_normalize_increases_quiet_signal(self) -> None:
+        """Normalization boosts a quiet signal."""
+        mixer = AudioMixer()
+        # Very quiet sine wave
+        t = np.arange(48000, dtype=np.float64) / 48000
+        quiet = np.sin(2 * np.pi * 440 * t) * 0.01  # ~ -40 dBFS
+        stereo = np.column_stack([quiet, quiet])
+        mixer.add(AudioClipData(samples=stereo))
+
+        # Without normalization
+        result_raw = mixer.render()
+        rms_raw = np.sqrt(np.mean(result_raw.astype(np.float64) ** 2))
+
+        # With normalization to -14 LUFS
+        mixer.normalize(target_lufs=-14.0)
+        result_norm = mixer.render()
+        rms_norm = np.sqrt(np.mean(result_norm.astype(np.float64) ** 2))
+
+        # Normalized should be louder
+        assert rms_norm > rms_raw
+
+    def test_normalize_reduces_loud_signal(self) -> None:
+        """Normalization attenuates a loud signal."""
+        mixer = AudioMixer()
+        t = np.arange(48000, dtype=np.float64) / 48000
+        loud = np.sin(2 * np.pi * 440 * t) * 0.9  # Near full scale
+        stereo = np.column_stack([loud, loud])
+        mixer.add(AudioClipData(samples=stereo))
+
+        # Without normalization
+        result_raw = mixer.render()
+        rms_raw = np.sqrt(np.mean(result_raw.astype(np.float64) ** 2))
+
+        # With normalization to -23 LUFS (broadcast, should be quieter)
+        mixer.normalize(target_lufs=-23.0)
+        result_norm = mixer.render()
+        rms_norm = np.sqrt(np.mean(result_norm.astype(np.float64) ** 2))
+
+        assert rms_norm < rms_raw
+
+    def test_normalize_silent_mix_no_crash(self) -> None:
+        """Normalizing a silent mix should not crash or produce NaN."""
+        mixer = AudioMixer()
+        samples = np.zeros(48000, dtype=np.float64)
+        mixer.add(AudioClipData(samples=samples))
+        mixer.normalize(target_lufs=-14.0)
+        result = mixer.render()
+        assert not np.any(np.isnan(result))
+        assert np.all(result == 0)
+
+    def test_lufs_surround_channel_weighting(self) -> None:
+        """LUFS measurement applies surround channel weighting."""
+        # Same signal, but in surround Ls/Rs channels should read louder
+        # than front L/R due to +1.5 dB weighting
+        t = np.arange(48000, dtype=np.float64) / 48000
+        sine = np.sin(2 * np.pi * 1000 * t) * 0.5
+
+        # Front L/R only
+        front = np.zeros((48000, 6), dtype=np.float64)
+        front[:, 0] = sine
+        front[:, 1] = sine
+
+        # Surround Ls/Rs only (same level)
+        surround = np.zeros((48000, 6), dtype=np.float64)
+        surround[:, 4] = sine
+        surround[:, 5] = sine
+
+        lufs_front = AudioMixer._measure_lufs(front, 48000)
+        lufs_surr = AudioMixer._measure_lufs(surround, 48000)
+
+        # Surround channels should measure louder due to weighting
+        assert lufs_surr > lufs_front
