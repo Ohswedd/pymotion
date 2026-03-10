@@ -33,6 +33,7 @@ from pymotion.audio.effects import (
 from pymotion.audio.mixer import (
     STEREO_CHANNELS,
     SURROUND_51_CHANNELS,
+    AudioBus,
     AudioClipData,
     AudioMixer,
     ChannelLayout,
@@ -369,6 +370,7 @@ __all__ = [
     "LightLeak",
     "NeonGlow",
     # Audio effects
+    "AudioBus",
     "AudioClipData",
     "AudioMixer",
     "ChannelLayout",

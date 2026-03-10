@@ -8,6 +8,7 @@ import pytest
 from pymotion.audio.mixer import (
     STEREO_CHANNELS,
     SURROUND_51_CHANNELS,
+    AudioBus,
     AudioClipData,
     AudioMixer,
     ChannelLayout,
@@ -376,3 +377,219 @@ class TestSurroundMixing:
         assert mixer.channels == 6
         mixer_stereo = AudioMixer(channels=ChannelLayout.STEREO)
         assert mixer_stereo.channels == 2
+
+
+class TestAudioBus:
+    """Tests for audio bus routing."""
+
+    def test_audio_bus_dataclass(self) -> None:
+        """AudioBus has correct defaults."""
+        bus = AudioBus(name="music")
+        assert bus.name == "music"
+        assert bus.volume == 1.0
+        assert bus.pan == 0.0
+        assert bus.tracks == []
+        assert bus.routing is None
+
+    def test_create_bus(self) -> None:
+        """Create a named bus on the mixer."""
+        mixer = AudioMixer()
+        mixer.create_bus("dialogue", volume=0.8)
+        assert "dialogue" in mixer._buses
+        assert mixer._buses["dialogue"].volume == 0.8
+
+    def test_create_duplicate_bus_raises(self) -> None:
+        """Creating a bus with a duplicate name raises ValueError."""
+        mixer = AudioMixer()
+        mixer.create_bus("music")
+        with pytest.raises(ValueError, match="already exists"):
+            mixer.create_bus("music")
+
+    def test_assign_track_to_bus(self) -> None:
+        """Assign a track to a bus."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64) * 0.5
+        mixer.add(AudioClipData(samples=samples), track="vocals")
+        mixer.create_bus("dialogue")
+        mixer.assign_track_to_bus("vocals", "dialogue")
+        assert "vocals" in mixer._buses["dialogue"].tracks
+
+    def test_assign_track_to_bus_idempotent(self) -> None:
+        """Assigning the same track twice doesn't duplicate it."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64)
+        mixer.add(AudioClipData(samples=samples), track="vocals")
+        mixer.create_bus("dialogue")
+        mixer.assign_track_to_bus("vocals", "dialogue")
+        mixer.assign_track_to_bus("vocals", "dialogue")
+        assert mixer._buses["dialogue"].tracks.count("vocals") == 1
+
+    def test_assign_nonexistent_track_raises(self) -> None:
+        mixer = AudioMixer()
+        mixer.create_bus("music")
+        with pytest.raises(ValueError, match="Track.*not found"):
+            mixer.assign_track_to_bus("ghost", "music")
+
+    def test_assign_to_nonexistent_bus_raises(self) -> None:
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64)
+        mixer.add(AudioClipData(samples=samples), track="vocals")
+        with pytest.raises(ValueError, match="Bus.*not found"):
+            mixer.assign_track_to_bus("vocals", "ghost")
+
+    def test_bus_volume_scales_output(self) -> None:
+        """Bus volume scales all tracks on the bus."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64) * 1.0
+        mixer.add(AudioClipData(samples=samples), track="music")
+        mixer.create_bus("music_bus", volume=0.5)
+        mixer.assign_track_to_bus("music", "music_bus")
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        expected = int(0.5 * max_val)
+        assert abs(reshaped[0, 0] - expected) < 2
+
+    def test_set_bus_volume(self) -> None:
+        """set_bus_volume updates bus volume."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64) * 1.0
+        mixer.add(AudioClipData(samples=samples), track="music")
+        mixer.create_bus("music_bus")
+        mixer.assign_track_to_bus("music", "music_bus")
+        mixer.set_bus_volume("music_bus", 0.25)
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        expected = int(0.25 * max_val)
+        assert abs(reshaped[0, 0] - expected) < 2
+
+    def test_set_bus_volume_nonexistent_raises(self) -> None:
+        mixer = AudioMixer()
+        with pytest.raises(ValueError, match="Bus.*not found"):
+            mixer.set_bus_volume("ghost", 0.5)
+
+    def test_set_bus_pan(self) -> None:
+        """Bus pan applies to all tracks on the bus."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64) * 0.5
+        mixer.add(AudioClipData(samples=samples), track="fx")
+        mixer.create_bus("fx_bus")
+        mixer.assign_track_to_bus("fx", "fx_bus")
+        mixer.set_bus_pan("fx_bus", 1.0)  # Full right
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+        # Left should be near zero, right should have signal
+        assert abs(reshaped[0, 0]) < 2
+        assert reshaped[0, 1] != 0
+
+    def test_set_bus_pan_nonexistent_raises(self) -> None:
+        mixer = AudioMixer()
+        with pytest.raises(ValueError, match="Bus.*not found"):
+            mixer.set_bus_pan("ghost", 0.5)
+
+    def test_bus_volume_keyframes(self) -> None:
+        """Bus volume automation via keyframes."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64) * 1.0
+        mixer.add(AudioClipData(samples=samples), track="music")
+        mixer.create_bus("music_bus")
+        mixer.assign_track_to_bus("music", "music_bus")
+        # Fade from 0 to 1 over 100 samples
+        mixer.set_bus_volume_keyframes("music_bus", [(0, 0.0), (99, 1.0)])
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+        # First sample should be near zero
+        assert abs(reshaped[0, 0]) < 2
+        # Last sample should be near max
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        assert abs(reshaped[99, 0] - max_val) < max_val * 0.05
+
+    def test_set_bus_volume_keyframes_nonexistent_raises(self) -> None:
+        mixer = AudioMixer()
+        with pytest.raises(ValueError, match="Bus.*not found"):
+            mixer.set_bus_volume_keyframes("ghost", [(0, 1.0)])
+
+    def test_bus_routing_surround(self) -> None:
+        """Bus with channel routing in 5.1 mode."""
+        mixer = AudioMixer(channels=6)
+        samples = np.ones(100, dtype=np.float64) * 0.6
+        mixer.add(AudioClipData(samples=samples), track="dialogue")
+        mixer.create_bus("dialogue_bus")
+        mixer.assign_track_to_bus("dialogue", "dialogue_bus")
+        mixer.set_bus_routing("dialogue_bus", {"C": 1.0, "LFE": 0.3})
+        result = mixer.render()
+        reshaped = result.reshape(-1, 6)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        assert abs(reshaped[0, SurroundChannel.C] - int(0.6 * max_val)) < 2
+        assert abs(reshaped[0, SurroundChannel.LFE] - int(0.6 * 0.3 * max_val)) < 2
+        assert reshaped[0, SurroundChannel.L] == 0
+
+    def test_set_bus_routing_nonexistent_raises(self) -> None:
+        mixer = AudioMixer(channels=6)
+        with pytest.raises(ValueError, match="Bus.*not found"):
+            mixer.set_bus_routing("ghost", {"C": 1.0})
+
+    def test_set_bus_routing_invalid_channel_raises(self) -> None:
+        mixer = AudioMixer(channels=6)
+        mixer.create_bus("test")
+        with pytest.raises(ValueError, match="Unknown channel name"):
+            mixer.set_bus_routing("test", {"INVALID": 1.0})
+
+    def test_multiple_buses_mix_together(self) -> None:
+        """Multiple buses with different tracks mix into master."""
+        mixer = AudioMixer()
+        s1 = np.ones(100, dtype=np.float64) * 0.3
+        s2 = np.ones(100, dtype=np.float64) * 0.2
+        mixer.add(AudioClipData(samples=s1), track="vocals")
+        mixer.add(AudioClipData(samples=s2), track="guitar")
+
+        mixer.create_bus("dialogue")
+        mixer.create_bus("music")
+        mixer.assign_track_to_bus("vocals", "dialogue")
+        mixer.assign_track_to_bus("guitar", "music")
+
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        expected = int(0.5 * max_val)  # 0.3 + 0.2
+        assert abs(reshaped[0, 0] - expected) < 2
+
+    def test_unbused_tracks_still_render(self) -> None:
+        """Tracks not assigned to any bus still render directly to master."""
+        mixer = AudioMixer()
+        s1 = np.ones(100, dtype=np.float64) * 0.4
+        s2 = np.ones(100, dtype=np.float64) * 0.3
+        mixer.add(AudioClipData(samples=s1), track="direct")
+        mixer.add(AudioClipData(samples=s2), track="bused")
+
+        mixer.create_bus("music_bus")
+        mixer.assign_track_to_bus("bused", "music_bus")
+
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        expected = int(0.7 * max_val)  # 0.4 direct + 0.3 via bus
+        assert abs(reshaped[0, 0] - expected) < 2
+
+    def test_track_volume_and_bus_volume_stack(self) -> None:
+        """Track volume and bus volume multiply together."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64) * 1.0
+        mixer.add(AudioClipData(samples=samples), track="vocals")
+        mixer.set_volume("vocals", 0.5)  # Track at 50%
+        mixer.create_bus("dialogue", volume=0.5)  # Bus at 50%
+        mixer.assign_track_to_bus("vocals", "dialogue")
+
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        # 1.0 * 0.5 (track) * 0.5 (bus) = 0.25
+        expected = int(0.25 * max_val)
+        assert abs(reshaped[0, 0] - expected) < 2
