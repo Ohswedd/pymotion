@@ -4,6 +4,47 @@
 Phase: v1.0.1 — Patch Release (COMPLETE)
 Started: 2026-03-10
 
+## Publishing & Distribution
+
+| Channel | Value |
+|---------|-------|
+| **PyPI package** | `pymotion-studio` |
+| **Install** | `pip install pymotion-studio` |
+| **Import** | `from pymotion import ...` |
+| **GitHub** | github.com/Ohswedd/pymotion |
+| **License** | PyMotion Source Available License 1.0 |
+
+## How to Release a New Version
+
+1. Bump version in `pyproject.toml`
+2. Add release notes to `CHANGELOG.md`
+3. Commit and push to `main`
+4. Tag and push:
+   ```bash
+   git tag v1.x.x
+   git push origin v1.x.x
+   ```
+5. Create a GitHub Release from the tag (or let `release.yml` do it automatically)
+6. `publish.yml` fires on the release event and uploads to PyPI via trusted publisher — no tokens needed
+7. `docker.yml` fires on the same event and pushes to Docker Hub (if secrets are configured)
+
+### Docker Hub Setup (one-time)
+
+1. Create an access token at https://hub.docker.com/settings/security
+2. Add two repository secrets at github.com/Ohswedd/pymotion/settings/secrets/actions:
+   - `DOCKERHUB_USERNAME` — your Docker Hub username
+   - `DOCKERHUB_TOKEN` — the access token from step 1
+3. Done — every future GitHub release will auto-push the Docker image
+
+### CI/CD Pipelines
+
+| Workflow | Trigger | What It Does |
+|----------|---------|--------------|
+| `ci.yml` | push/PR to `main` | Lint (ruff + mypy --strict), Test (Python 3.11 + 3.12, 80% coverage gate), Security audit (pip-audit) |
+| `release.yml` | tag push `v*` | Extracts CHANGELOG section, creates GitHub Release with notes |
+| `publish.yml` | GitHub release published | Builds sdist + wheel, publishes to PyPI via OIDC trusted publisher |
+| `docker.yml` | GitHub release published | Builds Docker image, pushes `<version>` + `latest` tags to Docker Hub |
+
 ## v1.0.1 Patch — Bug Fixes & Quality (COMPLETE)
 
 ### Critical Bug Fixes
@@ -36,12 +77,12 @@ Started: 2026-03-10
 - [x] GitHub Actions: ci.yml, publish.yml (PyPI trusted publisher), release.yml (auto-release from tags)
 - [x] git tags: v1.0.0, v1.0.1
 - [x] GitHub Releases: v1.0.0, v1.0.1 with CHANGELOG notes
-- [x] PyPI package name: pymotion-studio (trusted publisher — publishes on GitHub release)
+- [x] PyPI: pymotion-studio v1.0.1 published
 - [x] LICENSE: PyMotion Source Available License 1.0 (use freely, no redistribution)
 - [x] README: badges, install, quickstart, examples, architecture, performance, license summary
 - [x] Linux font fallback: DejaVuSans/LiberationSans resolved for CI
 - [x] mypy --strict: clean across all 60 source files (including CI environment)
-- [ ] Docker Hub update (optional)
+- [x] Docker Hub: docker.yml workflow added — auto-pushes on GitHub release (requires DOCKERHUB_USERNAME + DOCKERHUB_TOKEN secrets)
 
 ## Completed Phases
 
