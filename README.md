@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/PyMotion-v1.2.1-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
+  <img src="https://img.shields.io/badge/PyMotion-v1.3.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
 </p>
 
 <h1 align="center">PyMotion</h1>
@@ -11,9 +11,8 @@
 
 <p align="center">
   <a href="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml"><img src="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/v/pymotion-studio?color=D4AF37&label=PyPI" alt="PyPI"></a>
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/dm/pymotion-studio?color=blue&label=Downloads" alt="Downloads"></a>
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/pyversions/pymotion-studio" alt="Python"></a>
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/PyPI-v1.3.0-D4AF37" alt="PyPI"></a>
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue" alt="Python"></a>
   <a href="https://github.com/Ohswedd/pymotion/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Source%20Available-blue" alt="License"></a>
 </p>
 

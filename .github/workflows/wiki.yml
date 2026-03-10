@@ -1,0 +1,101 @@
+name: Sync Docs to Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout wiki
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync docs to wiki
+        run: |
+          # Clean wiki (except .git)
+          find wiki -mindepth 1 -not -path 'wiki/.git*' -delete
+
+          # Copy Home page
+          if [ -f docs/index.md ]; then
+            cp docs/index.md wiki/Home.md
+          fi
+
+          # Copy guides — flatten into wiki root with prefix
+          for f in docs/guides/*.md; do
+            [ -f "$f" ] || continue
+            basename=$(basename "$f")
+            cp "$f" "wiki/$basename"
+          done
+
+          # Copy API reference — flatten with api- prefix
+          for f in docs/api/*.md; do
+            [ -f "$f" ] || continue
+            basename=$(basename "$f")
+            cp "$f" "wiki/api-$basename"
+          done
+
+          # Generate _Sidebar.md from mkdocs nav
+          cat > wiki/_Sidebar.md << 'SIDEBAR'
+          ### PyMotion Wiki
+
+          **Guides**
+          - [[Getting Started|getting-started]]
+          - [[Keyframe Animation|keyframe-animation]]
+          - [[Clip Operations|clip-operations]]
+          - [[Compositing|compositing]]
+          - [[Masking|masking]]
+          - [[Expressions|expressions]]
+          - [[Path Animation|path-animation]]
+          - [[Keying Effects|keying]]
+          - [[Layout, Tracking & Proxy|layout-tracking-proxy]]
+          - [[Audio Mixing|audio-mixing]]
+          - [[3D Scenes|3d-scenes]]
+          - [[Text Animation|text-animation]]
+          - [[Effects Pipeline|effects-pipeline]]
+          - [[Transitions|transitions]]
+          - [[Particles|particles]]
+          - [[Template System|template-system]]
+          - [[Batch Generation|batch-generation]]
+
+          **API Reference**
+          - [[Composition|api-composition]]
+          - [[Clips|api-clips]]
+          - [[Clip Operations|api-clip-operations]]
+          - [[Masking|api-masking]]
+          - [[Expressions|api-expressions]]
+          - [[Path Animation|api-path-animation]]
+          - [[Effects|api-effects]]
+          - [[Keying|api-keying]]
+          - [[Transitions|api-transitions]]
+          - [[Layout|api-layout]]
+          - [[Tracking & Proxy|api-tracking]]
+          - [[Audio|api-audio]]
+          - [[Animation|api-animation]]
+          - [[Templates|api-templates]]
+          SIDEBAR
+
+      - name: Push to wiki
+        run: |
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No wiki changes to commit"
+          else
+            git commit -m "docs: sync wiki from docs/ ($(date -u +%Y-%m-%d))"
+            git push
+          fi

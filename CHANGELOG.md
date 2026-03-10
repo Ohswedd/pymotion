@@ -2,6 +2,42 @@
 
 All notable changes to PyMotion are documented here.
 
+## [1.3.0] — 2026-03-10
+
+### Added
+- **Nested compositions (pre-comps)** — `Composition.to_clip()` wraps a composition as
+  a `CompositionClip` for nesting inside parent compositions. Supports independent resolution
+  and fps with automatic scaling, recursive nesting up to 10 levels, and a shared LRU frame
+  cache across nesting depths.
+- **Adjustment layers** — `AdjustmentLayer` applies its effects to all layers below it in
+  the same composition. Supports opacity blending between adjusted and original frames.
+- **Advanced masking system** — `BezierMask` (Cairo-rasterized closed paths with keyframe
+  animation), `LinearGradientMask`, `RadialGradientMask`, `TrackMatte` (alpha or BT.601 luma),
+  `TextMask` (Cairo text-shaped masks). Boolean mask operations: `MaskOp.ADD` (union),
+  `MaskOp.INTERSECT` (intersection), `MaskOp.SUBTRACT` (difference). Per-mask feather,
+  expansion, invert, and opacity controls.
+- **Clip parenting** — `clip.parent = other_clip` for transform inheritance (position, scale,
+  rotation). `NullObject` as an invisible transform group anchor. Circular parenting detection
+  with `ValueError`.
+- **Expression system** — `clip.set_expression(prop, fn)` to drive position, scale, rotation,
+  and opacity with Python callables. `ExpressionContext` provides frame, time, fps, progress,
+  and composition dimensions. Built-in helpers: `wiggle(freq, amp, seed)` for smooth random
+  oscillation, `loop_in(duration, fn)` and `loop_out(duration, fn)` for expression looping.
+  Expression linking between clips via `clip_a.opacity_at(frame)`.
+- **Path animation** — `clip.follow_path(svg_path, duration, align)` animates a clip along
+  SVG paths (M, L, C, Z commands). `StrokeClip` with `trim_start`/`trim_end` for draw-on/off
+  stroke effects via Cairo dash patterns. `morph_paths(path_a, path_b, progress)` for bezier
+  path interpolation. `ShapeClip.morph()` for applying morphed paths directly.
+- **Documentation** — 4 new guides (compositing, masking, expressions, path animation),
+  3 new API reference pages, updated existing API docs with NullObject, CompositionClip,
+  and AdjustmentLayer.
+- **Example** — `07_motion_graphics_toolkit.py` with 7 demos covering all v1.3 features.
+
+### Changed
+- Version bumped to 1.3.0
+- Test suite expanded to 1444 tests, coverage at 86%
+- README updated with v1.3 feature table, architecture diagram, and static badges
+
 ## [1.2.1] — 2026-03-10
 
 ### Fixed
