@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,19 +13,23 @@ permissions:
 jobs:
   sync-wiki:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Checkout wiki
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository }}.wiki
-          path: wiki
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Sync docs to wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
+          # Clone wiki using the token
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git" wiki || {
+            echo "::warning::Wiki repository not accessible. Ensure the wiki is initialized (create at least one page via the GitHub UI)."
+            exit 0
+          }
+
           # Clean wiki (except .git)
           find wiki -mindepth 1 -not -path 'wiki/.git*' -delete
 
@@ -33,21 +38,19 @@ jobs:
             cp docs/index.md wiki/Home.md
           fi
 
-          # Copy guides — flatten into wiki root with prefix
+          # Copy guides
           for f in docs/guides/*.md; do
             [ -f "$f" ] || continue
-            basename=$(basename "$f")
-            cp "$f" "wiki/$basename"
+            cp "$f" "wiki/$(basename "$f")"
           done
 
-          # Copy API reference — flatten with api- prefix
+          # Copy API reference with api- prefix
           for f in docs/api/*.md; do
             [ -f "$f" ] || continue
-            basename=$(basename "$f")
-            cp "$f" "wiki/api-$basename"
+            cp "$f" "wiki/api-$(basename "$f")"
           done
 
-          # Generate _Sidebar.md from mkdocs nav
+          # Generate sidebar
           cat > wiki/_Sidebar.md << 'SIDEBAR'
           ### PyMotion Wiki
 
@@ -87,8 +90,10 @@ jobs:
           - [[Templates|api-templates]]
           SIDEBAR
 
-      - name: Push to wiki
-        run: |
+          # Strip leading whitespace from sidebar (heredoc indentation)
+          sed -i 's/^          //' wiki/_Sidebar.md
+
+          # Push changes
           cd wiki
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

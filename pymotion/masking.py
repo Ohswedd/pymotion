@@ -124,7 +124,8 @@ def _process_single_mask(
     if opacity < 1.0:
         mask_f = mask_f * opacity
 
-    return np.clip(mask_f * 255, 0, 255).astype(np.uint8)
+    result: np.ndarray = np.clip(mask_f * 255, 0, 255).astype(np.uint8)
+    return result
 
 
 def apply_masks(

@@ -66,6 +66,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -82,3 +83,4 @@ jobs:
           pip install -e .
       - name: pip-audit
         run: pip-audit
+        timeout-minutes: 5
