@@ -92,6 +92,17 @@ from pymotion.effects.visual import (
 )
 from pymotion.export.presets import OutputPreset, get_preset
 from pymotion.layout import grid, pip, split_screen, stack
+from pymotion.masking import (
+    BezierMask,
+    BezierPoint,
+    LinearGradientMask,
+    Mask,
+    MaskGroup,
+    MaskOp,
+    RadialGradientMask,
+    TextMask,
+    TrackMatte,
+)
 from pymotion.particle.system import (
     Emitter,
     ParticleSystem,
@@ -372,6 +383,16 @@ __all__ = [
     "grid",
     "split_screen",
     "stack",
+    # Masking
+    "BezierMask",
+    "BezierPoint",
+    "LinearGradientMask",
+    "Mask",
+    "MaskGroup",
+    "MaskOp",
+    "RadialGradientMask",
+    "TextMask",
+    "TrackMatte",
     # Proxy
     "ProxyClip",
     "clear_proxy_cache",

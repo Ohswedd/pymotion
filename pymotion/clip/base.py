@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         TimeRemappedClip,
     )
     from pymotion.effects.base import Effect
+    from pymotion.masking import MaskGroup, MaskOp
     from pymotion.proxy import ProxyClip
     from pymotion.tracking import StabilizedClip
 
@@ -179,6 +180,7 @@ class Clip(ABC):
     _rotation: float = 0.0
     blend_mode: BlendMode = BlendMode.NORMAL
     _effects: list[Effect] = field(default_factory=list)
+    _masks: list[MaskGroup] = field(default_factory=list)
 
     def add_effect(self, effect: Effect) -> Self:
         """Add a visual effect to this clip.
@@ -194,18 +196,67 @@ class Clip(ABC):
         self._effects.append(effect)
         return self
 
+    def add_mask(
+        self,
+        mask: object,
+        op: MaskOp | None = None,
+    ) -> Self:
+        """Add a mask to this clip.
+
+        Masks are applied after effects in :meth:`render_with_effects`.
+        Multiple masks are combined using boolean operations.
+
+        Args:
+            mask: A :class:`~pymotion.masking.Mask` instance.
+            op: Boolean operation for combining with previous masks.
+                Defaults to :attr:`MaskOp.ADD`.
+
+        Returns:
+            Self for method chaining.
+        """
+        from pymotion.masking import Mask as MaskBase
+        from pymotion.masking import MaskGroup as MaskGroupCls
+        from pymotion.masking import MaskOp as MaskOpEnum
+
+        if not isinstance(mask, MaskBase):
+            msg = f"Expected a Mask instance, got {type(mask).__name__}"
+            raise TypeError(msg)
+
+        if op is None:
+            op_val = MaskOpEnum.ADD
+        else:
+            op_val = op
+
+        self._masks.append(MaskGroupCls(mask=mask, op=op_val))
+        return self
+
+    def clear_masks(self) -> Self:
+        """Remove all masks from this clip.
+
+        Returns:
+            Self for method chaining.
+        """
+        self._masks.clear()
+        return self
+
     def render_with_effects(self, ctx: RenderContext) -> np.ndarray:
-        """Render a frame and apply all attached effects.
+        """Render a frame, apply all effects, then apply masks.
+
+        The pipeline is: render_frame() → effects → masks (alpha).
 
         Args:
             ctx: The render context for this frame.
 
         Returns:
-            BGRA numpy array with all effects applied.
+            BGRA numpy array with all effects and masks applied.
         """
         frame = self.render_frame(ctx)
         for effect in self._effects:
             frame = effect.apply(frame, ctx)
+        if self._masks:
+            from pymotion.masking import apply_masks
+
+            frame = apply_masks(frame, self._masks, ctx)
         return frame
 
     def set_duration(self, frames: int) -> Self:

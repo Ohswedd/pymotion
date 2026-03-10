@@ -207,9 +207,7 @@ class TestAdjustmentLayerInComposition:
         frame_adj = comp._render_frame(0)
 
         # Without adjustment layer
-        comp2 = Composition(
-            width=200, height=100, fps=30, duration=30, background="#000000"
-        )
+        comp2 = Composition(width=200, height=100, fps=30, duration=30, background="#000000")
         gray2 = ColorClip("#808080").set_duration(30)
         comp2.add(gray2)
         frame_no_adj = comp2._render_frame(0)
