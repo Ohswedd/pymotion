@@ -35,6 +35,14 @@ from pymotion.clip.audio import AudioClip, Silence
 from pymotion.clip.base import Align, BlendMode, RenderContext, Resolution, TimeRange
 from pymotion.clip.color import ColorClip, GradientClip
 from pymotion.clip.image import ImageClip
+from pymotion.clip.operations import (
+    ConcatenatedClip,
+    FreezeFrameClip,
+    JoinedClip,
+    RepeatedClip,
+    SubClip,
+    concatenate,
+)
 from pymotion.clip.scene3d import Scene3D, Scene3DClip
 from pymotion.clip.shape import ShapeClip
 from pymotion.clip.text import Shadow, TextClip, download_google_font
@@ -183,6 +191,13 @@ __all__ = [
     "ShapeClip",
     "TextClip",
     "VideoClip",
+    # Clip operations
+    "ConcatenatedClip",
+    "FreezeFrameClip",
+    "JoinedClip",
+    "RepeatedClip",
+    "SubClip",
+    "concatenate",
     # Helpers
     "Silence",
     "Keyframe",
