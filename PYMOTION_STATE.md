@@ -93,11 +93,11 @@ Started: 2026-03-10
 - [x] `_resolve_position(anchor, clip_size, container_size)` in `utils/layout.py` — resolve named anchors to pixel coords
 
 ### 1.2.5 Motion Tracking & Stabilization
-- [ ] `clip.stabilize(smoothing=30, border_mode="crop")` — feature tracking + affine smoothing; `border_mode`: `"crop"` | `"reflect"`; requires OpenCV
-- [ ] `pm.MotionTracker(clip, region=(x, y, w, h))` — track a region across frames using `cv2.TrackerCSRT_create()`
-- [ ] `tracker.track()` — returns `dict[int, Vec2]` of frame → center position
-- [ ] `tracker.to_keyframes(prop)` — converts tracking data to a `KeyframeTrack`
-- [ ] `clip.follow_tracker(tracker, prop="position", offset=(0, 0))` — wire tracker output to any clip property
+- [x] `clip.stabilize(smoothing=30, border_mode="crop")` — feature tracking + affine smoothing; `border_mode`: `"crop"` | `"reflect"`; requires OpenCV
+- [x] `pm.MotionTracker(clip, region=(x, y, w, h))` — track a region across frames using `cv2.TrackerCSRT_create()`
+- [x] `tracker.track()` — returns `dict[int, Vec2]` of frame → center position
+- [x] `tracker.to_keyframes(prop)` — converts tracking data to a `KeyframeTrack`
+- [x] `clip.follow_tracker(tracker, prop="position", offset=(0, 0))` — wire tracker output to any clip property
 
 ### 1.2.6 Proxy Workflow
 - [ ] `clip.create_proxy(scale=0.25, cache_dir=None)` — generate low-res proxy; filename = `SHA256(source + scale)[:12].mp4`; reuses existing proxy if source mtime unchanged

@@ -128,6 +128,7 @@ from pymotion.text.animated import (
     Typewriter,
     WordByWord,
 )
+from pymotion.tracking import MotionTracker, StabilizedClip
 from pymotion.transition.base import Transition
 from pymotion.transition.library import (
     CircularWipe,
@@ -368,6 +369,9 @@ __all__ = [
     "grid",
     "split_screen",
     "stack",
+    # Tracking
+    "MotionTracker",
+    "StabilizedClip",
     # Export
     "OutputPreset",
     "get_preset",

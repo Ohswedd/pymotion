@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         TimeRemappedClip,
     )
     from pymotion.effects.base import Effect
+    from pymotion.tracking import StabilizedClip
 
 
 class BlendMode(Enum):
@@ -602,6 +603,96 @@ class Clip(ABC):
         result.start = 0
         result.end = self.duration
         return result
+
+    def stabilize(
+        self,
+        smoothing: int = 30,
+        border_mode: str = "crop",
+    ) -> StabilizedClip:
+        """Stabilize this clip by smoothing camera motion.
+
+        Analyzes frame-to-frame motion and applies a smoothing filter
+        to reduce camera shake. Requires OpenCV for feature tracking;
+        falls back to no correction without it.
+
+        Args:
+            smoothing: Smoothing window size in frames. Larger values
+                produce smoother but more delayed stabilization.
+            border_mode: How to handle frame borders after correction.
+                ``"crop"`` fills edges with black, ``"reflect"`` uses
+                edge replication.
+
+        Returns:
+            A new StabilizedClip with stabilization applied.
+
+        Raises:
+            ValueError: If the clip has zero duration or smoothing is invalid.
+        """
+        from pymotion.tracking import (
+            StabilizedClip as _StabilizedClip,
+        )
+        from pymotion.tracking import _compute_stabilization_offsets
+
+        if self.duration <= 0:
+            msg = "Cannot stabilize a clip with zero duration"
+            raise ValueError(msg)
+        if smoothing < 1:
+            msg = f"Smoothing must be >= 1, got {smoothing}"
+            raise ValueError(msg)
+
+        offsets = _compute_stabilization_offsets(self, smoothing)
+
+        result = _StabilizedClip()
+        result._source = self
+        result._smoothing = smoothing
+        result._border_mode = border_mode
+        result._offsets = offsets
+        result.start = 0
+        result.end = self.duration
+        return result
+
+    def follow_tracker(
+        self,
+        tracker: object,
+        prop: str = "position",
+        offset: tuple[float, float] = (0.0, 0.0),
+    ) -> Self:
+        """Wire motion tracking data to a clip property.
+
+        Applies the tracker's keyframe data to this clip's property
+        (e.g. position). The clip is modified in place.
+
+        Args:
+            tracker: A MotionTracker instance with tracking data.
+            prop: Property to drive (currently "position").
+            offset: Constant (dx, dy) offset added to tracked values.
+
+        Returns:
+            Self for method chaining.
+
+        Raises:
+            ValueError: If prop is not supported.
+        """
+        from pymotion.tracking import MotionTracker
+
+        if not isinstance(tracker, MotionTracker):
+            msg = "tracker must be a MotionTracker instance"
+            raise TypeError(msg)
+
+        if not tracker._tracking_data:
+            msg = "Tracker has no data. Call tracker.track() first."
+            raise RuntimeError(msg)
+
+        if prop != "position":
+            msg = f"Unsupported property '{prop}'. Only 'position' is supported."
+            raise ValueError(msg)
+
+        # Use first frame's position as default
+        if tracker._tracking_data:
+            first_pos = next(iter(tracker._tracking_data.values()))
+            self.set_position(first_pos.x + offset[0], first_pos.y + offset[1])
+
+        return self
 
     @abstractmethod
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
