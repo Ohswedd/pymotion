@@ -1,11 +1,16 @@
-"""Composition and Track — the root objects for video generation.
+"""Composition, Track, and CompositionClip — the root objects for video generation.
 
 A Composition is the root object that owns the resolution, fps, duration,
 and all tracks. Tracks hold clips in z-order (last added = top).
+
+CompositionClip wraps a Composition as a Clip so it can be nested inside
+another Composition (up to 10 levels deep).
 """
 
 from __future__ import annotations
 
+import threading
+from collections import OrderedDict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +25,10 @@ from pymotion.utils.color import Color, ColorInput
 from pymotion.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+_MAX_NESTING_DEPTH = 10
+
+_DEFAULT_CACHE_MAX_FRAMES = 256
 
 
 @dataclass
@@ -51,6 +60,82 @@ class Track:
         """
         self.clips.extend(clips)
         return self
+
+
+class _NestedFrameCache:
+    """Thread-safe LRU cache for rendered frames shared across nesting levels.
+
+    Frames are keyed by ``(composition_id, frame_index)`` and evicted in
+    LRU order when the cache exceeds ``max_frames``.
+
+    Args:
+        max_frames: Maximum number of frames to keep in cache.
+    """
+
+    def __init__(self, max_frames: int = _DEFAULT_CACHE_MAX_FRAMES) -> None:
+        self._max_frames = max_frames
+        self._cache: OrderedDict[tuple[int, int], np.ndarray] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, comp_id: int, frame: int) -> np.ndarray | None:
+        """Retrieve a cached frame, or ``None`` if not present.
+
+        Args:
+            comp_id: The ``id()`` of the Composition.
+            frame: Frame index.
+
+        Returns:
+            Cached BGRA frame or None.
+        """
+        key = (comp_id, frame)
+        with self._lock:
+            val = self._cache.get(key)
+            if val is not None:
+                self._cache.move_to_end(key)
+                return val.copy()
+            return None
+
+    def put(self, comp_id: int, frame: int, data: np.ndarray) -> None:
+        """Store a rendered frame in the cache.
+
+        Args:
+            comp_id: The ``id()`` of the Composition.
+            frame: Frame index.
+            data: BGRA numpy array.
+        """
+        key = (comp_id, frame)
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                self._cache[key] = data.copy()
+            else:
+                self._cache[key] = data.copy()
+                if len(self._cache) > self._max_frames:
+                    self._cache.popitem(last=False)
+
+    def clear(self) -> None:
+        """Remove all cached entries."""
+        with self._lock:
+            self._cache.clear()
+
+    @property
+    def size(self) -> int:
+        """Number of frames currently cached."""
+        with self._lock:
+            return len(self._cache)
+
+
+# Module-level shared cache instance
+_shared_frame_cache = _NestedFrameCache()
+
+
+def get_shared_frame_cache() -> _NestedFrameCache:
+    """Return the module-level shared frame cache for nested compositions.
+
+    Returns:
+        The shared ``_NestedFrameCache`` instance.
+    """
+    return _shared_frame_cache
 
 
 class Composition:
@@ -269,3 +354,152 @@ class Composition:
         img.save(output_path)
         logger.info("frame_exported", frame=frame, output=str(output_path))
         return output_path
+
+    def to_clip(self) -> CompositionClip:
+        """Convert this composition to a clip for nesting inside another.
+
+        The returned clip renders this composition's frames on demand.
+        Recursive nesting is supported up to 10 levels deep.
+
+        Returns:
+            A CompositionClip bound to this composition.
+
+        Raises:
+            ValueError: If this composition has zero duration.
+        """
+        if self.duration <= 0:
+            msg = "Cannot convert a composition with zero duration to a clip"
+            raise ValueError(msg)
+
+        clip = CompositionClip(
+            _composition=self,
+        )
+        clip.set_duration(self.duration)
+        return clip
+
+
+@dataclass
+class CompositionClip(Clip):
+    """A clip that renders frames from a nested Composition.
+
+    Supports independent resolution and fps. When the nested
+    composition differs from the parent, frames are scaled to fit
+    the parent resolution and frame indices are remapped via the
+    fps ratio.
+
+    Nesting is recursive up to 10 levels. A shared LRU cache across
+    all nesting levels avoids redundant rendering.
+
+    Args:
+        _composition: The nested Composition to render.
+        _nesting_depth: Current nesting depth (auto-incremented).
+        _cache: Shared frame cache across nesting levels.
+    """
+
+    _composition: Composition = field(default_factory=lambda: Composition())
+    _nesting_depth: int = 0
+    _cache: _NestedFrameCache = field(
+        default_factory=get_shared_frame_cache,
+        repr=False,
+    )
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Render a single frame from the nested composition.
+
+        Handles fps conversion (parent fps → child fps) and resolution
+        scaling (child resolution → parent resolution). Uses the shared
+        LRU cache to avoid re-rendering identical frames.
+
+        Args:
+            ctx: The render context from the parent composition.
+
+        Returns:
+            BGRA numpy array matching the parent resolution.
+
+        Raises:
+            RecursionError: If nesting depth exceeds 10 levels.
+        """
+        if self._nesting_depth >= _MAX_NESTING_DEPTH:
+            msg = f"Maximum composition nesting depth ({_MAX_NESTING_DEPTH}) exceeded"
+            raise RecursionError(msg)
+
+        child = self._composition
+
+        # Map parent local_frame to child frame via fps ratio
+        if ctx.fps != child.fps and ctx.fps > 0:
+            child_frame = int(ctx.local_frame * child.fps / ctx.fps)
+        else:
+            child_frame = ctx.local_frame
+
+        # Clamp to child duration
+        child_frame = max(0, min(child_frame, child.duration - 1))
+
+        comp_id = id(child)
+
+        # Check cache
+        cached = self._cache.get(comp_id, child_frame)
+        if cached is not None:
+            return self._scale_to_parent(cached, ctx.resolution)
+
+        # Propagate nesting depth to any CompositionClips in child
+        self._propagate_depth(child)
+
+        rendered = child._render_frame(child_frame)
+
+        # Cache the rendered frame at native resolution
+        self._cache.put(comp_id, child_frame, rendered)
+
+        return self._scale_to_parent(rendered, ctx.resolution)
+
+    def _propagate_depth(self, comp: Composition) -> None:
+        """Set nesting depth on all CompositionClips within a composition.
+
+        Args:
+            comp: The composition to scan.
+        """
+        for track in comp.tracks:
+            for clip in track.clips:
+                if isinstance(clip, CompositionClip):
+                    clip._nesting_depth = self._nesting_depth + 1
+                    clip._cache = self._cache
+
+    @staticmethod
+    def _scale_to_parent(
+        frame: np.ndarray,
+        parent_res: Resolution,
+    ) -> np.ndarray:
+        """Scale a rendered frame to the parent composition's resolution.
+
+        Uses area interpolation for downscaling and linear for upscaling
+        via OpenCV when available, falling back to nearest-neighbor via
+        numpy for simplicity.
+
+        Args:
+            frame: Source BGRA frame (H, W, 4).
+            parent_res: Target resolution.
+
+        Returns:
+            Scaled BGRA numpy array matching parent_res.
+        """
+        src_h, src_w = frame.shape[:2]
+        dst_w, dst_h = parent_res.width, parent_res.height
+
+        if src_w == dst_w and src_h == dst_h:
+            return frame
+
+        try:
+            import cv2  # type: ignore[import-not-found]
+
+            if dst_w < src_w or dst_h < src_h:
+                interp = cv2.INTER_AREA
+            else:
+                interp = cv2.INTER_LINEAR
+            return cv2.resize(frame, (dst_w, dst_h), interpolation=interp)  # type: ignore[no-any-return]
+        except ImportError:
+            pass
+
+        # Numpy nearest-neighbor fallback
+        row_idx = (np.arange(dst_h) * src_h // dst_h).clip(0, src_h - 1)
+        col_idx = (np.arange(dst_w) * src_w // dst_w).clip(0, src_w - 1)
+        result: np.ndarray = frame[np.ix_(row_idx, col_idx)]
+        return result
