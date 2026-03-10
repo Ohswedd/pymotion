@@ -15,6 +15,10 @@ All visual clip types for video composition. Every clip inherits from the
 
 ::: pymotion.clip.base.RenderContext
 
+## NullObject
+
+::: pymotion.clip.base.NullObject
+
 ## ColorClip
 
 ::: pymotion.clip.color.ColorClip

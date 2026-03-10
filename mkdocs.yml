@@ -20,6 +20,10 @@ nav:
   - Guides:
     - Keyframe Animation: guides/keyframe-animation.md
     - Clip Operations: guides/clip-operations.md
+    - Compositing: guides/compositing.md
+    - Masking: guides/masking.md
+    - Expressions: guides/expressions.md
+    - Path Animation: guides/path-animation.md
     - Keying Effects: guides/keying.md
     - Layout, Tracking & Proxy: guides/layout-tracking-proxy.md
     - Audio Mixing: guides/audio-mixing.md
@@ -34,6 +38,9 @@ nav:
     - Composition: api/composition.md
     - Clips: api/clips.md
     - Clip Operations: api/clip-operations.md
+    - Masking: api/masking.md
+    - Expressions: api/expressions.md
+    - Path Animation: api/path-animation.md
     - Effects: api/effects.md
     - Keying: api/keying.md
     - Transitions: api/transitions.md

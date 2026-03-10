@@ -19,10 +19,10 @@
 
 <p align="center">
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/mypy-strict-blue" alt="mypy strict"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-85%25-brightgreen" alt="Coverage"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-86%25-brightgreen" alt="Coverage"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/ruff-clean-purple" alt="Ruff"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/pip--audit-passing-green" alt="Security Audit"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1285%20passed-brightgreen" alt="Tests"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1444%20passed-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -70,6 +70,10 @@ That's a full 1080p video in 12 lines.
 | **Speed/Time** | Uniform speed, speed ramp, reverse, time remap, optical flow slow-motion |
 | **Layout** | Picture-in-picture, grid, split screen, stack — named anchor positioning |
 | **Tracking** | Motion tracking, video stabilization, follow-tracker binding |
+| **Compositing** | Nested compositions (pre-comps), adjustment layers, clip parenting with NullObject |
+| **Masking** | Bezier, linear/radial gradient, track matte, text masks — boolean ops (add, intersect, subtract) |
+| **Expressions** | Drive any property with Python callables — wiggle, loop_in, loop_out helpers |
+| **Path Animation** | SVG path following, StrokeClip draw-on/off, bezier path morphing |
 | **Proxy** | Low-res proxy generation with disk cache for fast preview |
 | **Transitions** | 39 built-in (fade, slide, wipe, zoom, glitch, film burn, shatter, vortex, ...) |
 | **Particles** | 9 presets — fire, sparkles, confetti, rain, smoke, stars, dust, explosion, bubbles |
@@ -212,7 +216,7 @@ comp = grid(clips, rows=2, cols=2, gap=10)
 
 ## Examples
 
-Six production-ready scripts ship with the repo, each targeting a real-world use case:
+Seven production-ready scripts ship with the repo, each targeting a real-world use case:
 
 | # | Script | Niche | What It Demonstrates |
 |---|--------|-------|----------------------|
@@ -222,6 +226,7 @@ Six production-ready scripts ship with the repo, each targeting a real-world use
 | 04 | `restaurant_menu_promo.py` | Menu promotions | WordByWord reveals, stars particles, ShapeClip polygons |
 | 05 | `educational_explainer.py` | E-learning | LetterByLetter titles, CountUp counters, diagram shapes |
 | 06 | `video_editing_showcase.py` | Post-production | split/join/speed/reverse, ChromaKey, grid/pip/split_screen, proxy workflow |
+| 07 | `motion_graphics_toolkit.py` | Motion graphics | Nested comps, masks, expressions, wiggle, path animation, adjustment layers |
 
 ```bash
 python examples/download_assets.py     # grab stock images (~5 MB)
@@ -250,6 +255,10 @@ pymotion/
 ├── animation/     Keyframe tracks, 30+ easings, spring, bezier, interpolation
 ├── audio/         Mixer, DSP effects (EQ, compressor, reverb, ...), beat detection
 ├── clip/          ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip
+├── composition.py Composition, Track, CompositionClip, AdjustmentLayer
+├── masking.py     Bezier, gradient, track matte, text masks + boolean ops
+├── expressions.py Expression system — wiggle, loop_in, loop_out
+├── path_animation.py  SVG path following, StrokeClip, path morphing
 ├── effects/       Visual, color, distortion, light effect processors
 ├── export/        FFmpeg encoder, 15 output presets
 ├── particle/      Vectorized particle system, 9 preset generators
@@ -295,7 +304,7 @@ make clean     # remove caches and build artifacts
 ### Running Tests
 
 ```bash
-pytest -v                              # full suite (1285 tests)
+pytest -v                              # full suite (1444 tests)
 pytest tests/unit/ -v                  # unit tests only
 pytest tests/integration/ -v           # integration tests
 pytest --cov=pymotion --cov-report=html  # coverage report
