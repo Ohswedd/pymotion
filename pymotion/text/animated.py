@@ -216,6 +216,7 @@ def _apply_reveal_mask(
 # Ease-out helper for CountUp / CountDown
 # ---------------------------------------------------------------------------
 
+
 def _ease_out_quint(t: float) -> float:
     """Quintic ease-out: fast start, smooth deceleration.
 
@@ -287,11 +288,20 @@ class Typewriter(Clip):
         if n_full >= len(self.text):
             # Fully revealed — return cached full text (no mask needed)
             frame = _render_text_simple(
-                self.text, w, h, self.font_size, (b, g, r, a), self.position,
+                self.text,
+                w,
+                h,
+                self.font_size,
+                (b, g, r, a),
+                self.position,
             )
             if self.cursor and ctx.local_frame % 30 < 15:
                 cursor_frame = _render_text_simple(
-                    "|", w, h, self.font_size, (b, g, r, a),
+                    "|",
+                    w,
+                    h,
+                    self.font_size,
+                    (b, g, r, a),
                     Vec2(self.position.x + self._text_width(), self.position.y),
                 )
                 np.maximum(frame, cursor_frame, out=frame)
@@ -302,7 +312,12 @@ class Typewriter(Clip):
 
         # Render full text
         frame = _render_text_simple(
-            self.text, w, h, self.font_size, (b, g, r, a), self.position,
+            self.text,
+            w,
+            h,
+            self.font_size,
+            (b, g, r, a),
+            self.position,
         )
 
         # Compute reveal boundary from character positions
@@ -318,7 +333,11 @@ class Typewriter(Clip):
         # Blinking cursor at reveal edge
         if self.cursor and ctx.local_frame % 30 < 15:
             cursor_frame = _render_text_simple(
-                "|", w, h, self.font_size, (b, g, r, a),
+                "|",
+                w,
+                h,
+                self.font_size,
+                (b, g, r, a),
                 Vec2(float(px + reveal_px), self.position.y),
             )
             np.maximum(frame, cursor_frame, out=frame)
@@ -377,7 +396,12 @@ class WordByWord(Clip):
 
         if n_words >= len(words):
             return _render_text_simple(
-                self.text, w, h, self.font_size, (b, g, r, a), self.position,
+                self.text,
+                w,
+                h,
+                self.font_size,
+                (b, g, r, a),
+                self.position,
             )
 
         if n_words <= 0:
@@ -385,7 +409,12 @@ class WordByWord(Clip):
 
         # Render full text
         frame = _render_text_simple(
-            self.text, w, h, self.font_size, (b, g, r, a), self.position,
+            self.text,
+            w,
+            h,
+            self.font_size,
+            (b, g, r, a),
+            self.position,
         )
 
         # Find the character index at the end of the n-th word
@@ -457,14 +486,24 @@ class LetterByLetter(Clip):
 
         if n_full >= len(self.text):
             return _render_text_simple(
-                self.text, w, h, self.font_size, (b, g, r, a), self.position,
+                self.text,
+                w,
+                h,
+                self.font_size,
+                (b, g, r, a),
+                self.position,
             )
 
         if reveal_chars <= 0.0:
             return np.zeros((h, w, 4), dtype=np.uint8)
 
         frame = _render_text_simple(
-            self.text, w, h, self.font_size, (b, g, r, a), self.position,
+            self.text,
+            w,
+            h,
+            self.font_size,
+            (b, g, r, a),
+            self.position,
         )
 
         positions = _measure_char_positions(self.text, self.font_size)
@@ -630,7 +669,12 @@ class SplitReveal(Clip):
         b, g, r, a = self.color.to_bgra_uint8()
 
         full = _render_text_simple(
-            self.text, w, h, self.font_size, (b, g, r, a), self.position,
+            self.text,
+            w,
+            h,
+            self.font_size,
+            (b, g, r, a),
+            self.position,
         )
 
         progress = min(1.0, ctx.local_frame / max(self.reveal_frames, 1))

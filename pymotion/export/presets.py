@@ -45,9 +45,14 @@ H264_1080P = OutputPreset(
     audio_bitrate="320k",
     container="mp4",
     extra_flags=[
-        "-preset", "medium", "-tune", "animation",
-        "-x264-params", "no-dct-decimate=1:no-fast-pskip=1",
-        "-movflags", "+faststart",
+        "-preset",
+        "medium",
+        "-tune",
+        "animation",
+        "-x264-params",
+        "no-dct-decimate=1:no-fast-pskip=1",
+        "-movflags",
+        "+faststart",
     ],
 )
 
@@ -60,9 +65,14 @@ H264_4K = OutputPreset(
     audio_bitrate="320k",
     container="mp4",
     extra_flags=[
-        "-preset", "medium", "-tune", "animation",
-        "-x264-params", "no-dct-decimate=1:no-fast-pskip=1",
-        "-movflags", "+faststart",
+        "-preset",
+        "medium",
+        "-tune",
+        "animation",
+        "-x264-params",
+        "no-dct-decimate=1:no-fast-pskip=1",
+        "-movflags",
+        "+faststart",
     ],
 )
 
@@ -118,9 +128,14 @@ YOUTUBE_1080P = OutputPreset(
     audio_bitrate="320k",
     container="mp4",
     extra_flags=[
-        "-preset", "medium", "-tune", "animation",
-        "-x264-params", "no-dct-decimate=1:no-fast-pskip=1",
-        "-movflags", "+faststart",
+        "-preset",
+        "medium",
+        "-tune",
+        "animation",
+        "-x264-params",
+        "no-dct-decimate=1:no-fast-pskip=1",
+        "-movflags",
+        "+faststart",
     ],
 )
 
