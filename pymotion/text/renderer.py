@@ -25,7 +25,13 @@ logger = get_logger(__name__)
 # Fallback font chain per platform — tried in order when the requested font is missing
 _FONT_FALLBACK_CHAIN: dict[str, list[str]] = {
     "Darwin": ["Helvetica", "Arial", "SF Pro", "Menlo", "Courier New"],
-    "Linux": ["DejaVu Sans", "Liberation Sans", "Noto Sans", "FreeSans", "Ubuntu"],
+    "Linux": [
+        "DejaVuSans", "DejaVu Sans",
+        "LiberationSans", "Liberation Sans",
+        "NotoSans", "Noto Sans",
+        "FreeSans",
+        "Ubuntu",
+    ],
     "Windows": ["Arial", "Segoe UI", "Calibri", "Tahoma", "Verdana"],
 }
 
