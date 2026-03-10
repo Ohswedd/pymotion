@@ -36,6 +36,11 @@ nav:
     - Template System: guides/template-system.md
     - Charts & Data Viz: guides/charts-and-data-viz.md
     - Motion Graphics Components: guides/motion-graphics-components.md
+    - Advanced Audio: guides/advanced-audio.md
+    - Audio Visualization: guides/audio-visualization.md
+    - Captions & Subtitles: guides/captions-and-subtitles.md
+    - Text-to-Speech: guides/tts.md
+    - Color Science: guides/color-science.md
   - API Reference:
     - Composition: api/composition.md
     - Clips: api/clips.md
@@ -54,3 +59,8 @@ nav:
     - Charts: api/charts.md
     - Motion Graphics: api/motion-graphics.md
     - Device Mockups: api/mockups.md
+    - Advanced Audio: api/advanced-audio.md
+    - Audio Visualization: api/audio-visualization.md
+    - Captions & Subtitles: api/captions.md
+    - Text-to-Speech: api/tts.md
+    - Color Science: api/color-science.md

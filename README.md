@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/PyMotion-v1.4.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
+  <img src="https://img.shields.io/badge/PyMotion-v1.5.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
 </p>
 
 <h1 align="center">PyMotion</h1>
@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml"><img src="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/PyPI-v1.4.0-D4AF37" alt="PyPI"></a>
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/PyPI-v1.5.0-D4AF37" alt="PyPI"></a>
   <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue" alt="Python"></a>
   <a href="https://github.com/Ohswedd/pymotion/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Source%20Available-blue" alt="License"></a>
 </p>
@@ -21,7 +21,7 @@
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-88%25-brightgreen" alt="Coverage"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/ruff-clean-purple" alt="Ruff"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/pip--audit-passing-green" alt="Security Audit"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1668%20passed-brightgreen" alt="Tests"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1784%20passed-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -62,7 +62,7 @@ That's a full 1080p video in 12 lines.
 | **3D Rendering** | PBR materials, point/spot/directional/ambient lights, SSAO, bloom, DOF (ModernGL headless) |
 | **Animation** | Keyframe tracks, 30+ easing functions, spring physics, cubic bezier curves |
 | **Typography** | FreeType + HarfBuzz shaping, variable fonts, 9 animated text presets (Typewriter, CountUp, Scramble, ...) |
-| **Audio** | Mixing, EQ, compressor, limiter, reverb, delay, pitch shift, beat detection, waveform analysis |
+| **Audio** | 5.1 surround, bus routing, crossfades, multiband compressor, convolution reverb, LUFS normalization, EQ, beat detection |
 | **Effects** | 30+ visual/color/distortion/light effects (blur, grain, glow, LUT, wave warp, god rays, ...) |
 | **Keying** | ChromaKey, LumaKey, ColorKey, DifferenceKey — with feathering, choking, despill |
 | **Editing** | Split, join, subclip, repeat, freeze frame, concatenate with transitions |
@@ -81,7 +81,12 @@ That's a full 1080p video in 12 lines.
 | **Particles** | 9 presets — fire, sparkles, confetti, rain, smoke, stars, dust, explosion, bubbles |
 | **Export** | 15 presets — H.264, H.265, ProRes, AV1, WebM, GIF, PNG/EXR frame sequences |
 | **Batch** | Template system with field validation for data-driven video generation |
+| **Audio Viz** | WaveformClip, SpectrumClip, SpectrogramClip, AudioReactiveEffect — animated audio visualizations |
+| **Captions** | AutoCaptions (Whisper), SubtitleClip, SRT/VTT/ASS import/export, 4 caption styles (netflix, youtube, tiktok, karaoke) |
+| **TTS** | TTSClip with system (pyttsx3), OpenAI, and ElevenLabs engines |
+| **Color Science** | ACES 1.3 pipeline, HDR10/HLG presets, ColorMatch, HSLSecondary grading, 4 video scopes |
 | **Color** | .cube LUT loading, lift/gamma/gain grading, ACES/Reinhard/Filmic tone mapping |
+| **Interchange** | EDL export (CMX 3600), OTIO export (OpenTimelineIO) |
 | **CLI** | `render`, `preview`, `benchmark`, `validate`, `doctor`, `new` |
 
 ---
@@ -239,7 +244,7 @@ comp = grid(clips, rows=2, cols=2, gap=10)
 
 ## Examples
 
-Eight production-ready scripts ship with the repo, each targeting a real-world use case:
+Nine production-ready scripts ship with the repo, each targeting a real-world use case:
 
 | # | Script | Niche | What It Demonstrates |
 |---|--------|-------|----------------------|
@@ -251,6 +256,7 @@ Eight production-ready scripts ship with the repo, each targeting a real-world u
 | 06 | `video_editing_showcase.py` | Post-production | split/join/speed/reverse, ChromaKey, grid/pip/split_screen, proxy workflow |
 | 07 | `motion_graphics_toolkit.py` | Motion graphics | Nested comps, masks, expressions, wiggle, path animation, adjustment layers |
 | 08 | `data_dashboard.py` | Data visualization | Animated charts, number counters, progress bars, device mockups, lower thirds |
+| 09 | `audio_color_science.py` | Broadcast post-production | 5.1 surround mixing, audio viz, captions, TTS, ACES grading, video scopes, EDL export |
 
 ```bash
 python examples/download_assets.py     # grab stock images (~5 MB)
@@ -277,9 +283,11 @@ pymotion new my-project                               # scaffold a new project
 ```
 pymotion/
 ├── animation/     Keyframe tracks, 30+ easings, spring, bezier, interpolation
-├── audio/         Mixer, DSP effects (EQ, compressor, reverb, ...), beat detection
-├── clip/          ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip, charts, motion graphics, mockups
-├── composition.py Composition, Track, CompositionClip, AdjustmentLayer
+├── audio/         5.1 surround mixer, bus routing, DSP effects, convolution reverb, beat detection
+├── clip/          ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip, charts, mockups, audio viz
+├── captions.py    Subtitle import/export, AutoCaptions (Whisper), caption styles
+├── color_science.py  ACES pipeline, HDR presets, ColorMatch, HSLSecondary, video scopes
+├── composition.py Composition, Track, CompositionClip, AdjustmentLayer, EDL/OTIO export
 ├── masking.py     Bezier, gradient, track matte, text masks + boolean ops
 ├── expressions.py Expression system — wiggle, loop_in, loop_out
 ├── path_animation.py  SVG path following, StrokeClip, path morphing
@@ -328,7 +336,7 @@ make clean     # remove caches and build artifacts
 ### Running Tests
 
 ```bash
-pytest -v                              # full suite (1668 tests)
+pytest -v                              # full suite (1784 tests)
 pytest tests/unit/ -v                  # unit tests only
 pytest tests/integration/ -v           # integration tests
 pytest --cov=pymotion --cov-report=html  # coverage report

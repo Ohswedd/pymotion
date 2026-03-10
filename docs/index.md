@@ -18,7 +18,7 @@ animation, and a render pipeline backed by Cairo, FFmpeg, and ModernGL.
 - **Motion tracking** -- `MotionTracker` for region tracking, `stabilize()` for video stabilization, `follow_tracker()` for data binding.
 - **Proxy workflow** -- `create_proxy()` for low-res previews cached on disk, with cache cleanup utilities.
 - **39 transitions** -- `Fade`, `CrossDissolve`, `SlideLeft`, `IrisIn`, `Glitch`, `PageTurn`, and many more.
-- **Multi-track audio** -- `AudioClip` with trim, fade, loop, and pan; `AudioMixer` with per-track volume automation.
+- **Multi-track audio** -- 5.1 surround mixing, bus routing, crossfades, multiband compressor, convolution reverb, LUFS normalization.
 - **3D rendering** -- `Scene3D` with Cook-Torrance PBR materials, lights, OBJ loading, and headless ModernGL.
 - **Template system** -- subclass `Template` for reusable, parameterized video generators with typed field validation.
 - **Export presets** -- 15 built-in presets for H.264, HEVC, ProRes, WebM, GIF, and frame sequences.
@@ -26,6 +26,11 @@ animation, and a render pipeline backed by Cairo, FFmpeg, and ModernGL.
 - **Charts & data viz** -- `BarChartClip`, `LineChartClip`, `PieChartClip`, `AreaChartClip`, `RadarChartClip`, `ScatterPlotClip`, `NumberCounter`, `ProgressBar` with 4 themes.
 - **Motion graphics** -- `LowerThird`, `LogoReveal`, `CallToAction`, `SocialHandle`, `Countdown`, `QuoteCard`, `Divider`, `TransitionTitle`, `Watermark`.
 - **Device mockups** -- `BrowserMockup`, `PhoneMockup`, `DesktopMockup` for wrapping content clips inside device frames.
+- **Audio visualization** -- `WaveformClip`, `SpectrumClip`, `SpectrogramClip`, `AudioReactiveEffect` for animated audio visualizations.
+- **Captions & subtitles** -- `AutoCaptions` (Whisper), `SubtitleClip`, SRT/VTT/ASS import/export, 4 caption styles.
+- **Text-to-speech** -- `TTSClip` with system (pyttsx3), OpenAI, and ElevenLabs engines.
+- **Color science** -- ACES 1.3 pipeline, HDR10/HLG presets, `ColorMatch`, `HSLSecondary`, 4 video scopes.
+- **Interchange export** -- EDL (CMX 3600) and OTIO (OpenTimelineIO) export from compositions.
 
 ## Installation
 
@@ -85,4 +90,4 @@ See the [Getting Started](guides/getting-started.md) guide for a full walkthroug
 
 ## Project status
 
-PyMotion v1.4 is stable and in active development. 1668 tests, 88% coverage.
+PyMotion v1.5 is stable and in active development. 1784 tests, 87% coverage.
