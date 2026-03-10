@@ -7,9 +7,11 @@ Subsequent runs compare against the stored references.
 
 from __future__ import annotations
 
+import platform
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
 from pymotion.clip.color import ColorClip, GradientClip
@@ -261,6 +263,10 @@ class TestTransitionSnapshots:
 
 
 class TestAnimatedTextSnapshots:
+    @pytest.mark.skipif(
+        platform.system() != "Darwin",
+        reason="Font rendering differs across platforms — snapshots generated on macOS",
+    )
     def test_typewriter(self) -> None:
         clip = Typewriter(text="Hello")
         ctx = _make_ctx(width=120, height=60, frame=10, duration=60)

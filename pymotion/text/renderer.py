@@ -26,9 +26,12 @@ logger = get_logger(__name__)
 _FONT_FALLBACK_CHAIN: dict[str, list[str]] = {
     "Darwin": ["Helvetica", "Arial", "SF Pro", "Menlo", "Courier New"],
     "Linux": [
-        "DejaVuSans", "DejaVu Sans",
-        "LiberationSans", "Liberation Sans",
-        "NotoSans", "Noto Sans",
+        "DejaVuSans",
+        "DejaVu Sans",
+        "LiberationSans",
+        "Liberation Sans",
+        "NotoSans",
+        "Noto Sans",
         "FreeSans",
         "Ubuntu",
     ],
