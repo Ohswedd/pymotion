@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/py-motion
+      url: https://pypi.org/p/pymotion-studio
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4

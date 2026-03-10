@@ -11,9 +11,9 @@
 
 <p align="center">
   <a href="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml"><img src="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://pypi.org/project/py-motion/"><img src="https://img.shields.io/pypi/v/py-motion?color=D4AF37&label=PyPI" alt="PyPI"></a>
-  <a href="https://pypi.org/project/py-motion/"><img src="https://img.shields.io/pypi/dm/py-motion?color=blue&label=Downloads" alt="Downloads"></a>
-  <a href="https://pypi.org/project/py-motion/"><img src="https://img.shields.io/pypi/pyversions/py-motion" alt="Python"></a>
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/v/pymotion-studio?color=D4AF37&label=PyPI" alt="PyPI"></a>
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/dm/pymotion-studio?color=blue&label=Downloads" alt="Downloads"></a>
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/pyversions/pymotion-studio" alt="Python"></a>
   <a href="https://github.com/Ohswedd/pymotion/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Source%20Available-blue" alt="License"></a>
 </p>
 
@@ -92,16 +92,16 @@ choco install ffmpeg cairo
 **Install from PyPI:**
 
 ```bash
-pip install py-motion
+pip install pymotion-studio
 ```
 
 **With extras:**
 
 ```bash
-pip install "py-motion[3d-extras]"     # GLTF model loading
-pip install "py-motion[gpu-compute]"   # wgpu acceleration
-pip install "py-motion[jit]"           # Numba JIT compilation
-pip install "py-motion[dev]"           # Development tools
+pip install "pymotion-studio[3d-extras]"     # GLTF model loading
+pip install "pymotion-studio[gpu-compute]"   # wgpu acceleration
+pip install "pymotion-studio[jit]"           # Numba JIT compilation
+pip install "pymotion-studio[dev]"           # Development tools
 ```
 
 > **Note:** The Python import name is `pymotion` (no hyphen):

@@ -36,7 +36,7 @@ Started: 2026-03-10
 - [x] GitHub Actions: ci.yml, publish.yml (PyPI trusted publisher), release.yml (auto-release from tags)
 - [x] git tags: v1.0.0, v1.0.1
 - [x] GitHub Releases: v1.0.0, v1.0.1 with CHANGELOG notes
-- [x] PyPI package name: py-motion (trusted publisher — publishes on GitHub release)
+- [x] PyPI package name: pymotion-studio (trusted publisher — publishes on GitHub release)
 - [x] LICENSE: PyMotion Source Available License 1.0 (use freely, no redistribution)
 - [x] README: badges, install, quickstart, examples, architecture, performance, license summary
 - [x] Linux font fallback: DejaVuSans/LiberationSans resolved for CI
