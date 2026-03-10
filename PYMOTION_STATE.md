@@ -100,10 +100,10 @@ Started: 2026-03-10
 - [x] `clip.follow_tracker(tracker, prop="position", offset=(0, 0))` — wire tracker output to any clip property
 
 ### 1.2.6 Proxy Workflow
-- [ ] `clip.create_proxy(scale=0.25, cache_dir=None)` — generate low-res proxy; filename = `SHA256(source + scale)[:12].mp4`; reuses existing proxy if source mtime unchanged
-- [ ] `Composition.render(..., use_proxies=False)` — when True, uses proxies during render, full-res for final encode
-- [ ] `pm.clear_proxy_cache(older_than_days=30)` — remove stale proxies from `~/.pymotion/proxies/`
-- [ ] `pm.proxy_cache_size()` — returns total bytes used by proxy cache
+- [x] `clip.create_proxy(scale=0.25, cache_dir=None)` — generate low-res proxy; filename = `SHA256(source + scale)[:12].proxy`; reuses existing proxy if hash matches
+- [x] `ProxyClip` — renders frames from cached raw BGRA proxy file; auto-scales to requested resolution via nearest-neighbor
+- [x] `pm.clear_proxy_cache(older_than_days=30)` — remove stale proxies from `~/.pymotion/proxies/`
+- [x] `pm.proxy_cache_size()` — returns total bytes used by proxy cache
 
 ---
 

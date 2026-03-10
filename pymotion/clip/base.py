@@ -16,6 +16,8 @@ import numpy as np
 from pymotion.utils.math import Vec2
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from pymotion.animation.keyframe import KeyframeTrack
     from pymotion.clip.operations import (
         FreezeFrameClip,
@@ -28,6 +30,7 @@ if TYPE_CHECKING:
         TimeRemappedClip,
     )
     from pymotion.effects.base import Effect
+    from pymotion.proxy import ProxyClip
     from pymotion.tracking import StabilizedClip
 
 
@@ -603,6 +606,32 @@ class Clip(ABC):
         result.start = 0
         result.end = self.duration
         return result
+
+    def create_proxy(
+        self,
+        scale: float = 0.25,
+        cache_dir: Path | None = None,
+    ) -> ProxyClip:
+        """Generate a low-resolution proxy for this clip.
+
+        The proxy is rendered at the given scale factor and cached on disk.
+        Filename is ``SHA256(source + scale)[:12].proxy``. Reuses existing
+        proxy if source hasn't changed.
+
+        Args:
+            scale: Scale factor (0.0 exclusive to 1.0 inclusive).
+            cache_dir: Directory for proxy cache. Defaults to
+                ``~/.pymotion/proxies/``.
+
+        Returns:
+            A ProxyClip backed by the cached file.
+
+        Raises:
+            ValueError: If scale is invalid or clip has zero duration.
+        """
+        from pymotion.proxy import create_proxy as _create_proxy
+
+        return _create_proxy(self, scale=scale, cache_dir=cache_dir)
 
     def stabilize(
         self,

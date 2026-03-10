@@ -102,6 +102,7 @@ from pymotion.particle.system import (
     sparkles,
     stars,
 )
+from pymotion.proxy import ProxyClip, clear_proxy_cache, proxy_cache_size
 from pymotion.render.backend_3d import (
     AmbientLight,
     Camera,
@@ -369,6 +370,10 @@ __all__ = [
     "grid",
     "split_screen",
     "stack",
+    # Proxy
+    "ProxyClip",
+    "clear_proxy_cache",
+    "proxy_cache_size",
     # Tracking
     "MotionTracker",
     "StabilizedClip",
