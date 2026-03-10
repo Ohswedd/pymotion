@@ -29,6 +29,7 @@ from pymotion.audio.effects import (
     NoiseReduction,
     PitchShift,
     Reverb,
+    audio_crossfade,
 )
 from pymotion.audio.mixer import (
     STEREO_CHANNELS,
@@ -390,6 +391,7 @@ __all__ = [
     "PitchShift",
     "Reverb",
     "WaveformExtractor",
+    "audio_crossfade",
     "waveform_to_keyframes",
     # Transitions
     "Transition",

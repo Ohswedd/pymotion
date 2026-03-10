@@ -2,19 +2,23 @@
 
 Provides audio effect wrappers around the pedalboard library for
 common audio processing operations including EQ, dynamics,
-reverb, delay, pitch shifting, noise reduction, and filtering.
+reverb, delay, pitch shifting, noise reduction, filtering, and
+crossfade utilities.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
 from pymotion.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+#: Supported crossfade curve types.
+CrossfadeType = Literal["linear", "equal_power", "s_curve"]
 
 
 def _import_pedalboard() -> Any:
@@ -379,3 +383,93 @@ class HighPassFilter:
         pb = _import_pedalboard()
         hpf: Any = pb.HighpassFilter(cutoff_frequency_hz=self.cutoff_hz)
         return _process_audio(hpf, samples, sample_rate)
+
+
+def audio_crossfade(
+    clip_a: np.ndarray,
+    clip_b: np.ndarray,
+    crossfade_samples: int,
+    curve: CrossfadeType = "linear",
+) -> np.ndarray:
+    """Crossfade between two audio clips at the boundary.
+
+    Overlaps the tail of ``clip_a`` with the head of ``clip_b`` for the
+    specified number of samples, blending with the chosen curve.
+
+    Args:
+        clip_a: First audio clip samples, shape ``(n, channels)`` or
+                ``(n,)`` for mono.
+        clip_b: Second audio clip samples, same channel count as clip_a.
+        crossfade_samples: Number of samples over which to crossfade.
+        curve: Crossfade curve type:
+            - ``"linear"``: Linear crossfade (gain ramps linearly).
+            - ``"equal_power"``: Equal-power crossfade (constant loudness
+              through the transition).
+            - ``"s_curve"``: Smooth S-curve (slow start/end, fast middle).
+
+    Returns:
+        Concatenated audio array with crossfade applied.
+
+    Raises:
+        ValueError: If crossfade_samples exceeds either clip length,
+                    or channel counts don't match.
+    """
+    if clip_a.ndim != clip_b.ndim:
+        msg = f"clip_a ndim ({clip_a.ndim}) must match clip_b ndim ({clip_b.ndim})"
+        raise ValueError(msg)
+
+    if clip_a.ndim == 2 and clip_b.ndim == 2 and clip_a.shape[1] != clip_b.shape[1]:
+        msg = f"Channel count mismatch: clip_a has {clip_a.shape[1]}, clip_b has {clip_b.shape[1]}"
+        raise ValueError(msg)
+
+    len_a = len(clip_a)
+    len_b = len(clip_b)
+
+    if crossfade_samples <= 0:
+        # No crossfade — just concatenate
+        return np.concatenate([clip_a, clip_b])
+
+    if crossfade_samples > len_a:
+        msg = f"crossfade_samples ({crossfade_samples}) exceeds clip_a length ({len_a})"
+        raise ValueError(msg)
+    if crossfade_samples > len_b:
+        msg = f"crossfade_samples ({crossfade_samples}) exceeds clip_b length ({len_b})"
+        raise ValueError(msg)
+
+    # Build fade curves
+    t = np.linspace(0.0, 1.0, crossfade_samples, dtype=np.float64)
+
+    if curve == "equal_power":
+        fade_out = np.cos(t * np.pi / 2.0)
+        fade_in = np.sin(t * np.pi / 2.0)
+    elif curve == "s_curve":
+        # Smoothstep: 3t² - 2t³
+        s = t * t * (3.0 - 2.0 * t)
+        fade_out = 1.0 - s
+        fade_in = s
+    else:  # linear
+        fade_out = 1.0 - t
+        fade_in = t
+
+    # Reshape for broadcasting with multi-channel audio
+    if clip_a.ndim == 2:
+        fade_out = fade_out[:, np.newaxis]
+        fade_in = fade_in[:, np.newaxis]
+
+    # Non-overlapping segments
+    head_a = clip_a[: len_a - crossfade_samples]
+    tail_a = clip_a[len_a - crossfade_samples :]
+    head_b = clip_b[:crossfade_samples]
+    tail_b = clip_b[crossfade_samples:]
+
+    # Crossfaded overlap
+    overlap = tail_a * fade_out + head_b * fade_in
+
+    result: np.ndarray = np.concatenate([head_a, overlap, tail_b])
+    logger.debug(
+        "audio_crossfade_applied",
+        curve=curve,
+        crossfade_samples=crossfade_samples,
+        result_length=len(result),
+    )
+    return result
