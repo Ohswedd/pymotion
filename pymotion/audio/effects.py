@@ -385,6 +385,254 @@ class HighPassFilter:
         return _process_audio(hpf, samples, sample_rate)
 
 
+@dataclass
+class MultibandCompressor:
+    """4-band multiband compressor.
+
+    Splits the audio into 4 frequency bands at configurable crossover
+    frequencies, applies independent compression to each band, then
+    recombines. Pure NumPy implementation — no external dependencies.
+
+    Args:
+        crossover_freqs: Three crossover frequencies in Hz separating the
+                         4 bands (low, low-mid, high-mid, high).
+                         Default: ``(200.0, 1000.0, 5000.0)``.
+        thresholds_db: Per-band threshold in dB.
+                       Default: ``(-20.0, -18.0, -16.0, -14.0)``.
+        ratios: Per-band compression ratio.
+                Default: ``(4.0, 3.0, 3.0, 2.0)``.
+        attack_ms: Per-band attack time in milliseconds.
+                   Default: ``(10.0, 8.0, 5.0, 3.0)``.
+        release_ms: Per-band release time in milliseconds.
+                    Default: ``(100.0, 80.0, 60.0, 50.0)``.
+        makeup_gain_db: Per-band makeup gain in dB.
+                        Default: ``(0.0, 0.0, 0.0, 0.0)``.
+    """
+
+    crossover_freqs: tuple[float, float, float] = (200.0, 1000.0, 5000.0)
+    thresholds_db: tuple[float, float, float, float] = (-20.0, -18.0, -16.0, -14.0)
+    ratios: tuple[float, float, float, float] = (4.0, 3.0, 3.0, 2.0)
+    attack_ms: tuple[float, float, float, float] = (10.0, 8.0, 5.0, 3.0)
+    release_ms: tuple[float, float, float, float] = (100.0, 80.0, 60.0, 50.0)
+    makeup_gain_db: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+
+    def apply(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Apply multiband compression to audio samples.
+
+        Args:
+            samples: Audio samples, shape ``(n_samples,)`` for mono or
+                     ``(n_samples, channels)`` for multi-channel.
+                     Values in [-1.0, 1.0].
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Compressed audio samples with same shape and dtype.
+        """
+        if len(samples) == 0:
+            return samples
+
+        # Work in 2D
+        was_1d = samples.ndim == 1
+        if was_1d:
+            work = samples[:, np.newaxis].astype(np.float64)
+        else:
+            work = samples.astype(np.float64)
+
+        # Split into 4 bands using Butterworth-style biquad filters
+        bands = self._split_bands(work, sample_rate)
+
+        # Compress each band
+        compressed: list[np.ndarray] = []
+        for i, band in enumerate(bands):
+            c = self._compress_band(
+                band,
+                sample_rate,
+                self.thresholds_db[i],
+                self.ratios[i],
+                self.attack_ms[i],
+                self.release_ms[i],
+                self.makeup_gain_db[i],
+            )
+            compressed.append(c)
+
+        # Recombine bands
+        combined: np.ndarray = np.sum(compressed, axis=0)
+
+        if was_1d:
+            combined = combined[:, 0]
+
+        out: np.ndarray = combined.astype(samples.dtype)
+        return out
+
+    def _split_bands(self, samples: np.ndarray, sample_rate: int) -> list[np.ndarray]:
+        """Split audio into 4 frequency bands using cascaded biquad filters.
+
+        Args:
+            samples: Audio samples (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            List of 4 band arrays.
+        """
+        f1, f2, f3 = self.crossover_freqs
+
+        # Band 0: low-pass at f1
+        band0 = self._biquad_lowpass(samples, f1, sample_rate)
+        # Band 1: high-pass at f1, low-pass at f2
+        hp1 = self._biquad_highpass(samples, f1, sample_rate)
+        band1 = self._biquad_lowpass(hp1, f2, sample_rate)
+        # Band 2: high-pass at f2, low-pass at f3
+        hp2 = self._biquad_highpass(samples, f2, sample_rate)
+        band2 = self._biquad_lowpass(hp2, f3, sample_rate)
+        # Band 3: high-pass at f3
+        band3 = self._biquad_highpass(samples, f3, sample_rate)
+
+        return [band0, band1, band2, band3]
+
+    @staticmethod
+    def _biquad_lowpass(samples: np.ndarray, cutoff: float, sample_rate: int) -> np.ndarray:
+        """Apply a 2nd-order Butterworth low-pass biquad filter.
+
+        Args:
+            samples: Input samples (n_samples, channels).
+            cutoff: Cutoff frequency in Hz.
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Filtered samples.
+        """
+        w0 = 2.0 * np.pi * cutoff / sample_rate
+        alpha = np.sin(w0) / (2.0 * np.sqrt(2.0))  # Q = sqrt(2)/2 for Butterworth
+        cos_w0 = np.cos(w0)
+
+        b0 = (1.0 - cos_w0) / 2.0
+        b1 = 1.0 - cos_w0
+        b2 = b0
+        a0 = 1.0 + alpha
+        a1 = -2.0 * cos_w0
+        a2 = 1.0 - alpha
+
+        return MultibandCompressor._apply_biquad(
+            samples, b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0
+        )
+
+    @staticmethod
+    def _biquad_highpass(samples: np.ndarray, cutoff: float, sample_rate: int) -> np.ndarray:
+        """Apply a 2nd-order Butterworth high-pass biquad filter.
+
+        Args:
+            samples: Input samples (n_samples, channels).
+            cutoff: Cutoff frequency in Hz.
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Filtered samples.
+        """
+        w0 = 2.0 * np.pi * cutoff / sample_rate
+        alpha = np.sin(w0) / (2.0 * np.sqrt(2.0))
+        cos_w0 = np.cos(w0)
+
+        b0 = (1.0 + cos_w0) / 2.0
+        b1 = -(1.0 + cos_w0)
+        b2 = b0
+        a0 = 1.0 + alpha
+        a1 = -2.0 * cos_w0
+        a2 = 1.0 - alpha
+
+        return MultibandCompressor._apply_biquad(
+            samples, b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0
+        )
+
+    @staticmethod
+    def _apply_biquad(
+        samples: np.ndarray,
+        b0: float,
+        b1: float,
+        b2: float,
+        a1: float,
+        a2: float,
+    ) -> np.ndarray:
+        """Apply a biquad filter to multi-channel samples.
+
+        Args:
+            samples: Input (n_samples, channels).
+            b0, b1, b2: Feed-forward coefficients.
+            a1, a2: Feed-back coefficients.
+
+        Returns:
+            Filtered samples.
+        """
+        n_samples, n_channels = samples.shape
+        out = np.zeros_like(samples)
+
+        for ch in range(n_channels):
+            x = samples[:, ch]
+            y = out[:, ch]
+            x1 = 0.0
+            x2 = 0.0
+            y1 = 0.0
+            y2 = 0.0
+            for n in range(n_samples):
+                y[n] = b0 * x[n] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+                x2 = x1
+                x1 = x[n]
+                y2 = y1
+                y1 = y[n]
+
+        return out
+
+    @staticmethod
+    def _compress_band(
+        band: np.ndarray,
+        sample_rate: int,
+        threshold_db: float,
+        ratio: float,
+        attack_ms: float,
+        release_ms: float,
+        makeup_db: float,
+    ) -> np.ndarray:
+        """Apply single-band compression with envelope follower.
+
+        Args:
+            band: Audio band samples (n_samples, channels).
+            sample_rate: Sample rate in Hz.
+            threshold_db: Threshold in dB.
+            ratio: Compression ratio.
+            attack_ms: Attack time in ms.
+            release_ms: Release time in ms.
+            makeup_db: Makeup gain in dB.
+
+        Returns:
+            Compressed band samples.
+        """
+        # Compute RMS envelope across channels
+        rms = np.sqrt(np.mean(band**2, axis=1) + 1e-10)
+        rms_db = 20.0 * np.log10(rms + 1e-10)
+
+        # Compute gain reduction
+        over = rms_db - threshold_db
+        over = np.maximum(over, 0.0)
+        gain_reduction_db = over * (1.0 - 1.0 / ratio)
+
+        # Smooth with envelope follower
+        attack_coeff = np.exp(-1.0 / (attack_ms * 0.001 * sample_rate))
+        release_coeff = np.exp(-1.0 / (release_ms * 0.001 * sample_rate))
+
+        smoothed = np.zeros_like(gain_reduction_db)
+        prev = 0.0
+        for i in range(len(gain_reduction_db)):
+            if gain_reduction_db[i] > prev:
+                prev = attack_coeff * prev + (1.0 - attack_coeff) * gain_reduction_db[i]
+            else:
+                prev = release_coeff * prev + (1.0 - release_coeff) * gain_reduction_db[i]
+            smoothed[i] = prev
+
+        # Apply gain
+        gain = 10.0 ** ((-smoothed + makeup_db) / 20.0)
+        result: np.ndarray = band * gain[:, np.newaxis]
+        return result
+
+
 def audio_crossfade(
     clip_a: np.ndarray,
     clip_b: np.ndarray,
