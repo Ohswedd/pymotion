@@ -51,7 +51,7 @@ from pymotion.clip.scene3d import Scene3D, Scene3DClip
 from pymotion.clip.shape import ShapeClip
 from pymotion.clip.text import Shadow, TextClip, download_google_font
 from pymotion.clip.video import VideoClip
-from pymotion.composition import Composition, CompositionClip, Track
+from pymotion.composition import AdjustmentLayer, Composition, CompositionClip, Track
 from pymotion.config import PyMotionConfig, get_config, reset_config, set_config
 from pymotion.effects.base import Effect
 from pymotion.effects.color import (
@@ -188,6 +188,7 @@ ScrambleText = Scramble
 
 __all__ = [
     # Composition
+    "AdjustmentLayer",
     "Composition",
     "CompositionClip",
     "Track",

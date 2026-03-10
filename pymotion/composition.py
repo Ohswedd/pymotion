@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from pymotion.clip.base import BlendMode, Clip, RenderContext, Resolution, TimeRange
+from pymotion.effects.base import Effect
 from pymotion.export.encoder import FFmpegEncoder
 from pymotion.export.presets import get_preset
 from pymotion.render.compositor import composite_layers
@@ -225,6 +226,11 @@ class Composition:
     def _render_frame(self, frame: int) -> np.ndarray:
         """Render a single frame of the composition.
 
+        When an :class:`AdjustmentLayer` is encountered, all layers
+        collected so far are composited onto the background, the
+        adjustment layer's effects are applied to the flattened result,
+        and compositing continues with the adjusted frame as the new base.
+
         Args:
             frame: Frame number to render.
 
@@ -252,6 +258,13 @@ class Composition:
                         progress=progress,
                     )
 
+                    if isinstance(clip, AdjustmentLayer):
+                        # Flatten everything below, apply adjustment effects
+                        bg = composite_layers(bg, layers)
+                        layers = []
+                        bg = clip.apply_effects(bg, ctx)
+                        continue
+
                     rendered = clip.render_with_effects(ctx)
                     # Combine clip and track opacity
                     effective_opacity = clip._opacity * track.opacity
@@ -263,7 +276,7 @@ class Composition:
                     )
                     layers.append((rendered, blend, effective_opacity))
 
-        # Composite all layers
+        # Composite remaining layers
         result = composite_layers(bg, layers)
 
         return result
@@ -376,6 +389,87 @@ class Composition:
         )
         clip.set_duration(self.duration)
         return clip
+
+
+@dataclass
+class AdjustmentLayer(Clip):
+    """A layer that applies its effects to all layers below it.
+
+    An AdjustmentLayer does not render visual content of its own.
+    Instead, when the compositor encounters it, all layers composited
+    so far are flattened and the adjustment layer's effects are applied
+    to the result.
+
+    Accepts the same mask and effect interfaces as any other clip.
+    All effect parameters are animatable via keyframes through the
+    standard :class:`RenderContext` mechanism.
+
+    Args:
+        effects: List of effects to apply to layers below.
+
+    Example::
+
+        from pymotion.effects.color import Brightness, Contrast
+
+        adj = AdjustmentLayer(effects=[Brightness(value=0.3), Contrast(value=1.2)])
+        adj.set_duration(60)
+        comp.add(adj)
+    """
+
+    def __init__(self, effects: list[Effect] | None = None) -> None:
+        """Initialize an AdjustmentLayer with optional effects.
+
+        Args:
+            effects: List of effects to apply to layers below.
+        """
+        super().__init__()
+        if effects:
+            for effect in effects:
+                self.add_effect(effect)
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Return a transparent frame (adjustment layers have no visual content).
+
+        This method is not called during normal composition rendering.
+        AdjustmentLayer is handled specially by
+        :meth:`Composition._render_frame`.
+
+        Args:
+            ctx: The render context for this frame.
+
+        Returns:
+            Fully transparent BGRA numpy array.
+        """
+        return np.zeros((ctx.resolution.height, ctx.resolution.width, 4), dtype=np.uint8)
+
+    def apply_effects(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
+        """Apply this layer's effects to a flattened frame.
+
+        Called by the compositor when this adjustment layer is active.
+        Applies each effect in sequence, respecting the layer's opacity
+        by blending between the original and effected frame.
+
+        Args:
+            frame: BGRA numpy array of the composited layers below.
+            ctx: The render context for this frame.
+
+        Returns:
+            BGRA numpy array with effects applied.
+        """
+        if not self._effects:
+            return frame
+
+        effected = frame.copy()
+        for effect in self._effects:
+            effected = effect.apply(effected, ctx)
+
+        # Respect adjustment layer opacity: blend original and effected
+        if self._opacity < 1.0:
+            alpha = self._opacity
+            blended = frame.astype(np.float32) * (1.0 - alpha) + effected.astype(np.float32) * alpha
+            return np.clip(blended, 0, 255).astype(np.uint8)
+
+        return effected
 
 
 @dataclass
