@@ -44,6 +44,17 @@ from pymotion.clip.chart import (
     ScatterPlotClip,
 )
 from pymotion.clip.color import ColorClip, GradientClip
+from pymotion.clip.motion_graphics import (
+    CallToAction,
+    Countdown,
+    Divider,
+    LogoReveal,
+    LowerThird,
+    QuoteCard,
+    SocialHandle,
+    TransitionTitle,
+    Watermark,
+)
 from pymotion.clip.image import ImageClip
 from pymotion.clip.operations import (
     ConcatenatedClip,
@@ -219,12 +230,21 @@ __all__ = [
     "AreaChartClip",
     "AudioClip",
     "BarChartClip",
+    "CallToAction",
+    "Countdown",
+    "Divider",
     "LineChartClip",
+    "LogoReveal",
+    "LowerThird",
     "NumberCounter",
     "PieChartClip",
     "ProgressBar",
+    "QuoteCard",
     "RadarChartClip",
     "ScatterPlotClip",
+    "SocialHandle",
+    "TransitionTitle",
+    "Watermark",
     "ColorClip",
     "GradientClip",
     "ImageClip",
