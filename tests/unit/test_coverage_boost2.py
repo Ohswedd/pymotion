@@ -327,7 +327,7 @@ class TestVideoClip:
         clip.source = Path("dummy.mp4")
         clip.trim_start = 0.0
         clip.trim_end = None
-        clip.speed = 1.0
+        clip._speed_factor = 1.0
         clip._reverse = False
         clip.loop = 1
         clip._frame_cache = {0: np.zeros((1,))}
@@ -345,17 +345,17 @@ class TestVideoClip:
 
         clip = VideoClip.__new__(VideoClip)
         clip._frame_cache = {}
-        clip.speed = 1.0
+        clip._speed_factor = 1.0
         result = clip.set_speed(2.0)
         assert result is clip
-        assert clip.speed == 2.0
+        assert clip._speed_factor == 2.0
 
     def test_set_speed_invalid(self) -> None:
         from pymotion.clip.video import VideoClip
 
         clip = VideoClip.__new__(VideoClip)
         clip._frame_cache = {}
-        clip.speed = 1.0
+        clip._speed_factor = 1.0
         with pytest.raises(ValueError, match="Speed must be positive"):
             clip.set_speed(0)
         with pytest.raises(ValueError, match="Speed must be positive"):
@@ -401,7 +401,7 @@ class TestVideoClip:
         clip = VideoClip.__new__(VideoClip)
         clip.trim_start = 0.0
         clip.trim_end = 10.0
-        clip.speed = 1.0
+        clip._speed_factor = 1.0
         clip._reverse = False
         clip.loop = 1
         clip._source_duration = 10.0
@@ -416,7 +416,7 @@ class TestVideoClip:
         clip = VideoClip.__new__(VideoClip)
         clip.trim_start = 0.0
         clip.trim_end = 10.0
-        clip.speed = 1.0
+        clip._speed_factor = 1.0
         clip._reverse = True
         clip.loop = 1
         clip._source_duration = 10.0
@@ -431,7 +431,7 @@ class TestVideoClip:
         clip = VideoClip.__new__(VideoClip)
         clip.trim_start = 0.0
         clip.trim_end = 2.0
-        clip.speed = 1.0
+        clip._speed_factor = 1.0
         clip._reverse = False
         clip.loop = -1
         clip._source_duration = 2.0

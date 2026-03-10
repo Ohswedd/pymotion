@@ -16,11 +16,16 @@ import numpy as np
 from pymotion.utils.math import Vec2
 
 if TYPE_CHECKING:
+    from pymotion.animation.keyframe import KeyframeTrack
     from pymotion.clip.operations import (
         FreezeFrameClip,
         JoinedClip,
         RepeatedClip,
+        ReversedClip,
+        SpeedClip,
+        SpeedRampClip,
         SubClip,
+        TimeRemappedClip,
     )
 
 
@@ -123,6 +128,33 @@ class RenderContext:
     time_range: TimeRange
     local_frame: int
     progress: float
+
+
+def _interp_speed(keyframes: list[tuple[int, float]], frame: int) -> float:
+    """Linearly interpolate speed at a given frame from speed keyframes.
+
+    Args:
+        keyframes: Sorted list of (frame, factor) pairs.
+        frame: The output frame to evaluate.
+
+    Returns:
+        Interpolated speed factor.
+    """
+    if not keyframes:
+        return 1.0
+    if frame <= keyframes[0][0]:
+        return keyframes[0][1]
+    if frame >= keyframes[-1][0]:
+        return keyframes[-1][1]
+    for i in range(len(keyframes) - 1):
+        f_a, s_a = keyframes[i]
+        f_b, s_b = keyframes[i + 1]
+        if f_a <= frame <= f_b:
+            if f_b == f_a:
+                return s_b
+            t = (frame - f_a) / (f_b - f_a)
+            return s_a + (s_b - s_a) * t
+    return keyframes[-1][1]
 
 
 @dataclass
@@ -389,6 +421,156 @@ class Clip(ABC):
         result._freeze_duration = duration
         result.start = 0
         result.end = self.duration + duration
+        return result
+
+    def speed(self, factor: float, interpolation: str = "nearest") -> SpeedClip:
+        """Apply a uniform speed change to this clip.
+
+        A factor of 2.0 plays at double speed (shorter duration).
+        A factor of 0.5 plays at half speed (longer duration).
+        For slow-motion, ``interpolation="optical_flow"`` uses OpenCV
+        optical flow for smoother results (falls back to linear blend
+        if OpenCV is unavailable).
+
+        Args:
+            factor: Speed multiplier (0.1 to 10.0).
+            interpolation: Frame interpolation mode. ``"nearest"`` for
+                frame duplication, ``"optical_flow"`` for optical flow.
+
+        Returns:
+            A new SpeedClip with the speed change applied.
+
+        Raises:
+            ValueError: If factor is outside the valid range.
+        """
+        import math
+
+        from pymotion.clip.operations import SpeedClip
+
+        if factor < 0.1 or factor > 10.0:
+            msg = f"Speed factor must be between 0.1 and 10.0, got {factor}"
+            raise ValueError(msg)
+        if self.duration <= 0:
+            msg = "Cannot change speed of a clip with zero duration"
+            raise ValueError(msg)
+
+        new_duration = math.ceil(self.duration / factor)
+
+        result = SpeedClip()
+        result._source = self
+        result._factor = factor
+        result._interpolation = interpolation
+        result.start = 0
+        result.end = new_duration
+        return result
+
+    def speed_ramp(self, keyframes: list[tuple[int, float]]) -> SpeedRampClip:
+        """Apply variable speed within this clip.
+
+        Speed changes over time according to the given keyframe pairs.
+        Each pair is ``(output_frame, speed_factor)``. The source frame
+        is computed by integrating the speed curve, and the total
+        duration is recalculated.
+
+        Args:
+            keyframes: List of ``(frame, factor)`` pairs defining the
+                speed curve. Frames must be in ascending order.
+
+        Returns:
+            A new SpeedRampClip with variable speed applied.
+
+        Raises:
+            ValueError: If keyframes are empty or invalid.
+        """
+        from pymotion.clip.operations import SpeedRampClip
+
+        if not keyframes:
+            msg = "Speed ramp keyframes cannot be empty"
+            raise ValueError(msg)
+        if self.duration <= 0:
+            msg = "Cannot speed ramp a clip with zero duration"
+            raise ValueError(msg)
+
+        # Sort by frame
+        sorted_kfs = sorted(keyframes, key=lambda kf: kf[0])
+
+        # Validate factors
+        for frame_num, factor in sorted_kfs:
+            if factor <= 0:
+                msg = f"Speed factor must be positive, got {factor} at frame {frame_num}"
+                raise ValueError(msg)
+
+        # Build source frame map by integrating speed over output frames
+        # We walk output frames 0..N and accumulate source frames
+        source_frame_map: list[float] = []
+        source_pos = 0.0
+        max_output_frame = 10 * self.duration  # safety limit
+
+        for out_frame in range(max_output_frame):
+            if source_pos >= self.duration:
+                break
+            source_frame_map.append(source_pos)
+            # Interpolate speed at this output frame
+            current_speed = _interp_speed(sorted_kfs, out_frame)
+            source_pos += current_speed
+
+        result = SpeedRampClip()
+        result._source = self
+        result._speed_keyframes = sorted_kfs
+        result._source_frame_map = source_frame_map
+        result.start = 0
+        result.end = len(source_frame_map)
+        return result
+
+    def reverse(self) -> ReversedClip:
+        """Play this clip backwards.
+
+        Returns:
+            A new ReversedClip that plays in reverse.
+
+        Raises:
+            ValueError: If the clip has zero duration.
+        """
+        from pymotion.clip.operations import ReversedClip
+
+        if self.duration <= 0:
+            msg = "Cannot reverse a clip with zero duration"
+            raise ValueError(msg)
+
+        result = ReversedClip()
+        result._source = self
+        result.start = 0
+        result.end = self.duration
+        return result
+
+    def time_remap(self, curve: KeyframeTrack) -> TimeRemappedClip:
+        """Apply arbitrary time remapping via a keyframe curve.
+
+        The curve maps output frames to source frames. For example,
+        a curve with keyframes ``[(0, 0), (60, 30)]`` would play the
+        first 30 source frames over 60 output frames (half speed).
+
+        Args:
+            curve: A KeyframeTrack where each keyframe value is a
+                float representing the source frame number.
+
+        Returns:
+            A new TimeRemappedClip with the remapping applied.
+
+        Raises:
+            ValueError: If the curve has no keyframes.
+        """
+        from pymotion.clip.operations import TimeRemappedClip
+
+        if not curve.keyframes:
+            msg = "Time remap curve must have at least one keyframe"
+            raise ValueError(msg)
+
+        result = TimeRemappedClip()
+        result._source = self
+        result._curve = curve
+        result.start = 0
+        result.end = self.duration
         return result
 
     @abstractmethod

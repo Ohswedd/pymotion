@@ -66,7 +66,7 @@ class VideoClip(Clip):
         source: Path to the video file.
         trim_start: Start time in seconds for trimming.
         trim_end: End time in seconds for trimming (None = to end).
-        speed: Playback speed multiplier (1.0 = normal).
+        _speed_factor: Playback speed multiplier (1.0 = normal).
         reverse: Whether to play in reverse.
         loop: Number of times to loop (-1 = infinite to fill duration).
     """
@@ -74,7 +74,7 @@ class VideoClip(Clip):
     source: Path = field(default_factory=lambda: Path(""))
     trim_start: float = 0.0
     trim_end: float | None = None
-    speed: float = 1.0
+    _speed_factor: float = 1.0
     _reverse: bool = False
     loop: int = 1
     _source_fps: float = 0.0
@@ -87,7 +87,7 @@ class VideoClip(Clip):
         *,
         trim_start: float = 0.0,
         trim_end: float | None = None,
-        speed: float = 1.0,
+        speed_factor: float = 1.0,
         reverse: bool = False,
         loop: int = 1,
         base_dirs: list[Path] | None = None,
@@ -98,7 +98,7 @@ class VideoClip(Clip):
             source: Path to the video file.
             trim_start: Start time in seconds for trimming.
             trim_end: End time in seconds for trimming (None = to end).
-            speed: Playback speed multiplier.
+            speed_factor: Playback speed multiplier.
             reverse: Whether to play in reverse.
             loop: Number of times to loop (-1 = infinite).
             base_dirs: Allowed directories for path validation.
@@ -121,7 +121,7 @@ class VideoClip(Clip):
         self.source = source_path
         self.trim_start = trim_start
         self.trim_end = trim_end
-        self.speed = speed
+        self._speed_factor = speed_factor
         self._reverse = reverse
         self.loop = loop
         self._frame_cache = {}
@@ -206,7 +206,7 @@ class VideoClip(Clip):
         if speed <= 0:
             msg = f"Speed must be positive, got {speed}"
             raise ValueError(msg)
-        self.speed = speed
+        self._speed_factor = speed
         self._frame_cache.clear()
         return self
 
@@ -277,7 +277,7 @@ class VideoClip(Clip):
         # Time within the clip
         clip_time = ctx.local_frame / ctx.fps
         # Apply speed
-        source_time = clip_time * self.speed + self.trim_start
+        source_time = clip_time * self._speed_factor + self.trim_start
 
         # Calculate effective duration
         effective_end = self.trim_end if self.trim_end else self._source_duration

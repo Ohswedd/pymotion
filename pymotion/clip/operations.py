@@ -1,4 +1,4 @@
-"""Clip operation wrappers — split, join, subclip, repeat, freeze, concatenate.
+"""Clip operation wrappers — split, join, subclip, repeat, freeze, speed, concatenate.
 
 These wrapper clips delegate rendering to source clips while remapping
 the frame timeline for various editing operations.
@@ -15,6 +15,7 @@ from pymotion.clip.base import Clip, RenderContext, TimeRange
 from pymotion.utils.logging import get_logger
 
 if TYPE_CHECKING:
+    from pymotion.animation.keyframe import KeyframeTrack
     from pymotion.transition.base import Transition
 
 logger = get_logger(__name__)
@@ -181,6 +182,194 @@ class FreezeFrameClip(Clip):
             source_local = local - freeze_dur
 
         source_ctx = _make_source_ctx(ctx, self._source, source_local)
+        return self._source.render_frame(source_ctx)
+
+
+@dataclass
+class SpeedClip(Clip):
+    """A clip with uniform speed change applied.
+
+    Maps output frames to source frames using a constant speed factor.
+    Duration is recalculated as ``ceil(source_duration / factor)``.
+
+    Args:
+        _source: The source clip.
+        _factor: Speed multiplier (e.g. 2.0 = double speed).
+        _interpolation: Interpolation mode for slow-motion ("nearest" or "optical_flow").
+    """
+
+    _source: Clip = field(default_factory=lambda: _placeholder_clip())
+    _factor: float = 1.0
+    _interpolation: str = "nearest"
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Render by mapping output frame to source frame via speed factor.
+
+        Args:
+            ctx: The render context for this frame.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        source_frame_f = ctx.local_frame * self._factor
+        source_frame = int(source_frame_f)
+
+        if self._interpolation == "optical_flow" and self._factor < 1.0:
+            return self._optical_flow_interpolate(ctx, source_frame_f)
+
+        source_ctx = _make_source_ctx(ctx, self._source, source_frame)
+        return self._source.render_frame(source_ctx)
+
+    def _optical_flow_interpolate(self, ctx: RenderContext, source_frame_f: float) -> np.ndarray:
+        """Interpolate between frames using optical flow.
+
+        Falls back to nearest-frame if OpenCV is unavailable.
+
+        Args:
+            ctx: The render context.
+            source_frame_f: Fractional source frame index.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        frame_a_idx = int(source_frame_f)
+        frame_b_idx = min(frame_a_idx + 1, self._source.duration - 1)
+        blend_t = source_frame_f - frame_a_idx
+
+        if frame_a_idx == frame_b_idx or blend_t < 1e-6:
+            source_ctx = _make_source_ctx(ctx, self._source, frame_a_idx)
+            return self._source.render_frame(source_ctx)
+
+        ctx_a = _make_source_ctx(ctx, self._source, frame_a_idx)
+        ctx_b = _make_source_ctx(ctx, self._source, frame_b_idx)
+        frame_a = self._source.render_frame(ctx_a)
+        frame_b = self._source.render_frame(ctx_b)
+
+        try:
+            import cv2  # type: ignore[import-not-found]
+
+            gray_a = cv2.cvtColor(frame_a[:, :, :3], cv2.COLOR_BGR2GRAY)
+            gray_b = cv2.cvtColor(frame_b[:, :, :3], cv2.COLOR_BGR2GRAY)
+            flow = cv2.calcOpticalFlowFarneback(gray_a, gray_b, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+            h, w = frame_a.shape[:2]
+            flow_map = np.zeros((h, w, 2), dtype=np.float32)
+            flow_map[:, :, 0] = (
+                np.arange(w, dtype=np.float32)[np.newaxis, :] + flow[:, :, 0] * blend_t
+            )
+            flow_map[:, :, 1] = (
+                np.arange(h, dtype=np.float32)[:, np.newaxis] + flow[:, :, 1] * blend_t
+            )
+            warped: np.ndarray = cv2.remap(
+                frame_a, flow_map[:, :, 0], flow_map[:, :, 1], cv2.INTER_LINEAR
+            )
+            return warped
+        except ImportError:
+            logger.debug("optical_flow_fallback", reason="opencv_unavailable")
+            # Fallback: linear blend
+            alpha = np.float32(blend_t)
+            blended = np.clip(
+                frame_a.astype(np.float32) * (1 - alpha) + frame_b.astype(np.float32) * alpha,
+                0,
+                255,
+            ).astype(np.uint8)
+            return blended
+
+
+@dataclass
+class SpeedRampClip(Clip):
+    """A clip with variable speed applied via keyframe pairs.
+
+    Speed varies over time according to (frame, factor) pairs. The source
+    frame is computed by integrating the speed curve. Total duration is
+    recalculated based on accumulated time.
+
+    Args:
+        _source: The source clip.
+        _speed_keyframes: List of (frame, speed_factor) pairs.
+        _source_frame_map: Pre-computed output_frame → source_frame mapping.
+    """
+
+    _source: Clip = field(default_factory=lambda: _placeholder_clip())
+    _speed_keyframes: list[tuple[int, float]] = field(default_factory=list)
+    _source_frame_map: list[float] = field(default_factory=list)
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Render by looking up the pre-computed source frame mapping.
+
+        Args:
+            ctx: The render context for this frame.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        local = ctx.local_frame
+        if local < len(self._source_frame_map):
+            source_frame = int(self._source_frame_map[local])
+        else:
+            source_frame = self._source.duration - 1
+
+        source_ctx = _make_source_ctx(ctx, self._source, source_frame)
+        return self._source.render_frame(source_ctx)
+
+
+@dataclass
+class ReversedClip(Clip):
+    """A clip that plays its source in reverse.
+
+    Args:
+        _source: The source clip.
+    """
+
+    _source: Clip = field(default_factory=lambda: _placeholder_clip())
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Render the source frame in reverse order.
+
+        Args:
+            ctx: The render context for this frame.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        source_local = self._source.duration - 1 - ctx.local_frame
+        source_ctx = _make_source_ctx(ctx, self._source, source_local)
+        return self._source.render_frame(source_ctx)
+
+
+@dataclass
+class TimeRemappedClip(Clip):
+    """A clip with arbitrary time remapping via a KeyframeTrack curve.
+
+    The curve maps output frames to source frames. The output duration
+    equals the source duration by default; adjust via set_duration().
+
+    Args:
+        _source: The source clip.
+        _curve: KeyframeTrack mapping output_frame → source_frame.
+    """
+
+    _source: Clip = field(default_factory=lambda: _placeholder_clip())
+    _curve: KeyframeTrack | None = None
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Render by evaluating the time remap curve.
+
+        Args:
+            ctx: The render context for this frame.
+
+        Returns:
+            BGRA numpy array of shape (H, W, 4), dtype uint8.
+        """
+        if self._curve is not None:
+            source_frame_val = self._curve.value_at(ctx.local_frame)
+            if isinstance(source_frame_val, (int, float)):
+                source_frame = int(source_frame_val)
+            else:
+                source_frame = ctx.local_frame
+        else:
+            source_frame = ctx.local_frame
+
+        source_ctx = _make_source_ctx(ctx, self._source, source_frame)
         return self._source.render_frame(source_ctx)
 
 

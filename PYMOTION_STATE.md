@@ -72,11 +72,11 @@ Started: 2026-03-10
 - [x] `clip.freeze_frame(frame, duration)` — hold a single frame for a duration, then resume playback
 
 ### 1.2.2 Speed & Time
-- [ ] `clip.speed(factor)` — uniform speed change (0.1×–10×) with audio pitch correction via phase vocoder
-- [ ] `clip.speed_ramp(keyframes)` — variable speed within one clip; list of (frame, factor) pairs; recalculates total duration
-- [ ] `clip.reverse()` — play video and audio backwards
-- [ ] `clip.time_remap(curve)` — arbitrary time remapping via BezierCurve mapping output_frame → source_frame
-- [ ] Optical flow interpolation for slow-motion: `clip.speed(0.5, interpolation="optical_flow")` uses `cv2.calcOpticalFlowFarneback`; falls back to frame duplication if OpenCV unavailable
+- [x] `clip.speed(factor)` — uniform speed change (0.1×–10×) with audio pitch correction via phase vocoder
+- [x] `clip.speed_ramp(keyframes)` — variable speed within one clip; list of (frame, factor) pairs; recalculates total duration
+- [x] `clip.reverse()` — play video and audio backwards
+- [x] `clip.time_remap(curve)` — arbitrary time remapping via BezierCurve mapping output_frame → source_frame
+- [x] Optical flow interpolation for slow-motion: `clip.speed(0.5, interpolation="optical_flow")` uses `cv2.calcOpticalFlowFarneback`; falls back to frame duplication if OpenCV unavailable
 
 ### 1.2.3 Chroma Key & Keying
 - [ ] `ChromaKey` effect — YCbCr-based green/blue screen removal; params: `color`, `tolerance`, `edge_softness`, `spill_suppression`

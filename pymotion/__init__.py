@@ -40,7 +40,11 @@ from pymotion.clip.operations import (
     FreezeFrameClip,
     JoinedClip,
     RepeatedClip,
+    ReversedClip,
+    SpeedClip,
+    SpeedRampClip,
     SubClip,
+    TimeRemappedClip,
     concatenate,
 )
 from pymotion.clip.scene3d import Scene3D, Scene3DClip
@@ -196,7 +200,11 @@ __all__ = [
     "FreezeFrameClip",
     "JoinedClip",
     "RepeatedClip",
+    "ReversedClip",
+    "SpeedClip",
+    "SpeedRampClip",
     "SubClip",
+    "TimeRemappedClip",
     "concatenate",
     # Helpers
     "Silence",
