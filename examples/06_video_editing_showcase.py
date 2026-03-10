@@ -195,7 +195,13 @@ def demo_concatenate_transitions() -> Composition:
         make_color_clip("#533483", 60),
         make_color_clip("#16213E", 60),
     ]
-    return concatenate(clips, transition=CrossDissolve(), transition_duration=15)
+    result = concatenate(clips, transition=CrossDissolve(), transition_duration=15)
+
+    comp = Composition(1920, 1080, fps=30, duration=result.duration)
+    track = Track(name="main")
+    track.add(result)
+    comp.add_track(track)
+    return comp
 
 
 def demo_proxy() -> Composition:
