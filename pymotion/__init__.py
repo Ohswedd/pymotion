@@ -33,6 +33,16 @@ from pymotion.audio.effects import (
 from pymotion.audio.mixer import AudioClipData, AudioMixer
 from pymotion.clip.audio import AudioClip, Silence
 from pymotion.clip.base import Align, BlendMode, NullObject, RenderContext, Resolution, TimeRange
+from pymotion.clip.chart import (
+    AreaChartClip,
+    BarChartClip,
+    LineChartClip,
+    NumberCounter,
+    PieChartClip,
+    ProgressBar,
+    RadarChartClip,
+    ScatterPlotClip,
+)
 from pymotion.clip.color import ColorClip, GradientClip
 from pymotion.clip.image import ImageClip
 from pymotion.clip.operations import (
@@ -206,7 +216,15 @@ __all__ = [
     "CompositionClip",
     "Track",
     # Clips
+    "AreaChartClip",
     "AudioClip",
+    "BarChartClip",
+    "LineChartClip",
+    "NumberCounter",
+    "PieChartClip",
+    "ProgressBar",
+    "RadarChartClip",
+    "ScatterPlotClip",
     "ColorClip",
     "GradientClip",
     "ImageClip",
