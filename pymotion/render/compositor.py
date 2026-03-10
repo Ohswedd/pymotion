@@ -39,12 +39,14 @@ def _find_alpha_bbox(
     return (y0, y1, x0, x1)
 
 
-_alpha_cache: dict[int, tuple[int, int, tuple[int, int, int, int] | None]] = {}
+_AlphaInfo = tuple[int, int, tuple[int, int, int, int] | None]
+_CacheKey = tuple[int, int, int, int]
+_alpha_cache: dict[_CacheKey, _AlphaInfo] = {}
 
 
 def _get_alpha_info(
-    frame: np.ndarray,
-) -> tuple[int, int, tuple[int, int, int, int] | None]:
+    frame: np.ndarray[Any, Any],
+) -> _AlphaInfo:
     """Get cached alpha channel info: (min_a, max_a, bbox).
 
     Uses the frame's data pointer + a hash of the alpha channel as
@@ -69,6 +71,7 @@ def _get_alpha_info(
         return cached
 
     max_a = int(alpha.max())
+    info: _AlphaInfo
     if max_a == 0:
         info = (0, 0, None)
     else:
@@ -249,7 +252,7 @@ def _blend_region_add(
 
         if opacity < 1.0:
             opa_i = int(opacity * 256)
-            src_px = (src_px * opa_i) >> 8
+            src_px = (src_px * opa_i) >> 8  # type: ignore[assignment]
 
         dst_px = dst[rows, cols].astype(np.uint16)
         added = np.minimum(dst_px + src_px, 255).astype(np.uint8)
@@ -297,7 +300,7 @@ def _blend_region_normal(
     # Get effective source alpha (src_alpha * opacity)
     src_a = src_region[:, :, 3].astype(np.uint16)
     if opacity < 1.0:
-        src_a = (src_a * int(opacity * 256)) >> 8
+        src_a = (src_a * int(opacity * 256)) >> 8  # type: ignore[assignment]
 
     dst_a = region[:, :, 3]
 
@@ -333,10 +336,10 @@ def _blend_region_normal(
 
 
 def _apply_blend(
-    bg_rgb: np.ndarray,
-    layer_rgb: np.ndarray,
+    bg_rgb: np.ndarray[Any, Any],
+    layer_rgb: np.ndarray[Any, Any],
     blend_mode: BlendMode,
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
     """Apply blend mode to RGB arrays. Both must be float32.
 
     Args:
@@ -347,27 +350,30 @@ def _apply_blend(
     Returns:
         Blended RGB (float32).
     """
+    result: np.ndarray[Any, Any]
     if blend_mode == BlendMode.MULTIPLY:
-        return (bg_rgb * layer_rgb) / 255.0
-    if blend_mode == BlendMode.SCREEN:
-        return 255.0 - ((255.0 - bg_rgb) * (255.0 - layer_rgb)) / 255.0
-    if blend_mode == BlendMode.OVERLAY:
+        result = (bg_rgb * layer_rgb) / 255.0
+    elif blend_mode == BlendMode.SCREEN:
+        result = 255.0 - ((255.0 - bg_rgb) * (255.0 - layer_rgb)) / 255.0
+    elif blend_mode == BlendMode.OVERLAY:
         low = 2.0 * bg_rgb * layer_rgb / 255.0
         high = 255.0 - 2.0 * (255.0 - bg_rgb) * (255.0 - layer_rgb) / 255.0
-        return np.where(bg_rgb < 128, low, high)
-    if blend_mode == BlendMode.ADD:
-        return bg_rgb + layer_rgb
-    if blend_mode == BlendMode.SOFT_LIGHT:
-        return (
+        result = np.where(bg_rgb < 128, low, high)
+    elif blend_mode == BlendMode.ADD:
+        result = bg_rgb + layer_rgb
+    elif blend_mode == BlendMode.SOFT_LIGHT:
+        result = (
             255.0 - 2.0 * layer_rgb
         ) * bg_rgb * bg_rgb / 65025.0 + 2.0 * layer_rgb * bg_rgb / 255.0
-    if blend_mode == BlendMode.HARD_LIGHT:
+    elif blend_mode == BlendMode.HARD_LIGHT:
         low = 2.0 * bg_rgb * layer_rgb / 255.0
         high = 255.0 - 2.0 * (255.0 - bg_rgb) * (255.0 - layer_rgb) / 255.0
-        return np.where(layer_rgb < 128, low, high)
-    if blend_mode == BlendMode.DIFFERENCE:
-        return np.abs(bg_rgb - layer_rgb)
-    return layer_rgb
+        result = np.where(layer_rgb < 128, low, high)
+    elif blend_mode == BlendMode.DIFFERENCE:
+        result = np.abs(bg_rgb - layer_rgb)
+    else:
+        result = layer_rgb
+    return result
 
 
 def _blend_region_generic(
