@@ -23,6 +23,9 @@ animation, and a render pipeline backed by Cairo, FFmpeg, and ModernGL.
 - **Template system** -- subclass `Template` for reusable, parameterized video generators with typed field validation.
 - **Export presets** -- 15 built-in presets for H.264, HEVC, ProRes, WebM, GIF, and frame sequences.
 - **Animated text** -- `Typewriter`, `KineticText`, `LetterByLetter`, `GlitchText`, `CountUp`, and more.
+- **Charts & data viz** -- `BarChartClip`, `LineChartClip`, `PieChartClip`, `AreaChartClip`, `RadarChartClip`, `ScatterPlotClip`, `NumberCounter`, `ProgressBar` with 4 themes.
+- **Motion graphics** -- `LowerThird`, `LogoReveal`, `CallToAction`, `SocialHandle`, `Countdown`, `QuoteCard`, `Divider`, `TransitionTitle`, `Watermark`.
+- **Device mockups** -- `BrowserMockup`, `PhoneMockup`, `DesktopMockup` for wrapping content clips inside device frames.
 
 ## Installation
 
@@ -82,4 +85,4 @@ See the [Getting Started](guides/getting-started.md) guide for a full walkthroug
 
 ## Project status
 
-PyMotion v1.2 is stable and in active development. 1285 tests, 85% coverage.
+PyMotion v1.4 is stable and in active development. 1668 tests, 88% coverage.

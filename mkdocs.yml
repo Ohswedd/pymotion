@@ -34,6 +34,8 @@ nav:
     - Transitions: guides/transitions.md
     - Particles: guides/particles.md
     - Template System: guides/template-system.md
+    - Charts & Data Viz: guides/charts-and-data-viz.md
+    - Motion Graphics Components: guides/motion-graphics-components.md
   - API Reference:
     - Composition: api/composition.md
     - Clips: api/clips.md
@@ -49,3 +51,6 @@ nav:
     - Audio: api/audio.md
     - Animation: api/animation.md
     - Templates: api/templates.md
+    - Charts: api/charts.md
+    - Motion Graphics: api/motion-graphics.md
+    - Device Mockups: api/mockups.md

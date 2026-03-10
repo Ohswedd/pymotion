@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/PyMotion-v1.3.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
+  <img src="https://img.shields.io/badge/PyMotion-v1.4.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
 </p>
 
 <h1 align="center">PyMotion</h1>
@@ -11,17 +11,17 @@
 
 <p align="center">
   <a href="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml"><img src="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/PyPI-v1.3.0-D4AF37" alt="PyPI"></a>
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/PyPI-v1.4.0-D4AF37" alt="PyPI"></a>
   <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue" alt="Python"></a>
   <a href="https://github.com/Ohswedd/pymotion/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Source%20Available-blue" alt="License"></a>
 </p>
 
 <p align="center">
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/mypy-strict-blue" alt="mypy strict"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-86%25-brightgreen" alt="Coverage"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-88%25-brightgreen" alt="Coverage"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/ruff-clean-purple" alt="Ruff"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/pip--audit-passing-green" alt="Security Audit"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1444%20passed-brightgreen" alt="Tests"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1668%20passed-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -73,6 +73,9 @@ That's a full 1080p video in 12 lines.
 | **Masking** | Bezier, linear/radial gradient, track matte, text masks — boolean ops (add, intersect, subtract) |
 | **Expressions** | Drive any property with Python callables — wiggle, loop_in, loop_out helpers |
 | **Path Animation** | SVG path following, StrokeClip draw-on/off, bezier path morphing |
+| **Charts** | Animated bar, line, pie, area, radar, scatter charts + number counter, progress bar — 4 themes |
+| **Motion Graphics** | LowerThird, LogoReveal, CallToAction, SocialHandle, Countdown, QuoteCard, Divider, TransitionTitle, Watermark |
+| **Device Mockups** | BrowserMockup, PhoneMockup, DesktopMockup — wrap content clips inside device frames |
 | **Proxy** | Low-res proxy generation with disk cache for fast preview |
 | **Transitions** | 39 built-in (fade, slide, wipe, zoom, glitch, film burn, shatter, vortex, ...) |
 | **Particles** | 9 presets — fire, sparkles, confetti, rain, smoke, stars, dust, explosion, bubbles |
@@ -186,6 +189,27 @@ for name in ["Widget Pro", "Gadget X", "Tool Kit"]:
     ProductVideo(product_name=name).render(f"{name.lower().replace(' ', '_')}.mp4")
 ```
 
+### Data Visualization
+
+```python
+from pymotion import BarChartClip, NumberCounter, Composition, Track
+
+comp = Composition(1920, 1080, fps=30, duration=90)
+
+chart_track = Track(name="chart")
+chart = BarChartClip(
+    data={"Q1": 120, "Q2": 200, "Q3": 180, "Q4": 250},
+    animate_duration=30,
+    theme="corporate",
+    title="Quarterly Revenue",
+    show_values=True,
+)
+chart.set_duration(90)
+chart_track.add(chart)
+comp.add_track(chart_track)
+comp.render("chart.mp4", preset="h264_1080p")
+```
+
 ### Video Editing Operations
 
 ```python
@@ -215,7 +239,7 @@ comp = grid(clips, rows=2, cols=2, gap=10)
 
 ## Examples
 
-Seven production-ready scripts ship with the repo, each targeting a real-world use case:
+Eight production-ready scripts ship with the repo, each targeting a real-world use case:
 
 | # | Script | Niche | What It Demonstrates |
 |---|--------|-------|----------------------|
@@ -226,6 +250,7 @@ Seven production-ready scripts ship with the repo, each targeting a real-world u
 | 05 | `educational_explainer.py` | E-learning | LetterByLetter titles, CountUp counters, diagram shapes |
 | 06 | `video_editing_showcase.py` | Post-production | split/join/speed/reverse, ChromaKey, grid/pip/split_screen, proxy workflow |
 | 07 | `motion_graphics_toolkit.py` | Motion graphics | Nested comps, masks, expressions, wiggle, path animation, adjustment layers |
+| 08 | `data_dashboard.py` | Data visualization | Animated charts, number counters, progress bars, device mockups, lower thirds |
 
 ```bash
 python examples/download_assets.py     # grab stock images (~5 MB)
@@ -253,7 +278,7 @@ pymotion new my-project                               # scaffold a new project
 pymotion/
 ├── animation/     Keyframe tracks, 30+ easings, spring, bezier, interpolation
 ├── audio/         Mixer, DSP effects (EQ, compressor, reverb, ...), beat detection
-├── clip/          ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip
+├── clip/          ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip, charts, motion graphics, mockups
 ├── composition.py Composition, Track, CompositionClip, AdjustmentLayer
 ├── masking.py     Bezier, gradient, track matte, text masks + boolean ops
 ├── expressions.py Expression system — wiggle, loop_in, loop_out
@@ -303,7 +328,7 @@ make clean     # remove caches and build artifacts
 ### Running Tests
 
 ```bash
-pytest -v                              # full suite (1444 tests)
+pytest -v                              # full suite (1668 tests)
 pytest tests/unit/ -v                  # unit tests only
 pytest tests/integration/ -v           # integration tests
 pytest --cov=pymotion --cov-report=html  # coverage report
