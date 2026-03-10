@@ -11,7 +11,7 @@ test:
 	pytest -v
 
 render:
-	python -m pymotion render examples/hello_world.py
+	python examples/01_real_estate_tour.py
 
 clean:
 	rm -rf __pycache__ .mypy_cache .ruff_cache htmlcov dist build *.egg-info .pytest_cache .coverage

@@ -13,10 +13,20 @@ keywords = ["video", "generation", "rendering", "motion-graphics", "animation"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
     "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Non-Linear Editor",
+    "Typing :: Typed",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Ohswedd/pymotion"
+Repository = "https://github.com/Ohswedd/pymotion"
+Changelog = "https://github.com/Ohswedd/pymotion/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Ohswedd/pymotion/issues"
 
 dependencies = [
     "numpy>=1.26,<3.0",

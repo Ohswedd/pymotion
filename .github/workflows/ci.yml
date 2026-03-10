@@ -6,28 +6,33 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install dependencies
-        run: |
-          pip install ruff mypy
-          pip install -e ".[dev]"
-      - name: Format check
+        run: pip install -e ".[dev]"
+      - name: Ruff format check
         run: ruff format --check pymotion/ tests/
-      - name: Lint check
+      - name: Ruff lint
         run: ruff check pymotion/ tests/
-      - name: Type check
+      - name: Mypy strict
         run: mypy --strict pymotion/
 
   test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
     steps:
@@ -35,26 +40,34 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libcairo2-dev libfreetype6-dev libharfbuzz-dev
+          sudo apt-get install -y ffmpeg libcairo2-dev pkg-config libfreetype6-dev libharfbuzz-dev
       - name: Install Python dependencies
-        run: |
-          pip install -e ".[dev]"
+        run: pip install -e ".[dev]"
       - name: Run tests
-        run: pytest --cov=pymotion --cov-fail-under=85 -v
+        run: pytest --cov=pymotion --cov-report=xml --cov-fail-under=85 -v
+      - name: Upload coverage
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
 
-  audit:
+  security:
+    name: Security Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install dependencies
         run: |
           pip install pip-audit
           pip install -e .
-      - name: Run audit
+      - name: pip-audit
         run: pip-audit
