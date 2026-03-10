@@ -2,6 +2,28 @@
 
 All notable changes to PyMotion are documented here.
 
+## [1.4.0] — 2026-03-10
+
+### Added
+- **Animated chart clips** — `BarChartClip`, `LineChartClip`, `PieChartClip`,
+  `AreaChartClip`, `RadarChartClip`, and `ScatterPlotClip` with Cairo rendering,
+  ease-out grow/draw-on animations, and four built-in themes (corporate, minimal,
+  neon, gradient). All charts accept list, dict, or per-frame callable data sources.
+- **NumberCounter** — animates a number from start to end value with customizable
+  formatting, font, size, and color. Cubic ease-out animation.
+- **ProgressBar** — horizontal progress bar with rounded corners, custom fill/bg
+  colors, and support for callable animated values.
+- **Motion graphics components** — `LowerThird` (8 styles with slide-in/out),
+  `LogoReveal` (6 reveal styles: fade, slice, grow, glitch, draw, shatter),
+  `CallToAction` (subscribe/buy/visit styles), `SocialHandle` (YouTube, Instagram,
+  TikTok, X, LinkedIn), `Countdown` (numbers and clock modes), `QuoteCard` (4 styles
+  with word wrapping), `Divider` (5 styles), `TransitionTitle` (5 styles with
+  enter/exit animation), `Watermark` (5 positions with configurable opacity).
+- **Device mockups** — `BrowserMockup` (light/dark chrome with traffic lights and
+  URL bar), `PhoneMockup` (flat/notch/dynamic_island models), `DesktopMockup`
+  (macos/windows/minimal themes). All mockups composite a content clip into the
+  device frame with animate_in/animate_out support.
+
 ## [1.3.0] — 2026-03-10
 
 ### Added
