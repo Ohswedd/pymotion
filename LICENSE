@@ -1,21 +1,95 @@
-MIT License
+PyMotion Source Available License
+Version 1.0, March 2026
 
-Copyright (c) 2026 Ohswedd
+Copyright (c) 2026 Ohswedd. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. DEFINITIONS
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+   "Software" means the PyMotion library source code, documentation, and
+   associated files in this repository.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   "You" means any individual or legal entity exercising permissions granted
+   by this License.
+
+   "Derivative Work" means any work that is based on or incorporates the
+   Software, including modifications, translations, adaptations, or
+   extensions of the Software's source code.
+
+   "Application" means any software product, service, or system that uses
+   the Software as a dependency, library, or component — but is not itself
+   a distribution of the Software.
+
+2. PERMITTED USES
+
+   Subject to the conditions below, You are granted a non-exclusive,
+   worldwide, royalty-free right to:
+
+   a) USE the Software in any project, including commercial Applications.
+      You may import, call, and depend on the Software in products you
+      build and sell.
+
+   b) FORK and MODIFY the Software for your own internal use, including
+      bug fixes, performance improvements, and feature additions.
+
+   c) CONTRIBUTE modifications back to the original repository via pull
+      requests or patches, under this same License.
+
+   d) STUDY the Software's source code for educational, research, or
+      reference purposes.
+
+3. RESTRICTIONS
+
+   You may NOT:
+
+   a) REDISTRIBUTE the Software, in whole or in substantial part, as a
+      standalone library, package, framework, or product — whether in
+      original or modified form, and whether for free or for a fee.
+
+   b) PUBLISH, UPLOAD, or DISTRIBUTE the Software (or a Derivative Work
+      of the Software) to any package registry, marketplace, app store,
+      or distribution channel as a library or framework.
+
+   c) SELL, LICENSE, SUBLICENSE, or otherwise commercially exploit the
+      Software itself as a product. This includes offering the Software
+      as a paid library, a SaaS wrapper around its core functionality, or
+      a rebranded/white-labeled distribution.
+
+   d) REMOVE or ALTER this license notice, copyright notice, or
+      attribution from any copy of the Software.
+
+4. CONTRIBUTIONS
+
+   By submitting a contribution (pull request, patch, issue, or other
+   material) to the official repository, You grant the copyright holder a
+   perpetual, worldwide, royalty-free, irrevocable license to use,
+   reproduce, modify, distribute, and sublicense your contribution as part
+   of the Software under this License or any future license version.
+
+5. CLARIFICATIONS
+
+   - Using PyMotion as a dependency in your commercial application (e.g.,
+     importing it in a video rendering service you sell) is PERMITTED.
+   - Forking the repository to fix a bug for your own project is PERMITTED.
+   - Publishing a modified version of PyMotion to PyPI, npm, or any
+     registry under any name is NOT PERMITTED.
+   - Copying substantial portions of the Software into another library
+     that serves the same purpose is NOT PERMITTED.
+   - Referencing small code snippets (< 50 lines) for educational
+     purposes with attribution is PERMITTED.
+
+6. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+   IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES
+   OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+   OTHER DEALINGS IN THE SOFTWARE.
+
+7. TERMINATION
+
+   This License and the rights granted hereunder will terminate
+   automatically if You fail to comply with any of its terms. Upon
+   termination, You must cease all use and destroy all copies of the
+   Software in your possession.

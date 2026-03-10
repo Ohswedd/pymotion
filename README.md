@@ -11,10 +11,10 @@
 
 <p align="center">
   <a href="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml"><img src="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://pypi.org/project/pymotion/"><img src="https://img.shields.io/pypi/v/pymotion?color=D4AF37&label=PyPI" alt="PyPI"></a>
-  <a href="https://pypi.org/project/pymotion/"><img src="https://img.shields.io/pypi/dm/pymotion?color=blue&label=Downloads" alt="Downloads"></a>
-  <a href="https://pypi.org/project/pymotion/"><img src="https://img.shields.io/pypi/pyversions/pymotion" alt="Python"></a>
-  <a href="https://github.com/Ohswedd/pymotion/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Ohswedd/pymotion?color=green" alt="License"></a>
+  <a href="https://pypi.org/project/py-motion/"><img src="https://img.shields.io/pypi/v/py-motion?color=D4AF37&label=PyPI" alt="PyPI"></a>
+  <a href="https://pypi.org/project/py-motion/"><img src="https://img.shields.io/pypi/dm/py-motion?color=blue&label=Downloads" alt="Downloads"></a>
+  <a href="https://pypi.org/project/py-motion/"><img src="https://img.shields.io/pypi/pyversions/py-motion" alt="Python"></a>
+  <a href="https://github.com/Ohswedd/pymotion/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Source%20Available-blue" alt="License"></a>
 </p>
 
 <p align="center">
@@ -92,17 +92,22 @@ choco install ffmpeg cairo
 **Install from PyPI:**
 
 ```bash
-pip install pymotion
+pip install py-motion
 ```
 
 **With extras:**
 
 ```bash
-pip install "pymotion[3d-extras]"     # GLTF model loading
-pip install "pymotion[gpu-compute]"   # wgpu acceleration
-pip install "pymotion[jit]"           # Numba JIT compilation
-pip install "pymotion[dev]"           # Development tools
+pip install "py-motion[3d-extras]"     # GLTF model loading
+pip install "py-motion[gpu-compute]"   # wgpu acceleration
+pip install "py-motion[jit]"           # Numba JIT compilation
+pip install "py-motion[dev]"           # Development tools
 ```
+
+> **Note:** The Python import name is `pymotion` (no hyphen):
+> ```python
+> from pymotion import Composition, ColorClip, Track
+> ```
 
 ---
 
@@ -182,7 +187,7 @@ Five production-ready scripts ship with the repo, each targeting a real-world us
 |---|--------|-------|----------------------|
 | 01 | `real_estate_tour.py` | Property listings | ImageClip slideshow, Typewriter text, sparkle particles, 7-track composition |
 | 02 | `tech_review_intro.py` | YouTube intros | CountUp stats, radial/conic gradients, fire particles |
-| 03 | `fitness_social_ad.py` | Instagram/TikTok | Vertical 1080×1920, CountDown timer, confetti, LetterByLetter |
+| 03 | `fitness_social_ad.py` | Instagram/TikTok | Vertical 1080x1920, CountDown timer, confetti, LetterByLetter |
 | 04 | `restaurant_menu_promo.py` | Menu promotions | WordByWord reveals, stars particles, ShapeClip polygons |
 | 05 | `educational_explainer.py` | E-learning | LetterByLetter titles, CountUp counters, diagram shapes |
 
@@ -236,7 +241,7 @@ Benchmarked on a typical 7-layer 1080p composition:
 | Metric | Value |
 |--------|-------|
 | Frame render throughput | ~75 fps (13 ms/frame) |
-| 12s video end-to-end | ~7s wall time (2.5× realtime) |
+| 12s video end-to-end | ~7s wall time (2.5x realtime) |
 | Static layer caching | Single render, reused across frames |
 | Particle simulation | Vectorized NumPy — no per-particle Python loops |
 | FFmpeg encoding | Multi-threaded, contiguous frame pipe, zero-copy |
@@ -291,4 +296,16 @@ Run `pymotion doctor` to verify your environment.
 
 ## License
 
-[MIT](LICENSE)
+PyMotion is released under the [PyMotion Source Available License 1.0](LICENSE).
+
+**What you can do:**
+- Use PyMotion in any project, including commercial products
+- Fork the repo and modify the code for your own use
+- Contribute back via pull requests
+
+**What you cannot do:**
+- Redistribute, rebrand, or republish PyMotion as a standalone library
+- Sell, sublicense, or commercially exploit the library itself
+- Publish modified versions to any package registry
+
+Read the full [LICENSE](LICENSE) for details.

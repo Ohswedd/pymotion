@@ -3,17 +3,17 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pymotion"
+name = "py-motion"
 version = "1.0.1"
 description = "A Python-native, code-first video generation framework"
 readme = "README.md"
-license = "MIT"
+license = {text = "PyMotion Source Available License 1.0"}
 requires-python = ">=3.11"
 keywords = ["video", "generation", "rendering", "motion-graphics", "animation"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3 :: Only",
@@ -68,6 +68,9 @@ dev = [
     "mkdocs-material",
     "mkdocstrings",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pymotion"]
 
 [project.scripts]
 pymotion = "pymotion.cli.commands:main"
