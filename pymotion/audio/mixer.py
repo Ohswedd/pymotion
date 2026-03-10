@@ -356,6 +356,22 @@ class AudioMixer:
             raise ValueError(msg)
         self._buses[bus].pan = max(-1.0, min(1.0, pan))
 
+    def set_bus_pan_keyframes(self, bus: str, keyframes: list[tuple[int, float]]) -> None:
+        """Set pan automation keyframes for a bus.
+
+        Args:
+            bus: Bus name.
+            keyframes: List of (sample_index, pan) tuples.
+                       Pan is linearly interpolated between keyframes.
+
+        Raises:
+            ValueError: If the bus doesn't exist.
+        """
+        if bus not in self._buses:
+            msg = f"Bus '{bus}' not found. Available: {list(self._buses.keys())}"
+            raise ValueError(msg)
+        self._buses[bus].pan_keyframes = sorted(keyframes, key=lambda k: k[0])
+
     def set_bus_routing(
         self,
         bus: str,

@@ -577,6 +577,42 @@ class TestAudioBus:
         expected = int(0.7 * max_val)  # 0.4 direct + 0.3 via bus
         assert abs(reshaped[0, 0] - expected) < 2
 
+    def test_bus_pan_keyframes(self) -> None:
+        """Bus pan automation via keyframes."""
+        mixer = AudioMixer()
+        samples = np.ones(100, dtype=np.float64) * 0.5
+        mixer.add(AudioClipData(samples=samples), track="music")
+        mixer.create_bus("music_bus")
+        mixer.assign_track_to_bus("music", "music_bus")
+        # Pan from full left to full right
+        mixer.set_bus_pan_keyframes("music_bus", [(0, -1.0), (99, 1.0)])
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+        # At start: full left → left channel loud, right near zero
+        assert abs(reshaped[0, 1]) < abs(reshaped[0, 0])
+        # At end: full right → right channel loud, left near zero
+        assert abs(reshaped[99, 0]) < abs(reshaped[99, 1])
+
+    def test_set_bus_pan_keyframes_nonexistent_raises(self) -> None:
+        mixer = AudioMixer()
+        with pytest.raises(ValueError, match="Bus.*not found"):
+            mixer.set_bus_pan_keyframes("ghost", [(0, 0.0)])
+
+    def test_frame_accurate_track_volume_automation(self) -> None:
+        """Track volume automation is sample-accurate."""
+        mixer = AudioMixer()
+        samples = np.ones(1000, dtype=np.float64) * 1.0
+        mixer.add(AudioClipData(samples=samples), track="t")
+        # Step from 0.0 at sample 0 to 1.0 at sample 999
+        mixer.set_volume_keyframes("t", [(0, 0.0), (999, 1.0)])
+        result = mixer.render()
+        reshaped = result.reshape(-1, 2)
+        max_val = 2 ** (mixer.bit_depth - 1) - 1
+        # Sample at midpoint should be ~0.5
+        mid = reshaped[500, 0]
+        expected_mid = int(500 / 999 * max_val)
+        assert abs(mid - expected_mid) < max_val * 0.02
+
     def test_track_volume_and_bus_volume_stack(self) -> None:
         """Track volume and bus volume multiply together."""
         mixer = AudioMixer()
