@@ -3,6 +3,14 @@
 Public API exports for v1.0.
 """
 
+from pymotion.ai import (
+    AutoColor,
+    AutoEdit,
+    ContentAwareCrop,
+    HighlightDetector,
+    SceneDetector,
+    SilenceRemover,
+)
 from pymotion.animation.easing import (
     EasingFn,
     cubic_bezier,
@@ -412,6 +420,13 @@ __all__ = [
     "LUTEffect",
     "Saturation",
     "SplitToning",
+    # AI helpers
+    "AutoColor",
+    "AutoEdit",
+    "ContentAwareCrop",
+    "HighlightDetector",
+    "SceneDetector",
+    "SilenceRemover",
     # AI effects
     "ColorizeClip",
     "Deblur",
