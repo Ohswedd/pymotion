@@ -17,11 +17,20 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1784%20passed-brightgreen" alt="Tests"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-87%25-brightgreen" alt="Coverage"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/mypy-strict-blue" alt="mypy strict"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-88%25-brightgreen" alt="Coverage"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/ruff-clean-purple" alt="Ruff"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/pip--audit-passing-green" alt="Security Audit"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-1784%20passed-brightgreen" alt="Tests"></a>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/dm/pymotion-studio?label=PyPI%20downloads&color=blue" alt="PyPI Downloads"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/stars/Ohswedd/pymotion?style=flat&label=stars&color=D4AF37" alt="GitHub Stars"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/forks/Ohswedd/pymotion?style=flat&label=forks&color=blue" alt="GitHub Forks"></a>
+  <a href="https://github.com/Ohswedd/pymotion/issues"><img src="https://img.shields.io/github/issues/Ohswedd/pymotion?label=issues&color=orange" alt="Issues"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/last-commit/Ohswedd/pymotion?label=last%20commit&color=brightgreen" alt="Last Commit"></a>
+  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/repo-size/Ohswedd/pymotion?label=repo%20size&color=blue" alt="Repo Size"></a>
 </p>
 
 ---
@@ -51,6 +60,19 @@ comp.render("output.mp4", preset="h264_1080p")
 ```
 
 That's a full 1080p video in 12 lines.
+
+---
+
+## At a Glance
+
+| | |
+|---|---|
+| **Public API** | 255 symbols — clips, effects, transitions, audio, color, layout, animation |
+| **Source** | 76 modules, ~25k lines of production code |
+| **Tests** | 1784 tests, 87% coverage, ~15k lines of test code |
+| **Quality** | `mypy --strict`, `ruff` (format + lint), `pip-audit` — all clean |
+| **Docs** | 24 guides, 22 API reference pages, 9 runnable examples |
+| **Version** | v1.5.0 — Professional Audio & Color Science |
 
 ---
 
@@ -265,42 +287,76 @@ python examples/01_real_estate_tour.py  # render
 
 ---
 
-## CLI
+## Code Quality & Checks
+
+PyMotion enforces strict quality gates on every change. All checks must pass before any commit is merged.
+
+| Check | Tool | Status | What It Enforces |
+|-------|------|--------|------------------|
+| **Type Safety** | `mypy --strict` | passing | Full static type coverage — no `Any` leaks, strict return types, generic protocols |
+| **Formatting** | `ruff format` | clean | Consistent code style across all 76 modules — zero manual formatting |
+| **Linting** | `ruff check` | clean | 800+ rules — import sorting, unused variables, security patterns, complexity limits |
+| **Tests** | `pytest` | 1784 passed | Unit, integration, snapshot, and performance tests — 87% line coverage |
+| **Security** | `pip-audit` | passing | Zero known vulnerabilities in the dependency tree |
+| **Coverage** | `pytest-cov` | 87% | Enforced minimum — PRs that drop coverage below 85% are rejected |
+
+### Running Locally
 
 ```bash
-pymotion render scene.py -o out.mp4 -p h264_1080p   # render a composition
-pymotion export-frame scene.py -f 30 -o thumb.png    # export single frame
-pymotion benchmark scene.py -n 100                    # measure frame throughput
-pymotion doctor                                       # verify system dependencies
-pymotion validate scene.py                            # check composition integrity
-pymotion new my-project                               # scaffold a new project
+make lint      # ruff format + ruff check + mypy --strict (all three must pass)
+make test      # pytest with coverage (85% minimum gate)
+make clean     # remove caches and build artifacts
+```
+
+Or individually:
+
+```bash
+ruff format pymotion/ tests/                  # auto-format
+ruff check pymotion/ tests/                   # lint
+mypy --strict pymotion/                       # type check
+pytest -v                                     # full suite (1784 tests)
+pytest tests/unit/ -v                         # unit tests only
+pytest --cov=pymotion --cov-report=html       # coverage report
 ```
 
 ---
 
-## Architecture
+## Project Structure
 
 ```
-pymotion/
-├── animation/     Keyframe tracks, 30+ easings, spring, bezier, interpolation
-├── audio/         5.1 surround mixer, bus routing, DSP effects, convolution reverb, beat detection
-├── clip/          ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip, charts, mockups, audio viz
-├── captions.py    Subtitle import/export, AutoCaptions (Whisper), caption styles
-├── color_science.py  ACES pipeline, HDR presets, ColorMatch, HSLSecondary, video scopes
-├── composition.py Composition, Track, CompositionClip, AdjustmentLayer, EDL/OTIO export
-├── masking.py     Bezier, gradient, track matte, text masks + boolean ops
-├── expressions.py Expression system — wiggle, loop_in, loop_out
-├── path_animation.py  SVG path following, StrokeClip, path morphing
-├── effects/       Visual, color, distortion, light effect processors
-├── export/        FFmpeg encoder, 15 output presets
-├── particle/      Vectorized particle system, 9 preset generators
-├── render/        Cairo 2D, ModernGL 3D, compositor, color pipeline
-├── security/      Path traversal, color, asset magic-byte, text sanitization validators
-├── template/      Template ABC with field validation for batch rendering
-├── text/          FreeType/HarfBuzz renderer, 9 animated text presets
-├── transition/    39 transition implementations
-├── utils/         Color (OKLCH), Vec2/Vec3, logging (structlog)
-└── cli/           Click-based CLI (render, preview, benchmark, doctor, ...)
+pymotion/                    76 modules, ~25,000 lines
+├── animation/               Keyframe tracks, 30+ easings, spring, bezier, interpolation
+├── audio/                   5.1 surround mixer, bus routing, DSP effects, convolution reverb, beat detection
+├── clip/                    ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip, charts, mockups, audio viz
+├── captions.py              Subtitle import/export, AutoCaptions (Whisper), caption styles
+├── color_science.py         ACES pipeline, HDR presets, ColorMatch, HSLSecondary, video scopes
+├── composition.py           Composition, Track, CompositionClip, AdjustmentLayer, EDL/OTIO export
+├── masking.py               Bezier, gradient, track matte, text masks + boolean ops
+├── expressions.py           Expression system — wiggle, loop_in, loop_out
+├── path_animation.py        SVG path following, StrokeClip, path morphing
+├── tts.py                   Text-to-speech (system, OpenAI, ElevenLabs)
+├── effects/                 Visual, color, distortion, light effect processors
+├── export/                  FFmpeg encoder, 15 output presets
+├── particle/                Vectorized particle system, 9 preset generators
+├── render/                  Cairo 2D, ModernGL 3D, compositor, color pipeline
+├── security/                Path traversal, color, asset magic-byte, text sanitization validators
+├── template/                Template ABC with field validation for batch rendering
+├── text/                    FreeType/HarfBuzz renderer, 9 animated text presets
+├── transition/              39 transition implementations
+├── utils/                   Color (OKLCH), Vec2/Vec3, logging (structlog)
+└── cli/                     Click-based CLI (render, preview, benchmark, doctor, ...)
+
+tests/                       1784 tests, ~15,000 lines
+├── unit/                    Fast isolated tests (mocked I/O, no rendering)
+├── integration/             End-to-end render tests (FFmpeg required)
+├── snapshot/                Frame-level regression tests
+└── performance/             Throughput benchmarks
+
+docs/                        46 pages
+├── guides/                  24 practical tutorials (code-first, copy-paste ready)
+└── api/                     22 auto-generated API reference pages (mkdocstrings)
+
+examples/                    9 production-ready scripts targeting real-world niches
 ```
 
 **Internal frame format:** BGRA `uint8` NumPy arrays `(H, W, 4)` — matches Cairo ARGB32 on little-endian. The compositor uses bounding-box sparse blending with `uint16` fixed-point fast paths for opaque layers and alpha-info caching for transparency detection.
@@ -321,25 +377,25 @@ Benchmarked on a typical 7-layer 1080p composition:
 
 ---
 
+## CLI
+
+```bash
+pymotion render scene.py -o out.mp4 -p h264_1080p   # render a composition
+pymotion export-frame scene.py -f 30 -o thumb.png    # export single frame
+pymotion benchmark scene.py -n 100                    # measure frame throughput
+pymotion doctor                                       # verify system dependencies
+pymotion validate scene.py                            # check composition integrity
+pymotion new my-project                               # scaffold a new project
+```
+
+---
+
 ## Development
 
 ```bash
 git clone https://github.com/Ohswedd/pymotion.git
 cd pymotion
 pip install -e ".[dev]"
-
-make lint      # ruff format + ruff check + mypy --strict
-make test      # pytest with coverage (85% minimum)
-make clean     # remove caches and build artifacts
-```
-
-### Running Tests
-
-```bash
-pytest -v                              # full suite (1784 tests)
-pytest tests/unit/ -v                  # unit tests only
-pytest tests/integration/ -v           # integration tests
-pytest --cov=pymotion --cov-report=html  # coverage report
 ```
 
 ---
@@ -364,6 +420,18 @@ docker run --rm -v $(pwd)/output:/app/output pymotion render scene.py -o output/
 | ModernGL | 3D PBR rendering | Yes (via pip) |
 
 Run `pymotion doctor` to verify your environment.
+
+---
+
+## Release History
+
+| Version | Date | Highlights |
+|---------|------|------------|
+| **v1.5.0** | 2026-03-11 | Professional Audio & Color Science — 5.1 surround, ACES, HDR, scopes, captions, TTS, EDL/OTIO |
+| **v1.4.0** | 2026-03-10 | Motion Graphics & Data Visualization — charts, mockups, motion graphics overlays |
+| **v1.3.0** | 2026-03-10 | Advanced Compositing — pre-comps, adjustment layers, masking, expressions, path animation |
+| **v1.2.0** | 2026-03-10 | Video Editing — split/join/speed, chroma key, PiP, stabilization, proxy |
+| **v1.0.0** | 2026-03-10 | Initial release — core rendering, animation, effects, transitions, particles, 3D |
 
 ---
 
