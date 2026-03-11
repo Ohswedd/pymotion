@@ -141,10 +141,12 @@ def demo_effect_api_patterns() -> None:
     bg_removal = RemoveBackground(model="u2net")
     print(f"RemoveBackground: model={bg_removal.model}")
 
-    new_bg = np.zeros((64, 64, 4), dtype=np.uint8)
-    new_bg[:, :, 3] = 255
-    bg_replace = ReplaceBackground(background=new_bg, model="u2net")
-    print(f"ReplaceBackground: bg_shape={bg_replace.background.shape}")
+    from pymotion import ColorClip as _ColorClip
+
+    mock_bg = _ColorClip(color="#0000FF")
+    mock_bg.set_duration(30)
+    bg_replace = ReplaceBackground(new_bg=mock_bg, model="u2net")
+    print(f"ReplaceBackground: model={bg_replace.model}")
 
     obj_seg = ObjectSegmentation(prompt="the red car")
     print(f"ObjectSegmentation: prompt={obj_seg.prompt!r}")
@@ -188,7 +190,7 @@ def demo_helper_api_patterns() -> None:
     )
 
     # Scene detection
-    scene_det = SceneDetector(clip=mock_clip, threshold=30.0)
+    scene_det = SceneDetector(clip=mock_clip, threshold=0.3)
     print(f"SceneDetector: threshold={scene_det.threshold}")
 
     # Silence removal
@@ -200,19 +202,19 @@ def demo_helper_api_patterns() -> None:
     print(f"HighlightDetector: criteria={highlight_det.criteria}, top_n={highlight_det.top_n}")
 
     # Content-aware crop
-    crop = ContentAwareCrop(clip=mock_clip, target_ratio=(9, 16), smoothing=10)
+    crop = ContentAwareCrop(clip=mock_clip, target_ratio="9:16", smoothing=10)
     print(f"ContentAwareCrop: target_ratio={crop.target_ratio}")
 
     # Auto color
-    auto_color = AutoColor(clip=mock_clip, sample_count=10)
-    print(f"AutoColor: sample_count={auto_color.sample_count}")
+    auto_color = AutoColor(clip=mock_clip, strength=0.8)
+    print(f"AutoColor: strength={auto_color.strength}")
 
     # Face detection
-    face_det = FaceDetector(clip=mock_clip, confidence=0.7)
-    print(f"FaceDetector: confidence={face_det.confidence}")
+    face_det = FaceDetector(clip=mock_clip, min_confidence=0.7)
+    print(f"FaceDetector: min_confidence={face_det.min_confidence}")
 
     # Face blur
-    face_blur = FaceBlur(clip=mock_clip, strength=20.0, confidence=0.7)
+    face_blur = FaceBlur(clip=mock_clip, strength=5)
     print(f"FaceBlur: strength={face_blur.strength}")
 
     # Voice conversion
@@ -220,14 +222,12 @@ def demo_helper_api_patterns() -> None:
     print(f"VoiceConversion: strength={voice_conv.strength}")
 
     # Music generation
-    music_gen = MusicGeneration(prompt="ambient electronic", duration_sec=10.0, tempo=120)
-    print(f"MusicGeneration: prompt={music_gen.prompt!r}, duration={music_gen.duration_sec}s")
+    music_gen = MusicGeneration(prompt="ambient electronic", duration=10.0, tempo=120)
+    print(f"MusicGeneration: prompt={music_gen.prompt!r}, duration={music_gen.duration}s")
 
     # Sound FX generation
-    sfx_gen = SoundFXGeneration(description="thunder rumble", duration_sec=3.0)
-    print(
-        f"SoundFXGeneration: description={sfx_gen.description!r}, duration={sfx_gen.duration_sec}s"
-    )
+    sfx_gen = SoundFXGeneration(description="thunder rumble", duration=3.0)
+    print(f"SoundFXGeneration: description={sfx_gen.description!r}, duration={sfx_gen.duration}s")
 
 
 if __name__ == "__main__":

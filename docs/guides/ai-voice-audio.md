@@ -37,9 +37,9 @@ from pymotion import MusicGeneration
 
 generator = MusicGeneration(
     prompt="upbeat corporate background music, acoustic guitar",
-    duration_sec=10.0,
+    duration=10.0,
     tempo=120,
-    model="facebook/musicgen-small",
+    sample_rate=48000,
 )
 audio = generator.generate()
 # Returns: numpy array of audio samples (float64, stereo)
@@ -51,13 +51,12 @@ directly with `AudioMixer`:
 ```python
 from pymotion import AudioClipData, AudioMixer
 
-mixer = AudioMixer(sample_rate=32000, channels=2)
+mixer = AudioMixer(sample_rate=48000, channels=2)
 mixer.add(AudioClipData(samples=audio, start_sample=0), track="music")
 ```
 
-Available models: `"facebook/musicgen-small"` (fast, lower quality),
-`"facebook/musicgen-medium"`, `"facebook/musicgen-large"` (slower,
-higher quality).
+The model used internally is `"facebook/musicgen-small"`. The `tempo`
+parameter provides an approximate BPM hint (20–300).
 
 ## Sound effect generation
 
@@ -68,8 +67,8 @@ from pymotion import SoundFXGeneration
 
 sfx = SoundFXGeneration(
     description="thunder rumbling in the distance",
-    duration_sec=3.0,
-    model="facebook/musicgen-small",
+    duration=3.0,
+    sample_rate=48000,
 )
 audio = sfx.generate()
 # Returns: numpy array of audio samples (float64, stereo)
@@ -77,7 +76,7 @@ audio = sfx.generate()
 
 The same MusicGen model handles both music and sound effects — the
 `description` parameter guides the model toward effects rather than
-musical content.
+musical content. The `sample_rate` defaults to 48000 Hz.
 
 ### Combining with compositions
 
@@ -89,15 +88,15 @@ from pymotion import Composition, AudioMixer, AudioClipData
 comp = Composition(1920, 1080, fps=30, duration=300)
 # ... add video tracks ...
 
-mixer = AudioMixer(sample_rate=32000, channels=2)
+mixer = AudioMixer(sample_rate=48000, channels=2)
 
 # AI-generated background music
-music = MusicGeneration(prompt="ambient electronic", duration_sec=10.0).generate()
+music = MusicGeneration(prompt="ambient electronic", duration=10.0).generate()
 mixer.add(AudioClipData(samples=music, start_sample=0), track="bg_music")
 
 # AI-generated sound effect at 3 seconds
-sfx = SoundFXGeneration(description="whoosh transition", duration_sec=1.0).generate()
-mixer.add(AudioClipData(samples=sfx, start_sample=32000 * 3), track="sfx")
+sfx = SoundFXGeneration(description="whoosh transition", duration=1.0).generate()
+mixer.add(AudioClipData(samples=sfx, start_sample=48000 * 3), track="sfx")
 
 mixer.set_bus_volume("bg_music", 0.4)
 ```

@@ -29,18 +29,16 @@ subsequent frames reuse it.
 a new background image:
 
 ```python
-from pymotion import ReplaceBackground
-import numpy as np
+from pymotion import ReplaceBackground, ColorClip
 
-# A solid blue background (BGRA uint8)
-new_bg = np.zeros((1080, 1920, 4), dtype=np.uint8)
-new_bg[:, :, 0] = 180  # B
-new_bg[:, :, 3] = 255  # A
+# Use any clip as the replacement background
+bg_clip = ColorClip(color="#003366")
+bg_clip.set_duration(150)
 
-effect = ReplaceBackground(background=new_bg, model="u2net")
+effect = ReplaceBackground(new_bg=bg_clip, model="u2net")
 ```
 
-The foreground is composited onto `background` using alpha blending
+The foreground is composited onto `new_bg` using alpha blending
 with uint16 fixed-point math for accuracy.
 
 ## Object segmentation
@@ -74,8 +72,9 @@ mask[200:400, 300:600] = 255
 effect = RemoveObject(mask=mask)
 ```
 
-The effect uses diffusion-based inpainting to fill the masked region
-with plausible content matching the surrounding area.
+The `method` parameter controls the inpainting backend: `"telea"`
+(default, OpenCV), `"ns"` (OpenCV Navier-Stokes), or `"diffusion"`
+(Stable Diffusion, requires `diffusers`).
 
 ## Extending frames (outpainting)
 
@@ -89,7 +88,8 @@ from pymotion import ExtendFrame
 effect = ExtendFrame(direction="right", amount=200)
 ```
 
-Valid directions: `"left"`, `"right"`, `"top"`, `"bottom"`.
+Valid directions: `"left"`, `"right"`, `"top"`, `"bottom"`, `"all"`.
 
-The effect pads the frame, runs diffusion inpainting on the new
-region, then resizes back to the original dimensions.
+The effect pads the frame, inpaints the new region, then resizes
+back to the original dimensions. Use `method="diffusion"` for
+AI-quality results or the default `"telea"` for fast processing.
