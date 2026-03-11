@@ -101,7 +101,7 @@ class GodRays(Effect):
     """
 
     position: Vec2 = Vec2(0.5, 0.0)
-    intensity: float = 0.5
+    intensity: float = 0.3
     decay: float = 0.95
     samples: int = 50
 
@@ -156,16 +156,16 @@ class NeonGlow(Effect):
         threshold: Edge detection threshold.
     """
 
-    color: Color = Color(0.0, 1.0, 1.0, 1.0)
+    color: Color = Color(0.388, 0.4, 0.945, 1.0)
     radius: float = 8.0
-    strength: float = 0.7
+    strength: float = 0.6
     threshold: float = 50.0
 
     def __init__(
         self,
-        color: ColorInput = "#00FFFF",
+        color: ColorInput = "#6366F1",
         radius: float = 8.0,
-        strength: float = 0.7,
+        strength: float = 0.6,
         threshold: float = 50.0,
     ) -> None:
         """Initialize NeonGlow.

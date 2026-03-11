@@ -106,8 +106,8 @@ class Vignette(Effect):
     """
 
     strength: float = 0.5
-    radius: float = 0.8
-    feather: float = 0.3
+    radius: float = 0.65
+    feather: float = 0.35
 
     _cached_mask: np.ndarray | None = None
     _cached_key: tuple[int, int, float, float, float] | None = None
@@ -154,7 +154,7 @@ class FilmGrain(Effect):
         monochrome: Whether grain is monochrome or colored.
     """
 
-    strength: float = 0.3
+    strength: float = 0.08
     size: float = 1.0
     monochrome: bool = True
 
@@ -235,7 +235,7 @@ class ChromaticAberration(Effect):
         angle: Direction angle in degrees.
     """
 
-    offset: float = 3.0
+    offset: float = 2.0
     angle: float = 0.0
 
     def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
@@ -313,8 +313,8 @@ class Bloom(Effect):
     """
 
     radius: float = 10.0
-    strength: float = 0.5
-    threshold: float = 200.0
+    strength: float = 0.4
+    threshold: float = 178.0
     iterations: int = 3
 
     def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:

@@ -15,6 +15,8 @@ import cairo
 import numpy as np
 
 from pymotion.clip.base import Clip, RenderContext
+from pymotion.design.motion import ease_out_quart
+from pymotion.design.tokens import CHART_COLORS
 from pymotion.utils.color import Color
 
 # Type for chart data: list, dict, or per-frame callable
@@ -26,18 +28,11 @@ ChartData = Sequence[float] | dict[str, float] | Callable[[int], Sequence[float]
 # label_color, label_font, title_font, gridlines
 _THEMES: dict[str, dict[str, Any]] = {
     "corporate": {
-        "bar_colors": [
-            Color.parse("#2563EB"),
-            Color.parse("#3B82F6"),
-            Color.parse("#60A5FA"),
-            Color.parse("#93C5FD"),
-            Color.parse("#BFDBFE"),
-            Color.parse("#1D4ED8"),
-        ],
-        "background": Color.parse("#FFFFFF"),
-        "axis_color": Color.parse("#374151"),
-        "grid_color": Color.parse("#E5E7EB"),
-        "label_color": Color.parse("#374151"),
+        "bar_colors": list(CHART_COLORS),
+        "background": Color(0.0, 0.0, 0.0, 0.0),
+        "axis_color": Color.parse("#3F3F46"),
+        "grid_color": Color(0.247, 0.247, 0.275, 0.4),
+        "label_color": Color.parse("#71717A"),
         "gridlines": True,
     },
     "minimal": {
@@ -153,7 +148,7 @@ def _resolve_labels(
 
 
 def _ease_out_cubic(t: float) -> float:
-    """Cubic ease-out curve for animation.
+    """Ease-out curve for animation — delegates to design system ease_out_quart.
 
     Args:
         t: Progress value (0.0 to 1.0).
@@ -161,7 +156,7 @@ def _ease_out_cubic(t: float) -> float:
     Returns:
         Eased value.
     """
-    return 1.0 - (1.0 - t) ** 3
+    return ease_out_quart(t)
 
 
 @dataclass
@@ -295,11 +290,22 @@ class BarChartClip(Clip):
             bar_h = (abs(animated_val) / max_val) * chart_h
             bar_x = chart_x + i * total_bar_width + gap / 2
 
-            # Bar rectangle (grows from baseline up)
+            # Bar with rounded top corners (radius_sm=4px)
             bar_y = chart_y + chart_h - bar_h
             cr.set_source_rgba(color.r, color.g, color.b, color.a)
-            cr.rectangle(bar_x, bar_y, bar_width, bar_h)
-            cr.fill()
+            r = min(4.0, bar_width / 2, bar_h / 2) if bar_h > 0 else 0
+            if r > 0 and bar_h > r * 2:
+                cr.new_sub_path()
+                cr.arc(bar_x + bar_width - r, bar_y + r, r, -math.pi / 2, 0)
+                cr.line_to(bar_x + bar_width, bar_y + bar_h)
+                cr.line_to(bar_x, bar_y + bar_h)
+                cr.line_to(bar_x, bar_y + r)
+                cr.arc(bar_x + r, bar_y + r, r, math.pi, 3 * math.pi / 2)
+                cr.close_path()
+                cr.fill()
+            else:
+                cr.rectangle(bar_x, bar_y, bar_width, bar_h)
+                cr.fill()
 
             # Label below bar
             cr.set_source_rgba(label_color.r, label_color.g, label_color.b, label_color.a)
@@ -559,7 +565,7 @@ class LineChartClip(Clip):
     theme: str = "corporate"
     line_colors: list[Color] | None = None
     title: str | None = None
-    line_width: float = 3.0
+    line_width: float = 2.0
     show_dots: bool = True
     show_fill: bool = False
     padding: tuple[float, float, float, float] = (80.0, 60.0, 40.0, 60.0)
@@ -635,12 +641,20 @@ class LineChartClip(Clip):
                 cr.line_to(points[i][0], points[i][1])
             cr.stroke()
 
-        # Draw dots
+        # Draw dots (hollow rings)
         if self.show_dots:
+            dot_r = self.line_width + 2
             for i in range(visible):
-                cr.set_source_rgba(color.r, color.g, color.b, color.a)
-                cr.arc(points[i][0], points[i][1], self.line_width + 1, 0, 2 * math.pi)
+                # White fill center
+                bg = theme_cfg["background"]
+                cr.set_source_rgba(bg.r, bg.g, bg.b, 1.0)
+                cr.arc(points[i][0], points[i][1], dot_r, 0, 2 * math.pi)
                 cr.fill()
+                # Colored ring
+                cr.set_source_rgba(color.r, color.g, color.b, color.a)
+                cr.arc(points[i][0], points[i][1], dot_r, 0, 2 * math.pi)
+                cr.set_line_width(self.line_width)
+                cr.stroke()
 
         # X-axis labels
         chart_labels = _resolve_labels(self.labels, data_keys, n_points)
@@ -685,7 +699,8 @@ class PieChartClip(Clip):
     slice_colors: list[Color] | None = None
     title: str | None = None
     show_labels: bool = True
-    inner_radius: float = 0.0
+    inner_radius: float = 0.55
+    gap_degrees: float = 1.5
     padding: tuple[float, float, float, float] = (60.0, 60.0, 60.0, 60.0)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
@@ -732,48 +747,34 @@ class PieChartClip(Clip):
 
         current_angle = start_angle
         label_color = theme_cfg["label_color"]
+        gap_rad = math.radians(self.gap_degrees)
 
         for i, val in enumerate(values):
-            slice_angle = (abs(val) / total) * max_sweep
+            full_slice = (abs(val) / total) * max_sweep
+            # Apply gap: shrink slice by gap_rad, offset start by half gap
+            slice_gap = gap_rad if len(values) > 1 else 0.0
+            slice_angle = max(0.0, full_slice - slice_gap)
+            slice_start = current_angle + slice_gap / 2
             color = colors[i % len(colors)]
 
             # Draw slice — new_sub_path prevents implicit line from
             # previous show_text current point to the arc start.
-            cr.new_sub_path()
-            cr.set_source_rgba(color.r, color.g, color.b, color.a)
-            if inner_r > 0:
-                cr.arc(cx, cy, radius, current_angle, current_angle + slice_angle)
-                cr.arc_negative(cx, cy, inner_r, current_angle + slice_angle, current_angle)
-                cr.close_path()
-            else:
-                cr.move_to(cx, cy)
-                cr.arc(cx, cy, radius, current_angle, current_angle + slice_angle)
-                cr.close_path()
-            cr.fill()
-
-            # Slice border
-            cr.new_sub_path()
-            cr.set_source_rgba(
-                theme_cfg["background"].r,
-                theme_cfg["background"].g,
-                theme_cfg["background"].b,
-                1.0,
-            )
-            cr.set_line_width(2.0)
-            cr.set_line_join(cairo.LINE_JOIN_ROUND)
-            if inner_r > 0:
-                cr.arc(cx, cy, radius, current_angle, current_angle + slice_angle)
-                cr.arc_negative(cx, cy, inner_r, current_angle + slice_angle, current_angle)
-                cr.close_path()
-            else:
-                cr.move_to(cx, cy)
-                cr.arc(cx, cy, radius, current_angle, current_angle + slice_angle)
-                cr.close_path()
-            cr.stroke()
+            if slice_angle > 0:
+                cr.new_sub_path()
+                cr.set_source_rgba(color.r, color.g, color.b, color.a)
+                if inner_r > 0:
+                    cr.arc(cx, cy, radius, slice_start, slice_start + slice_angle)
+                    cr.arc_negative(cx, cy, inner_r, slice_start + slice_angle, slice_start)
+                    cr.close_path()
+                else:
+                    cr.move_to(cx, cy)
+                    cr.arc(cx, cy, radius, slice_start, slice_start + slice_angle)
+                    cr.close_path()
+                cr.fill()
 
             # Label
             if self.show_labels and anim_t > 0.3:
-                mid_angle = current_angle + slice_angle / 2
+                mid_angle = slice_start + slice_angle / 2
                 label_r = radius * 1.15
                 lx = cx + label_r * math.cos(mid_angle)
                 ly = cy + label_r * math.sin(mid_angle)
@@ -786,7 +787,7 @@ class PieChartClip(Clip):
                 cr.move_to(lx - ext.width / 2, ly + ext.height / 2)
                 cr.show_text(label_text)
 
-            current_angle += slice_angle
+            current_angle += full_slice
 
         return _surface_to_frame(surface, h, w)
 
@@ -815,7 +816,7 @@ class AreaChartClip(Clip):
     theme: str = "corporate"
     area_colors: list[Color] | None = None
     title: str | None = None
-    fill_opacity: float = 0.4
+    fill_opacity: float = 0.2
     padding: tuple[float, float, float, float] = (80.0, 60.0, 40.0, 60.0)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
@@ -961,21 +962,14 @@ class RadarChartClip(Clip):
         else:
             anim_t = 1.0
 
-        # Draw grid rings
+        # Draw concentric circle grid rings
         grid_color = theme_cfg["grid_color"]
         cr.set_source_rgba(grid_color.r, grid_color.g, grid_color.b, grid_color.a)
         cr.set_line_width(1.0)
         for ring in range(1, 6):
             r = radius * ring / 5
-            for i in range(n):
-                angle = 2 * math.pi * i / n - math.pi / 2
-                px = cx + r * math.cos(angle)
-                py = cy + r * math.sin(angle)
-                if i == 0:
-                    cr.move_to(px, py)
-                else:
-                    cr.line_to(px, py)
-            cr.close_path()
+            cr.new_sub_path()
+            cr.arc(cx, cy, r, 0, 2 * math.pi)
             cr.stroke()
 
         # Draw spokes
@@ -1062,7 +1056,7 @@ class ScatterPlotClip(Clip):
     theme: str = "corporate"
     point_color: Color | None = None
     title: str | None = None
-    point_size: float = 5.0
+    point_size: float = 4.0
     padding: tuple[float, float, float, float] = (80.0, 60.0, 40.0, 60.0)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
@@ -1175,13 +1169,13 @@ class NumberCounter(Clip):
 
         current = self.start_value + (self.end_value - self.start_value) * t
 
-        # Format text
+        # Format text — default uses comma-separated integers
         if self.format_fn is not None:
             text = self.format_fn(current)
         elif current == int(current):
-            text = str(int(current))
+            text = f"{int(current):,}"
         else:
-            text = f"{current:.1f}"
+            text = f"{current:,.1f}"
 
         # Draw text at position (center of content). Falls back to
         # frame center when position is the default (0, 0).
@@ -1223,10 +1217,10 @@ class ProgressBar(Clip):
 
     value: float | Callable[[int], float] = 0.5
     bar_width: float = 400.0
-    bar_height: float = 30.0
-    fill_color: Color = field(default_factory=lambda: Color.parse("#2563EB"))
-    bg_color: Color = field(default_factory=lambda: Color.parse("#E5E7EB"))
-    radius: float = 8.0
+    bar_height: float = 8.0
+    fill_color: Color = field(default_factory=lambda: Color.parse("#6366F1"))
+    bg_color: Color = field(default_factory=lambda: Color.parse("#27272A"))
+    radius: float = 9999.0
     padding: tuple[float, float, float, float] = (20.0, 20.0, 20.0, 20.0)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:

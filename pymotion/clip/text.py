@@ -17,6 +17,7 @@ from typing import Literal, Self
 import numpy as np
 
 from pymotion.clip.base import Clip, RenderContext
+from pymotion.design.tokens import FONT_PRIMARY
 from pymotion.security.validation import sanitize_text
 from pymotion.text.renderer import FontLoader, GlyphRenderer
 from pymotion.utils.color import Color, ColorInput
@@ -152,11 +153,11 @@ class TextClip(Clip):
     """
 
     text: str = ""
-    font: str = "Arial"
-    size: float = 24.0
+    font: str = FONT_PRIMARY
+    size: float = 14.0
     color: Color = Color(1.0, 1.0, 1.0, 1.0)
     letter_spacing: float = 0.0
-    line_height: float = 1.2
+    line_height: float = 1.6
     align: Literal["left", "center", "right"] = "left"
     max_width: int | None = None
     stroke_color: Color | None = None
@@ -168,11 +169,11 @@ class TextClip(Clip):
         self,
         text: str = "",
         *,
-        font: str = "Arial",
-        size: float = 24.0,
+        font: str = FONT_PRIMARY,
+        size: float = 14.0,
         color: ColorInput = "#FFFFFF",
         letter_spacing: float = 0.0,
-        line_height: float = 1.2,
+        line_height: float = 1.6,
         align: Literal["left", "center", "right"] = "left",
         max_width: int | None = None,
         stroke_color: ColorInput | None = None,

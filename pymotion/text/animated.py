@@ -28,6 +28,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from pymotion.clip.base import Clip, RenderContext
+from pymotion.design.motion import spring_ui
+from pymotion.design.tokens import FONT_MONO, FONT_PRIMARY
 from pymotion.security.validation import sanitize_text
 from pymotion.utils.color import Color
 from pymotion.utils.logging import get_logger
@@ -64,7 +66,7 @@ _char_positions_cache: dict[tuple[str, float, str], list[int]] = {}
 def _measure_char_positions(
     text: str,
     font_size: float,
-    font: str = "Arial",
+    font: str = FONT_PRIMARY,
 ) -> list[int]:
     """Return the cumulative x-advance after each character.
 
@@ -106,7 +108,7 @@ def _render_text_simple(
     font_size: float,
     color: tuple[int, int, int, int],
     position: Vec2,
-    font: str = "Arial",
+    font: str = FONT_PRIMARY,
 ) -> np.ndarray:
     """Render text to a BGRA frame using FreeType via GlyphRenderer.
 
@@ -616,7 +618,7 @@ class KineticText(Clip):
                 break
 
             progress = min(1.0, (ctx.local_frame - word_start) / max(self.frames_per_word, 1))
-            ease = 1.0 - (1.0 - progress) ** 3  # Cubic ease-out
+            ease = spring_ui(progress)
 
             word_x = int(x_offset + (1.0 - ease) * ctx.resolution.width * 0.3)
             word_frame = _render_text_simple(
@@ -771,6 +773,7 @@ class CountUp(Clip):
             self.font_size,
             (b, g, r, a),
             self.position,
+            font=FONT_MONO,
         )
 
 
@@ -834,6 +837,7 @@ class CountDown(Clip):
             self.font_size,
             (b, g, r, a),
             self.position,
+            font=FONT_MONO,
         )
 
 
@@ -853,7 +857,7 @@ class GlitchText(Clip):
     text: str = ""
     font_size: float = 24.0
     color: Color = Color(1.0, 1.0, 1.0, 1.0)
-    glitch_intensity: float = 0.3
+    glitch_intensity: float = 0.15
     position: Vec2 = Vec2(50.0, 50.0)
     seed: int = 42
 
@@ -891,7 +895,7 @@ class GlitchText(Clip):
         )
 
         if rng.random() < self.glitch_intensity:
-            offset = rng.integers(1, 4)
+            offset = rng.integers(1, 3)
             frame_shifted = frame.copy()
             frame_shifted[:, :, 2] = np.roll(frame[:, :, 2], offset, axis=1)
             frame_shifted[:, :, 0] = np.roll(frame[:, :, 0], -offset, axis=1)

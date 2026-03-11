@@ -13,6 +13,11 @@ import cairo
 import numpy as np
 
 from pymotion.clip.base import Clip, RenderContext
+from pymotion.design.tokens import (
+    NEUTRAL,
+    RADIUS_LG,
+    SHADOW_XL,
+)
 from pymotion.utils.color import Color
 
 
@@ -167,7 +172,7 @@ class BrowserMockup(Clip):
     """
 
     content_clip: Clip | None = None
-    mockup_theme: str = "light"
+    mockup_theme: str = "dark"
     url_text: str = "https://example.com"
     animate_in_frames: int = 0
     animate_out_frames: int = 0
@@ -294,7 +299,7 @@ class PhoneMockup(Clip):
 
     content_clip: Clip | None = None
     model: str = "flat"
-    bezel_color: Color = field(default_factory=lambda: Color.parse("#1F2937"))
+    bezel_color: Color = field(default_factory=lambda: NEUTRAL.n900)
     animate_in_frames: int = 0
     animate_out_frames: int = 0
 
@@ -327,23 +332,30 @@ class PhoneMockup(Clip):
         phone_h = phone_w * (19.5 / 9.0)
         px = (w - phone_w) / 2
         py = (h - phone_h) / 2
-        bezel = phone_w * 0.04
-        corner_r = phone_w * 0.12
+        corner_r = h * 0.06
+        inset = 6.0
 
-        # Bezel
+        # Bezel body
         bc = self.bezel_color
         _rounded_rect(cr, px, py, phone_w, phone_h, corner_r)
         cr.set_source_rgba(bc.r, bc.g, bc.b, opacity)
         cr.fill()
 
-        # Screen area
-        sx = px + bezel
-        sy = py + bezel
-        sw = phone_w - bezel * 2
-        sh = phone_h - bezel * 2
-        screen_r = corner_r - bezel
+        # Border stroke
+        border_c = NEUTRAL.n700
+        _rounded_rect(cr, px, py, phone_w, phone_h, corner_r)
+        cr.set_source_rgba(border_c.r, border_c.g, border_c.b, opacity)
+        cr.set_line_width(1.5)
+        cr.stroke()
 
-        _rounded_rect(cr, sx, sy, sw, sh, max(1, screen_r))
+        # Screen area (inset by 6px from bezel edge)
+        sx = px + inset
+        sy = py + inset
+        sw = phone_w - inset * 2
+        sh = phone_h - inset * 2
+        screen_r = max(1, corner_r - inset)
+
+        _rounded_rect(cr, sx, sy, sw, sh, screen_r)
         cr.clip()
         _composite_content(cr, self.content_clip, ctx, sx, sy, sw, sh)
         cr.reset_clip()
@@ -361,7 +373,7 @@ class PhoneMockup(Clip):
             di_w = phone_w * 0.3
             di_h = phone_h * 0.02
             di_x = px + (phone_w - di_w) / 2
-            di_y = py + bezel + phone_h * 0.01
+            di_y = py + inset + phone_h * 0.01
             _rounded_rect(cr, di_x, di_y, di_w, di_h, di_h / 2)
             cr.set_source_rgba(0, 0, 0, opacity)
             cr.fill()
@@ -400,21 +412,21 @@ class PhoneMockup(Clip):
 
 _DESKTOP_THEMES = {
     "macos": {
-        "titlebar": Color.parse("#E8E8E8"),
-        "border": Color.parse("#CCCCCC"),
-        "text": Color.parse("#333333"),
+        "titlebar": NEUTRAL.n900,
+        "border": NEUTRAL.n700,
+        "text": NEUTRAL.n100,
         "shadow": True,
     },
     "windows": {
-        "titlebar": Color.parse("#FFFFFF"),
-        "border": Color.parse("#CCCCCC"),
-        "text": Color.parse("#333333"),
+        "titlebar": NEUTRAL.n900,
+        "border": NEUTRAL.n700,
+        "text": NEUTRAL.n100,
         "shadow": True,
     },
     "minimal": {
-        "titlebar": Color.parse("#1F2937"),
-        "border": Color.parse("#374151"),
-        "text": Color.parse("#D1D5DB"),
+        "titlebar": NEUTRAL.n900,
+        "border": NEUTRAL.n700,
+        "text": NEUTRAL.n300,
         "shadow": False,
     },
 }
@@ -469,12 +481,20 @@ class DesktopMockup(Clip):
         bx, by = margin, margin
         bw, bh = w - margin * 2, h - margin * 2
         titlebar_h = 36.0
-        r = 8.0
+        r = RADIUS_LG
 
-        # Shadow
+        # Shadow (shadow_xl: blur=40, offset_y=20)
         if t["shadow"]:
-            cr.set_source_rgba(0, 0, 0, 0.15 * opacity)
-            _rounded_rect(cr, bx + 4, by + 4, bw, bh, r)
+            shadow = SHADOW_XL
+            cr.set_source_rgba(0, 0, 0, shadow.color_a * opacity)
+            _rounded_rect(
+                cr,
+                bx + shadow.offset_x,
+                by + shadow.offset_y,
+                bw,
+                bh,
+                r,
+            )
             cr.fill()
 
         # Window frame

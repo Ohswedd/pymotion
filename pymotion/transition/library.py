@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from pymotion.design.motion import ease_in_out_quart, ease_out_quart
 from pymotion.transition.base import Transition
 from pymotion.utils.color import Color, ColorInput
 
@@ -21,6 +22,11 @@ def _blend(a: np.ndarray, b: np.ndarray, t: float) -> np.ndarray:
     return np.clip(result, 0, 255).astype(np.uint8)
 
 
+def _ease_blend(a: np.ndarray, b: np.ndarray, t: float) -> np.ndarray:
+    """Alpha-blend with ease-in-out easing applied to progress."""
+    return _blend(a, b, ease_in_out_quart(t))
+
+
 # --- Basic Transitions ---
 
 
@@ -31,6 +37,8 @@ class Fade(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 15
 
     def render_frame(
         self,
@@ -48,7 +56,7 @@ class Fade(Transition):
         Returns:
             Blended BGRA frame.
         """
-        return _blend(clip_a, clip_b, progress)
+        return _ease_blend(clip_a, clip_b, progress)
 
 
 @dataclass
@@ -58,6 +66,8 @@ class FadeToBlack(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 15
 
     def render_frame(
         self,
@@ -77,8 +87,10 @@ class FadeToBlack(Transition):
         """
         black = np.zeros_like(clip_a)
         if progress < 0.5:
-            return _blend(clip_a, black, progress * 2)
-        return _blend(black, clip_b, (progress - 0.5) * 2)
+            t = ease_in_out_quart(progress * 2)
+            return _blend(clip_a, black, t)
+        t = ease_in_out_quart((progress - 0.5) * 2)
+        return _blend(black, clip_b, t)
 
 
 @dataclass
@@ -88,6 +100,8 @@ class FadeToWhite(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 15
 
     def render_frame(
         self,
@@ -107,8 +121,10 @@ class FadeToWhite(Transition):
         """
         white = np.full_like(clip_a, 255)
         if progress < 0.5:
-            return _blend(clip_a, white, progress * 2)
-        return _blend(white, clip_b, (progress - 0.5) * 2)
+            t = ease_in_out_quart(progress * 2)
+            return _blend(clip_a, white, t)
+        t = ease_in_out_quart((progress - 0.5) * 2)
+        return _blend(white, clip_b, t)
 
 
 @dataclass
@@ -164,11 +180,14 @@ class CrossDissolve(Transition):
     """Cross-dissolve transition — smooth S-curve blend from A to B.
 
     Unlike :class:`Fade` which uses a linear blend, CrossDissolve applies
-    a smoothstep ease curve for a more cinematic dissolve.
+    an ease-in-out curve for a more cinematic dissolve. Both clips are
+    simultaneously visible during the overlap.
 
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 12
 
     def render_frame(
         self,
@@ -186,9 +205,7 @@ class CrossDissolve(Transition):
         Returns:
             Blended BGRA frame.
         """
-        # Smoothstep S-curve for a more cinematic dissolve
-        t = progress * progress * (3.0 - 2.0 * progress)
-        return _blend(clip_a, clip_b, t)
+        return _ease_blend(clip_a, clip_b, progress)
 
 
 @dataclass
@@ -233,8 +250,9 @@ def _slide(
     """Slide transition helper. A slides out in (dx,dy) direction, B slides in from opposite."""
     h, w = clip_a.shape[:2]
     result = np.zeros_like(clip_a)
-    offset_x = int(dx * progress * w)
-    offset_y = int(dy * progress * h)
+    eased = ease_out_quart(progress)
+    offset_x = int(dx * eased * w)
+    offset_y = int(dy * eased * h)
 
     # Draw clip A shifted
     _blit_shifted(result, clip_a, offset_x, offset_y)
@@ -265,6 +283,8 @@ class SlideLeft(Transition):
         duration: Transition duration in frames.
     """
 
+    duration: int = 12
+
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render slide-left transition."""
         return _slide(clip_a, clip_b, progress, -1, 0)
@@ -277,6 +297,8 @@ class SlideRight(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 12
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render slide-right transition."""
@@ -291,6 +313,8 @@ class SlideUp(Transition):
         duration: Transition duration in frames.
     """
 
+    duration: int = 12
+
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render slide-up transition."""
         return _slide(clip_a, clip_b, progress, 0, -1)
@@ -303,6 +327,8 @@ class SlideDown(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 12
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render slide-down transition."""
@@ -322,8 +348,9 @@ def _push(
     """Push transition. B pushes A out in the given direction."""
     h, w = clip_a.shape[:2]
     result = np.zeros_like(clip_a)
-    offset_x = int(dx * progress * w)
-    offset_y = int(dy * progress * h)
+    eased = ease_out_quart(progress)
+    offset_x = int(dx * eased * w)
+    offset_y = int(dy * eased * h)
 
     # A is pushed away
     _blit_shifted(result, clip_a, offset_x, offset_y)
@@ -341,6 +368,8 @@ class PushLeft(Transition):
         duration: Transition duration in frames.
     """
 
+    duration: int = 12
+
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render push-left transition."""
         return _push(clip_a, clip_b, progress, -1, 0)
@@ -353,6 +382,8 @@ class PushRight(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 12
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render push-right transition."""
@@ -367,6 +398,8 @@ class PushUp(Transition):
         duration: Transition duration in frames.
     """
 
+    duration: int = 12
+
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render push-up transition."""
         return _push(clip_a, clip_b, progress, 0, -1)
@@ -379,6 +412,8 @@ class PushDown(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 12
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render push-down transition."""
@@ -559,6 +594,8 @@ class ZoomBlur(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 10
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render zoom-blur transition."""
@@ -865,6 +902,7 @@ class Glitch(Transition):
         seed: Random seed for glitch pattern.
     """
 
+    duration: int = 8
     seed: int = 42
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
@@ -904,6 +942,8 @@ class FilmBurn(Transition):
         duration: Transition duration in frames.
     """
 
+    duration: int = 18
+
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render film-burn transition."""
         h, w = clip_a.shape[:2]
@@ -931,6 +971,8 @@ class PageTurn(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 18
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render page-turn transition."""
@@ -1003,6 +1045,8 @@ class Shatter(Transition):
         grid_size: Number of shard columns/rows.
     """
 
+    duration: int = 20
+
     seed: int = 42
     grid_size: int = 6
 
@@ -1043,6 +1087,8 @@ class MorphWarp(Transition):
     Args:
         duration: Transition duration in frames.
     """
+
+    duration: int = 20
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
         """Render morph-warp transition."""

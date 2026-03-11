@@ -131,6 +131,30 @@ from pymotion.color_science import (
 )
 from pymotion.composition import AdjustmentLayer, Composition, CompositionClip, Track
 from pymotion.config import PyMotionConfig, get_config, reset_config, set_config
+from pymotion.design.motion import (
+    FAST,
+    INSTANT,
+    NORMAL,
+    SLOW,
+    STAGGER,
+    ease_in_out_quart,
+    ease_in_quart,
+    ease_out_quart,
+    spring_bounce,
+    spring_reveal,
+    spring_ui,
+)
+from pymotion.design.tokens import (
+    ACCENT,
+    CHART_COLORS,
+    NEUTRAL,
+    STATUS,
+    THEMES,
+    Theme,
+    get_theme,
+    reset_theme,
+    set_theme,
+)
 from pymotion.effects.ai import (
     ColorizeClip,
     Deblur,
@@ -677,6 +701,27 @@ __all__ = [
     "profile_composition",
     # CountUp (text)
     "CountUp",
+    # Design system
+    "ACCENT",
+    "CHART_COLORS",
+    "FAST",
+    "INSTANT",
+    "NEUTRAL",
+    "NORMAL",
+    "SLOW",
+    "STAGGER",
+    "STATUS",
+    "THEMES",
+    "Theme",
+    "ease_in_out_quart",
+    "ease_in_quart",
+    "ease_out_quart",
+    "get_theme",
+    "reset_theme",
+    "set_theme",
+    "spring_bounce",
+    "spring_reveal",
+    "spring_ui",
 ]
 
-__version__ = "3.4.0"
+__version__ = "3.5.0"

@@ -448,8 +448,8 @@ class TestTextClipConstruction:
     def test_default_construction(self) -> None:
         clip = TextClip("Hello")
         assert clip.text == "Hello"
-        assert clip.font == "Arial"
-        assert clip.size == 24.0
+        assert clip.font == "Inter"
+        assert clip.size == 14.0
         assert clip.align == "left"
         assert clip.stroke_color is None
         assert clip.shadow is None

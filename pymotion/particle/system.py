@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from pymotion.clip.base import BlendMode, Clip, RenderContext
+from pymotion.design.tokens import CHART_COLORS
 from pymotion.utils.color import Color
 from pymotion.utils.logging import get_logger
 from pymotion.utils.math import Vec2
@@ -540,7 +541,7 @@ def sparkles(width: int = 1920, height: int = 1080) -> ParticleSystem:
             speed=(1.0, 4.0),
             angle=(0.0, 360.0),
             size=(1.0, 3.0),
-            color_over_life=[Color(1.0, 1.0, 0.8), Color(1.0, 0.8, 0.2)],
+            color_over_life=[CHART_COLORS[0], CHART_COLORS[5]],
             opacity_over_life=[1.0, 0.0],
             blend_mode=BlendMode.ADD,
         )
@@ -568,10 +569,10 @@ def confetti(width: int = 1920, height: int = 1080) -> ParticleSystem:
             angle=(60.0, 120.0),
             size=(4.0, 8.0),
             color_over_life=[
-                Color(1.0, 0.2, 0.2),
-                Color(0.2, 0.8, 0.2),
-                Color(0.2, 0.2, 1.0),
-                Color(1.0, 1.0, 0.2),
+                CHART_COLORS[0],  # indigo
+                CHART_COLORS[1],  # pink
+                CHART_COLORS[2],  # amber
+                CHART_COLORS[3],  # emerald
             ],
             opacity_over_life=[1.0, 1.0, 0.5],
             gravity=Vec2(0.0, 0.3),
@@ -598,14 +599,14 @@ def fire(width: int = 1920, height: int = 1080) -> ParticleSystem:
         Emitter(
             position=Vec2(width / 2, height * 0.8),
             rate=30.0,
-            lifetime=(15.0, 30.0),
-            speed=(2.0, 5.0),
+            lifetime=(30.0, 60.0),
+            speed=(2.0, 4.0),
             angle=(250.0, 290.0),
             size=(3.0, 8.0),
             color_over_life=[
-                Color(1.0, 1.0, 0.3),
-                Color(1.0, 0.5, 0.0),
-                Color(0.8, 0.1, 0.0),
+                Color.parse("#FFF7E6"),  # near-white at base
+                Color.parse("#FFAB40"),  # orange
+                Color.parse("#E53935"),  # red
             ],
             opacity_over_life=[1.0, 0.8, 0.0],
             gravity=Vec2(0.0, -0.1),
@@ -663,13 +664,13 @@ def rain(width: int = 1920, height: int = 1080) -> ParticleSystem:
     ps.add_emitter(
         Emitter(
             position=Vec2(width / 2, 0.0),
-            rate=50.0,
+            rate=40.0,
             lifetime=(30.0, 60.0),
             speed=(8.0, 15.0),
-            angle=(85.0, 95.0),
-            size=(1.0, 2.0),
-            color_over_life=[Color(0.6, 0.7, 0.9)],
-            opacity_over_life=[0.6, 0.3],
+            angle=(78.0, 82.0),  # wind-blown, 80° from vertical
+            size=(1.0, 1.0),
+            color_over_life=[Color.parse("#D4D4D8")],  # neutral_300
+            opacity_over_life=[0.5, 0.3],
             gravity=Vec2(0.0, 0.5),
             blend_mode=BlendMode.ADD,
         )
@@ -694,13 +695,13 @@ def stars(width: int = 1920, height: int = 1080) -> ParticleSystem:
     ps.add_emitter(
         Emitter(
             position=Vec2(width / 2, height / 2),
-            rate=5.0,
-            lifetime=(60.0, 120.0),
-            speed=(0.1, 0.5),
+            rate=8.0,
+            lifetime=(90.0, 180.0),
+            speed=(0.02, 0.08),
             angle=(0.0, 360.0),
-            size=(1.0, 3.0),
+            size=(1.0, 2.0),
             color_over_life=[Color(1.0, 1.0, 1.0), Color(0.8, 0.9, 1.0)],
-            opacity_over_life=[0.0, 1.0, 0.5, 1.0, 0.0],
+            opacity_over_life=[0.3, 0.6, 0.8, 0.6, 0.3],
             blend_mode=BlendMode.ADD,
         )
     )
