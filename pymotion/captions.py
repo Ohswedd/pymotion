@@ -539,3 +539,103 @@ class AutoCaptions:
     def segments(self) -> list[CaptionSegment]:
         """Get the transcribed caption segments."""
         return self._segments
+
+
+def render_caption_frame(
+    segments: list[CaptionSegment],
+    time_sec: float,
+    width: int,
+    height: int,
+    style: str = "netflix",
+) -> np.ndarray:
+    """Render a caption overlay frame for a given time.
+
+    For the ``"karaoke"`` style, words that have been spoken are rendered
+    in the highlight color, while upcoming words use the base color.
+
+    Args:
+        segments: Caption segments with optional word timestamps.
+        time_sec: Current time in seconds.
+        width: Frame width.
+        height: Frame height.
+        style: Caption style preset name.
+
+    Returns:
+        BGRA numpy array of shape (height, width, 4), dtype uint8.
+    """
+    frame = np.zeros((height, width, 4), dtype=np.uint8)
+    style_cfg = get_caption_style(style)
+
+    # Find active segment
+    active: CaptionSegment | None = None
+    for seg in segments:
+        if seg.start_sec <= time_sec < seg.end_sec:
+            active = seg
+            break
+
+    if active is None:
+        return frame
+
+    try:
+        import cairo  # noqa: PLC0415
+    except ImportError:
+        return frame
+
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+    cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+
+    font_size: float = float(style_cfg.get("font_size", 36))
+    font_family: str = style_cfg.get("font_family", "sans-serif")
+    color: Color = style_cfg.get("color", Color(1.0, 1.0, 1.0, 1.0))
+    padding: int = int(style_cfg.get("padding", 6))
+    position: str = style_cfg.get("position", "bottom")
+
+    cr.select_font_face(font_family, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+    cr.set_font_size(font_size)
+
+    text = active.text
+    extents = cr.text_extents(text)
+    text_w = extents.width
+    text_h = extents.height
+
+    # Position
+    tx = (width - text_w) / 2
+    if position == "center":
+        ty = height / 2 + text_h / 2
+    else:
+        ty = height - padding - 20
+
+    # Background box
+    bg: Color = style_cfg.get("background", Color(0.0, 0.0, 0.0, 0.5))
+    if bg.a > 0:
+        cr.set_source_rgba(bg.r, bg.g, bg.b, bg.a)
+        cr.rectangle(
+            tx - padding,
+            ty - text_h - padding,
+            text_w + 2 * padding,
+            text_h + 2 * padding,
+        )
+        cr.fill()
+
+    # Render text — karaoke or standard
+    if style == "karaoke" and active.words:
+        highlight: Color = style_cfg.get("highlight_color", Color(1.0, 1.0, 0.0, 1.0))
+        pen_x = tx
+        for wt in active.words:
+            word_text = wt.word + " "
+            if time_sec >= wt.start_sec:
+                cr.set_source_rgba(highlight.r, highlight.g, highlight.b, highlight.a)
+            else:
+                cr.set_source_rgba(color.r, color.g, color.b, color.a)
+            cr.move_to(pen_x, ty)
+            cr.show_text(word_text)
+            w_ext = cr.text_extents(word_text)
+            pen_x += w_ext.x_advance
+    else:
+        cr.set_source_rgba(color.r, color.g, color.b, color.a)
+        cr.move_to(tx, ty)
+        cr.show_text(text)
+
+    buf = surface.get_data()
+    frame = np.ndarray(shape=(height, width, 4), dtype=np.uint8, buffer=bytes(buf)).copy()
+    return frame

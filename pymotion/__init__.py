@@ -67,6 +67,7 @@ from pymotion.captions import (
     parse_ass,
     parse_srt,
     parse_vtt,
+    render_caption_frame,
 )
 from pymotion.clip.audio import AudioClip, Silence
 from pymotion.clip.audio_viz import (
@@ -377,6 +378,7 @@ __all__ = [
     "parse_ass",
     "parse_srt",
     "parse_vtt",
+    "render_caption_frame",
     # TTS
     "TTSClip",
     # Helpers
