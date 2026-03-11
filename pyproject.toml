@@ -60,7 +60,7 @@ audio-extra = ["soundfile>=0.12"]
 jit = ["numba>=0.58"]
 exr = ["pyopenexr>=3.0"]
 physics = ["pybullet>=3.2"]
-ai = ["rembg>=2.0"]
+ai = ["rembg>=2.0", "segment-anything>=1.0", "transformers>=4.30"]
 dev = [
     "pytest",
     "pytest-cov",
@@ -94,7 +94,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["openai.*", "whisper.*", "pyttsx3.*", "opentimelineio.*", "rembg.*"]
+module = ["openai.*", "whisper.*", "pyttsx3.*", "opentimelineio.*", "rembg.*", "segment_anything.*", "transformers.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

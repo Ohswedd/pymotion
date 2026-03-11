@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
-from pymotion.effects.ai import RemoveBackground, ReplaceBackground
+from pymotion.effects.ai import ObjectSegmentation, RemoveBackground, ReplaceBackground
 
 
 def _make_frame(h: int = 100, w: int = 100) -> np.ndarray:
@@ -440,3 +440,188 @@ class TestReplaceBackgroundPublicAPI:
         from pymotion.effects.base import Effect
 
         assert issubclass(ReplaceBackground, Effect)
+
+
+class TestObjectSegmentationInit:
+    """Tests for ObjectSegmentation initialization."""
+
+    def test_default_params(self) -> None:
+        effect = ObjectSegmentation(prompt="cat")
+        assert effect.prompt == "cat"
+        assert effect.threshold == 0.5
+        assert effect.model == "vit_b"
+
+    def test_custom_params(self) -> None:
+        effect = ObjectSegmentation(prompt="person", threshold=0.8, model="vit_h")
+        assert effect.prompt == "person"
+        assert effect.threshold == 0.8
+        assert effect.model == "vit_h"
+
+    def test_empty_prompt_raises(self) -> None:
+        with pytest.raises(ValueError, match="prompt must not be empty"):
+            ObjectSegmentation(prompt="")
+
+    def test_invalid_threshold_low(self) -> None:
+        with pytest.raises(ValueError, match="threshold must be between"):
+            ObjectSegmentation(prompt="cat", threshold=-0.1)
+
+    def test_invalid_threshold_high(self) -> None:
+        with pytest.raises(ValueError, match="threshold must be between"):
+            ObjectSegmentation(prompt="cat", threshold=1.5)
+
+    def test_invalid_model_raises(self) -> None:
+        with pytest.raises(ValueError, match="model must be one of"):
+            ObjectSegmentation(prompt="cat", model="invalid")
+
+    def test_boundary_thresholds(self) -> None:
+        e1 = ObjectSegmentation(prompt="cat", threshold=0.0)
+        assert e1.threshold == 0.0
+        e2 = ObjectSegmentation(prompt="cat", threshold=1.0)
+        assert e2.threshold == 1.0
+
+    def test_prompt_sanitized(self) -> None:
+        """Null bytes and control chars should be stripped."""
+        effect = ObjectSegmentation(prompt="cat\x00dog")
+        assert "\x00" not in effect.prompt
+
+    def test_valid_models(self) -> None:
+        for m in ("vit_b", "vit_l", "vit_h"):
+            effect = ObjectSegmentation(prompt="test", model=m)
+            assert effect.model == m
+
+
+class TestObjectSegmentationApply:
+    """Tests for ObjectSegmentation.apply with mocked SAM/CLIP."""
+
+    def test_apply_with_confident_mask(self) -> None:
+        """When SAM returns a confident mask, alpha should be set."""
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx()
+
+        # Create mock SAM predictor
+        mock_predictor = MagicMock()
+        masks = np.zeros((3, 50, 50), dtype=bool)
+        masks[0, 10:40, 10:40] = True  # First mask covers center region
+        scores = np.array([0.9, 0.5, 0.3])
+        mock_predictor.predict.return_value = (masks, scores, None)
+
+        # Create mock CLIP model
+        mock_clip_model = MagicMock()
+        mock_clip_model.return_value = MagicMock()
+        mock_clip_processor = MagicMock()
+
+        # Mock modules
+        sa_mock = MagicMock()
+        sa_mock.SamPredictor.return_value = mock_predictor
+        sa_mock.sam_model_registry = {"vit_b": MagicMock()}
+
+        tf_mock = MagicMock()
+        tf_mock.CLIPModel.from_pretrained.return_value = mock_clip_model
+        tf_mock.CLIPProcessor.from_pretrained.return_value = mock_clip_processor
+
+        effect = ObjectSegmentation(prompt="cat")
+
+        try:
+            sys.modules["segment_anything"] = sa_mock
+            sys.modules["transformers"] = tf_mock
+            result = effect.apply(frame, ctx)
+
+            # Pixels inside mask should have alpha=255
+            assert result[20, 20, 3] == 255
+            # Pixels outside mask should have alpha=0
+            assert result[0, 0, 3] == 0
+            # Color channels should be preserved
+            np.testing.assert_array_equal(result[:, :, :3], frame[:, :, :3])
+        finally:
+            sys.modules.pop("segment_anything", None)
+            sys.modules.pop("transformers", None)
+
+    def test_apply_below_threshold_returns_transparent(self) -> None:
+        """When no mask exceeds threshold, frame should be fully transparent."""
+        import sys
+
+        frame = _make_frame(30, 30)
+        ctx = _make_ctx()
+
+        mock_predictor = MagicMock()
+        masks = np.zeros((3, 30, 30), dtype=bool)
+        scores = np.array([0.1, 0.2, 0.05])  # All below default 0.5
+        mock_predictor.predict.return_value = (masks, scores, None)
+
+        sa_mock = MagicMock()
+        sa_mock.SamPredictor.return_value = mock_predictor
+        sa_mock.sam_model_registry = {"vit_b": MagicMock()}
+
+        tf_mock = MagicMock()
+        tf_mock.CLIPModel.from_pretrained.return_value = MagicMock()
+        tf_mock.CLIPProcessor.from_pretrained.return_value = MagicMock()
+
+        effect = ObjectSegmentation(prompt="cat", threshold=0.5)
+
+        try:
+            sys.modules["segment_anything"] = sa_mock
+            sys.modules["transformers"] = tf_mock
+            result = effect.apply(frame, ctx)
+
+            assert np.all(result[:, :, 3] == 0)
+        finally:
+            sys.modules.pop("segment_anything", None)
+            sys.modules.pop("transformers", None)
+
+
+class TestObjectSegmentationImportError:
+    """Tests for ImportError when deps are missing."""
+
+    def test_apply_raises_without_segment_anything(self) -> None:
+        import sys
+
+        original_sa = sys.modules.get("segment_anything")
+        sys.modules["segment_anything"] = None  # type: ignore[assignment]
+
+        try:
+            effect = ObjectSegmentation(prompt="cat")
+            with pytest.raises(ImportError, match="segment-anything"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            if original_sa is not None:
+                sys.modules["segment_anything"] = original_sa
+            else:
+                sys.modules.pop("segment_anything", None)
+
+    def test_apply_raises_without_transformers(self) -> None:
+        import sys
+
+        original_tf = sys.modules.get("transformers")
+        sa_mock = MagicMock()
+        sa_mock.SamPredictor.return_value = MagicMock()
+        sa_mock.sam_model_registry = {"vit_b": MagicMock()}
+
+        sys.modules["segment_anything"] = sa_mock
+        sys.modules["transformers"] = None  # type: ignore[assignment]
+
+        try:
+            effect = ObjectSegmentation(prompt="cat")
+            with pytest.raises(ImportError, match="transformers"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            if original_tf is not None:
+                sys.modules["transformers"] = original_tf
+            else:
+                sys.modules.pop("transformers", None)
+            sys.modules.pop("segment_anything", None)
+
+
+class TestObjectSegmentationPublicAPI:
+    """Test that ObjectSegmentation is accessible from the public API."""
+
+    def test_importable_from_pymotion(self) -> None:
+        from pymotion import ObjectSegmentation as ObjSeg
+
+        assert ObjSeg is ObjectSegmentation
+
+    def test_is_effect_subclass(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(ObjectSegmentation, Effect)
