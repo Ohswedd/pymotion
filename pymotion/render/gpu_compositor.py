@@ -172,6 +172,178 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 """
 
 
+class GPUBufferPool:
+    """Pool of reusable WGPU GPU buffers with VRAM budget management.
+
+    Maintains a collection of GPU buffers organized by size bucket.
+    Buffers are reused across frames to avoid repeated GPU memory
+    allocation. A configurable VRAM budget ensures the pool does not
+    exceed available GPU memory.
+
+    Args:
+        device: The WGPU device to allocate buffers from.
+        vram_budget: Maximum bytes the pool may allocate (default 2 GB).
+    """
+
+    def __init__(self, device: Any, vram_budget: int = 2 * 1024 * 1024 * 1024) -> None:
+        self._device = device
+        self._vram_budget = vram_budget
+        self._total_allocated: int = 0
+        # Map from (bucket_size, usage) -> list of idle buffers
+        self._pool: dict[tuple[int, str], list[Any]] = {}
+        # Track in-use buffers: buffer id -> (buffer, bucket_size, usage)
+        self._in_use: dict[int, tuple[Any, int, str]] = {}
+
+    @property
+    def total_allocated(self) -> int:
+        """Total bytes of GPU memory currently allocated by the pool.
+
+        Returns:
+            Total allocated bytes (both in-use and idle).
+        """
+        return self._total_allocated
+
+    @property
+    def vram_budget(self) -> int:
+        """Maximum VRAM budget in bytes.
+
+        Returns:
+            The configured VRAM budget.
+        """
+        return self._vram_budget
+
+    @vram_budget.setter
+    def vram_budget(self, value: int) -> None:
+        """Set the VRAM budget and trim excess if needed.
+
+        Args:
+            value: New VRAM budget in bytes.
+        """
+        self._vram_budget = value
+        self._trim()
+
+    def _bucket_size(self, requested: int) -> int:
+        """Round up to the nearest power-of-two bucket size.
+
+        This reduces fragmentation by reusing slightly-larger buffers
+        for smaller requests.
+
+        Args:
+            requested: Minimum buffer size in bytes.
+
+        Returns:
+            Bucket size (power of 2, minimum 4096).
+        """
+        min_size = max(requested, 4096)
+        # Round up to next power of 2
+        bucket = 1
+        while bucket < min_size:
+            bucket <<= 1
+        return bucket
+
+    def acquire(self, size: int, usage: str) -> Any:
+        """Acquire a GPU buffer of at least the given size.
+
+        Returns an idle buffer from the pool if one is available at
+        the correct bucket size and usage, otherwise allocates a new one.
+
+        Args:
+            size: Minimum buffer size in bytes.
+            usage: WGPU buffer usage flags (e.g. ``"STORAGE | COPY_DST"``).
+
+        Returns:
+            A WGPU buffer object.
+
+        Raises:
+            MemoryError: If allocating would exceed the VRAM budget.
+        """
+        bucket = self._bucket_size(size)
+        pool_key = (bucket, usage)
+
+        # Try to reuse an idle buffer with matching size and usage
+        idle = self._pool.get(pool_key)
+        if idle:
+            buf = idle.pop()
+            if not idle:
+                del self._pool[pool_key]
+            self._in_use[id(buf)] = (buf, bucket, usage)
+            logger.debug("gpu_buffer_reused", bucket=bucket)
+            return buf
+
+        # Need to allocate — check budget
+        if self._total_allocated + bucket > self._vram_budget:
+            # Try to free idle buffers first
+            self._trim_to(self._vram_budget - bucket)
+            if self._total_allocated + bucket > self._vram_budget:
+                raise MemoryError(
+                    f"GPU buffer pool would exceed VRAM budget "
+                    f"({self._total_allocated + bucket} > {self._vram_budget})"
+                )
+
+        buf = self._device.create_buffer(size=bucket, usage=usage)
+        self._total_allocated += bucket
+        self._in_use[id(buf)] = (buf, bucket, usage)
+        logger.debug("gpu_buffer_allocated", bucket=bucket, total=self._total_allocated)
+        return buf
+
+    def release(self, buf: Any) -> None:
+        """Return a buffer to the pool for reuse.
+
+        Args:
+            buf: A buffer previously obtained via :meth:`acquire`.
+        """
+        key = id(buf)
+        entry = self._in_use.pop(key, None)
+        if entry is None:
+            return  # Buffer not tracked — ignore
+        _, bucket, usage = entry
+        pool_key = (bucket, usage)
+        self._pool.setdefault(pool_key, []).append(buf)
+
+    def _trim(self) -> None:
+        """Remove idle buffers until total allocation is within budget."""
+        self._trim_to(self._vram_budget)
+
+    def _trim_to(self, target: int) -> None:
+        """Remove idle buffers until total allocation is at or below target.
+
+        Evicts the largest buffers first to maximize freed memory.
+
+        Args:
+            target: Target maximum allocation in bytes.
+        """
+        # Sort by bucket size descending to free largest first
+        for pool_key in sorted(self._pool.keys(), key=lambda k: k[0], reverse=True):
+            bucket_size = pool_key[0]
+            while self._pool.get(pool_key) and self._total_allocated > target:
+                self._pool[pool_key].pop()
+                self._total_allocated -= bucket_size
+            if not self._pool.get(pool_key):
+                self._pool.pop(pool_key, None)
+
+    def clear(self) -> None:
+        """Release all idle buffers in the pool."""
+        for (bucket_size, _usage), bufs in self._pool.items():
+            self._total_allocated -= bucket_size * len(bufs)
+        self._pool.clear()
+        logger.debug("gpu_buffer_pool_cleared", total=self._total_allocated)
+
+    def stats(self) -> dict[str, int]:
+        """Get pool statistics.
+
+        Returns:
+            Dictionary with ``total_allocated``, ``idle_count``,
+            ``in_use_count``, and ``vram_budget``.
+        """
+        idle_count = sum(len(bufs) for bufs in self._pool.values())
+        return {
+            "total_allocated": self._total_allocated,
+            "idle_count": idle_count,
+            "in_use_count": len(self._in_use),
+            "vram_budget": self._vram_budget,
+        }
+
+
 class GPUCompositor:
     """WGPU compute shader compositor for frame blending.
 
@@ -189,6 +361,7 @@ class GPUCompositor:
     def __init__(self) -> None:
         self._device: Any = None
         self._pipeline: Any = None
+        self._pool: GPUBufferPool | None = None
         self._dst_buffer: Any = None
         self._src_buffer: Any = None
         self._params_buffer: Any = None
@@ -240,10 +413,19 @@ class GPUCompositor:
             layout="auto",
             compute={"module": self._device.create_shader_module(code=_COMPOSITE_SHADER)},
         )
-        logger.info("gpu_compositor_initialized")
+
+        from pymotion.config import get_config
+
+        vram_budget = get_config().gpu_vram_limit_bytes
+        self._pool = GPUBufferPool(self._device, vram_budget=vram_budget)
+        logger.info("gpu_compositor_initialized", vram_budget=vram_budget)
 
     def _ensure_buffers(self, frame_bytes: int) -> None:
         """Allocate or resize GPU buffers to fit the frame data.
+
+        Uses the :class:`GPUBufferPool` to acquire reusable buffers.
+        When the frame size changes, old buffers are returned to the pool
+        and new ones acquired.
 
         Args:
             frame_bytes: Total bytes needed for one frame (H * W * 4).
@@ -251,23 +433,17 @@ class GPUCompositor:
         if self._buffer_size >= frame_bytes:
             return
 
-        # Buffers store pixels as u32 (4 bytes each = same as BGRA uint8)
-        self._dst_buffer = self._device.create_buffer(
-            size=frame_bytes,
-            usage="STORAGE | COPY_SRC | COPY_DST",
-        )
-        self._src_buffer = self._device.create_buffer(
-            size=frame_bytes,
-            usage="STORAGE | COPY_DST",
-        )
-        self._params_buffer = self._device.create_buffer(
-            size=32,  # 8 x u32 = 32 bytes
-            usage="UNIFORM | COPY_DST",
-        )
-        self._readback_buffer = self._device.create_buffer(
-            size=frame_bytes,
-            usage="COPY_DST | MAP_READ",
-        )
+        assert self._pool is not None  # noqa: S101
+
+        # Return old buffers to the pool if they exist
+        self._release_buffers_to_pool()
+
+        # Acquire buffers from the pool
+        self._dst_buffer = self._pool.acquire(frame_bytes, "STORAGE | COPY_SRC | COPY_DST")
+        self._src_buffer = self._pool.acquire(frame_bytes, "STORAGE | COPY_DST")
+        self._params_buffer = self._pool.acquire(32, "UNIFORM | COPY_DST")
+        self._readback_buffer = self._pool.acquire(frame_bytes, "COPY_DST | MAP_READ")
+
         self._bind_group = self._device.create_bind_group(
             layout=self._pipeline.get_bind_group_layout(0),
             entries=[
@@ -277,7 +453,21 @@ class GPUCompositor:
             ],
         )
         self._buffer_size = frame_bytes
-        logger.debug("gpu_buffers_allocated", size=frame_bytes)
+        logger.debug("gpu_buffers_acquired", size=frame_bytes)
+
+    def _release_buffers_to_pool(self) -> None:
+        """Return currently held buffers to the pool."""
+        if self._pool is None:
+            return
+        for buf in (self._dst_buffer, self._src_buffer, self._params_buffer, self._readback_buffer):
+            if buf is not None:
+                self._pool.release(buf)
+        self._dst_buffer = None
+        self._src_buffer = None
+        self._params_buffer = None
+        self._readback_buffer = None
+        self._bind_group = None
+        self._buffer_size = 0
 
     def composite_layers(
         self,
@@ -382,20 +572,29 @@ class GPUCompositor:
         data = self._readback_buffer.read_mapped()
         self._readback_buffer.unmap()
 
-        result = np.frombuffer(bytes(data), dtype=np.uint8).reshape(h, w, 4).copy()
+        raw = bytes(data)[:frame_bytes]
+        result = np.frombuffer(raw, dtype=np.uint8).reshape(h, w, 4).copy()
         return result
+
+    @property
+    def buffer_pool(self) -> GPUBufferPool | None:
+        """Access the underlying buffer pool for stats or manual management.
+
+        Returns:
+            The GPUBufferPool instance, or None if not initialized.
+        """
+        return self._pool
 
     def release(self) -> None:
         """Release GPU resources.
 
+        Returns all buffers to the pool and clears the pool.
         Call this when the compositor is no longer needed.
         """
-        self._dst_buffer = None
-        self._src_buffer = None
-        self._params_buffer = None
-        self._readback_buffer = None
-        self._bind_group = None
-        self._buffer_size = 0
+        self._release_buffers_to_pool()
+        if self._pool is not None:
+            self._pool.clear()
+            self._pool = None
         self._device = None
         self._pipeline = None
         self._available = None

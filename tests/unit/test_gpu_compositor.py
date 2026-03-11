@@ -278,3 +278,141 @@ class TestGPUCompositorConfig:
             assert frame.dtype == np.uint8
         finally:
             reset_config()
+
+
+class TestGPUBufferPool:
+    """Tests for GPU buffer pool memory management."""
+
+    def test_pool_stats_initial(self, gpu: GPUCompositor) -> None:
+        pool = gpu.buffer_pool
+        assert pool is not None
+        stats = pool.stats()
+        assert stats["vram_budget"] == 2 * 1024 * 1024 * 1024
+
+    def test_pool_acquire_release_reuse(self, gpu: GPUCompositor) -> None:
+        """Buffers released to the pool are reused on next acquire."""
+        pool = gpu.buffer_pool
+        assert pool is not None
+
+        buf = pool.acquire(1024, "STORAGE | COPY_DST")
+        assert pool.stats()["in_use_count"] == 1
+
+        pool.release(buf)
+        assert pool.stats()["idle_count"] >= 1
+        assert pool.stats()["in_use_count"] == 0
+
+        # Acquiring same size should reuse the buffer
+        buf2 = pool.acquire(1024, "STORAGE | COPY_DST")
+        assert buf2 is not None
+        pool.release(buf2)
+
+    def test_pool_bucket_size_power_of_two(self, gpu: GPUCompositor) -> None:
+        """Buffer sizes are rounded up to power-of-two buckets."""
+        pool = gpu.buffer_pool
+        assert pool is not None
+        assert pool._bucket_size(100) == 4096  # Minimum 4096
+        assert pool._bucket_size(5000) == 8192
+        assert pool._bucket_size(8192) == 8192
+        assert pool._bucket_size(8193) == 16384
+
+    def test_pool_tracks_total_allocation(self, gpu: GPUCompositor) -> None:
+        pool = gpu.buffer_pool
+        assert pool is not None
+        initial = pool.total_allocated
+
+        buf = pool.acquire(4096, "STORAGE | COPY_DST")
+        assert pool.total_allocated >= initial + 4096
+        pool.release(buf)
+
+    def test_pool_clear_frees_idle(self, gpu: GPUCompositor) -> None:
+        pool = gpu.buffer_pool
+        assert pool is not None
+
+        buf = pool.acquire(4096, "STORAGE | COPY_DST")
+        pool.release(buf)
+        assert pool.stats()["idle_count"] >= 1
+
+        pool.clear()
+        assert pool.stats()["idle_count"] == 0
+
+    def test_pool_vram_budget_enforcement(self, gpu: GPUCompositor) -> None:
+        """Exceeding VRAM budget raises MemoryError."""
+        pool = gpu.buffer_pool
+        assert pool is not None
+
+        # Release compositor buffers and clear pool for clean budget test
+        gpu._release_buffers_to_pool()
+        pool.clear()
+        assert pool.total_allocated == 0
+
+        pool.vram_budget = 4096
+
+        buf1 = pool.acquire(4096, "STORAGE | COPY_DST")
+        # Second acquire should fail — already at 4096/4096 limit
+        with pytest.raises(MemoryError, match="VRAM budget"):
+            pool.acquire(4096, "STORAGE | COPY_DST")
+
+        pool.release(buf1)
+        # After release, reuse should work
+        buf2 = pool.acquire(4096, "STORAGE | COPY_DST")
+        assert buf2 is not None
+        pool.release(buf2)
+
+        # Restore budget
+        pool.vram_budget = 2 * 1024 * 1024 * 1024
+
+    def test_pool_trim_on_budget_reduction(self, gpu: GPUCompositor) -> None:
+        """Reducing budget trims idle buffers."""
+        pool = gpu.buffer_pool
+        assert pool is not None
+
+        # Release compositor buffers and clear for clean test
+        gpu._release_buffers_to_pool()
+        pool.clear()
+
+        # Allocate and release several buffers
+        bufs = [pool.acquire(8192, "STORAGE | COPY_DST") for _ in range(4)]
+        for b in bufs:
+            pool.release(b)
+        idle_before = pool.stats()["idle_count"]
+        assert idle_before >= 4
+
+        # Set budget to only allow 1 buffer
+        pool.vram_budget = 8192 + 1
+        # Trimming should have freed excess idle buffers
+        assert pool.total_allocated <= pool.vram_budget
+        # Restore
+        pool.vram_budget = 2 * 1024 * 1024 * 1024
+
+    def test_compositor_buffer_pool_reuse_across_frames(self, gpu: GPUCompositor) -> None:
+        """Pool reuses buffers when compositing multiple frames of the same size."""
+        bg = _make_frame(64, 64, (100, 100, 100, 255))
+        layer = _make_frame(64, 64, (200, 0, 0, 128))
+
+        # First frame — allocates buffers
+        gpu.composite_layers(bg.copy(), [(layer, BlendMode.NORMAL, 0.5)])
+        pool = gpu.buffer_pool
+        assert pool is not None
+        alloc_after_first = pool.total_allocated
+
+        # Second frame same size — should reuse, no new allocation
+        gpu.composite_layers(bg.copy(), [(layer, BlendMode.NORMAL, 0.5)])
+        assert pool.total_allocated == alloc_after_first
+
+    def test_compositor_pool_grows_on_larger_frame(self, gpu: GPUCompositor) -> None:
+        """Pool grows when a larger frame is composited."""
+        small_bg = _make_frame(32, 32, (100, 100, 100, 255))
+        small_layer = _make_frame(32, 32, (200, 0, 0, 128))
+
+        gpu.composite_layers(small_bg.copy(), [(small_layer, BlendMode.NORMAL, 0.5)])
+        pool = gpu.buffer_pool
+        assert pool is not None
+        small_alloc = pool.total_allocated
+
+        # Larger frame triggers new allocations, old buffers become idle
+        big_bg = _make_frame(256, 256, (100, 100, 100, 255))
+        big_layer = _make_frame(256, 256, (200, 0, 0, 128))
+        gpu.composite_layers(big_bg.copy(), [(big_layer, BlendMode.NORMAL, 0.5)])
+
+        assert pool.total_allocated > small_alloc
+        assert pool.stats()["idle_count"] > 0  # Old small buffers now idle

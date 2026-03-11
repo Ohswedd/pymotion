@@ -219,7 +219,7 @@ from pymotion.render.color_pipeline import (
     tone_map_filmic,
     tone_map_reinhard,
 )
-from pymotion.render.gpu_compositor import GPUCompositor, get_gpu_compositor
+from pymotion.render.gpu_compositor import GPUBufferPool, GPUCompositor, get_gpu_compositor
 from pymotion.template.base import Template, TemplateValidationError
 from pymotion.text.animated import (
     CountDown,
@@ -586,6 +586,7 @@ __all__ = [
     "set_config",
     "reset_config",
     # GPU Compositing
+    "GPUBufferPool",
     "GPUCompositor",
     "get_gpu_compositor",
     # Tone mapping
