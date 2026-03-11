@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/pypi/dm/pymotion-studio?label=PyPI%20downloads&color=blue" alt="PyPI Downloads"></a>
+  <a href="https://pepy.tech/project/pymotion-studio"><img src="https://static.pepy.tech/badge/pymotion-studio" alt="PyPI Downloads"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/stars/Ohswedd/pymotion?style=flat&label=stars&color=D4AF37" alt="GitHub Stars"></a>
   <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/forks/Ohswedd/pymotion?style=flat&label=forks&color=blue" alt="GitHub Forks"></a>
   <a href="https://github.com/Ohswedd/pymotion/issues"><img src="https://img.shields.io/github/issues/Ohswedd/pymotion?label=issues&color=orange" alt="Issues"></a>
