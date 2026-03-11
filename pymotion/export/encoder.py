@@ -109,6 +109,8 @@ def detect_hardware_encoders() -> list[str]:
         return []
 
     hw_codecs = [
+        "h264_videotoolbox",
+        "hevc_videotoolbox",
         "h264_nvenc",
         "hevc_nvenc",
         "h264_qsv",
@@ -132,17 +134,37 @@ _HW_FALLBACK_MAP: dict[str, str] = {
     "h265_nvenc": "h265_1080p",
     "h264_qsv": "h264_1080p",
     "h264_amf": "h264_1080p",
+    "h264_videotoolbox": "h264_1080p",
+}
+
+# Hardware encoder preference order by codec family
+_HW_CODEC_PREFERENCE: dict[str, list[str]] = {
+    "libx264": [
+        "h264_videotoolbox",
+        "h264_nvenc",
+        "h264_qsv",
+        "h264_amf",
+    ],
+    "libx265": [
+        "hevc_videotoolbox",
+        "hevc_nvenc",
+        "hevc_qsv",
+        "hevc_amf",
+    ],
 }
 
 
-def resolve_preset_with_fallback(preset_name: str) -> OutputPreset:
-    """Resolve a preset name, falling back to software if hardware is unavailable.
+def resolve_preset_with_fallback(preset_name: str, *, try_hardware: bool = True) -> OutputPreset:
+    """Resolve a preset name, with automatic hardware encoder detection.
 
-    If the preset uses a hardware encoder that is not available on this
-    system, it transparently falls back to the equivalent software preset.
+    For software presets (e.g. ``h264_1080p``), if ``try_hardware`` is True,
+    attempts to find and use a compatible hardware encoder on this system.
+    For hardware presets, falls back to software if the encoder is unavailable.
 
     Args:
         preset_name: Name of the requested preset.
+        try_hardware: If True, automatically upgrade software presets to
+            hardware encoders when available. Defaults to True.
 
     Returns:
         The resolved OutputPreset (hardware or software fallback).
@@ -150,27 +172,55 @@ def resolve_preset_with_fallback(preset_name: str) -> OutputPreset:
     Raises:
         ValueError: If the preset name is unknown.
     """
+    from pymotion.export.presets import OutputPreset as _OutputPreset
     from pymotion.export.presets import get_preset
 
     preset = get_preset(preset_name)
 
-    # Check if this is a hardware preset
+    # Check if this is an explicit hardware preset
     fallback_name = _HW_FALLBACK_MAP.get(preset_name)
-    if fallback_name is None:
-        return preset  # Not a hardware preset — use as-is
+    if fallback_name is not None:
+        available = detect_hardware_encoders()
+        if preset.codec in available:
+            logger.info("using_hardware_encoder", codec=preset.codec)
+            return preset
+        logger.info(
+            "hardware_encoder_unavailable",
+            requested=preset.codec,
+            fallback=fallback_name,
+        )
+        return get_preset(fallback_name)
 
-    # Check if the hardware encoder is available
-    available = detect_hardware_encoders()
-    if preset.codec in available:
-        logger.info("using_hardware_encoder", codec=preset.codec)
-        return preset
+    # Auto-detect hardware encoder for software presets
+    if try_hardware and preset.codec in _HW_CODEC_PREFERENCE:
+        available = detect_hardware_encoders()
+        for hw_codec in _HW_CODEC_PREFERENCE[preset.codec]:
+            if hw_codec in available:
+                logger.info(
+                    "auto_hardware_encoder",
+                    software=preset.codec,
+                    hardware=hw_codec,
+                )
+                # Build a hardware-accelerated version of the preset
+                hw_flags = ["-movflags", "+faststart"]
+                if hw_codec == "h264_videotoolbox":
+                    hw_flags = ["-q:v", "65", "-allow_sw", "1"] + hw_flags
+                elif "nvenc" in hw_codec:
+                    hw_flags = ["-preset", "p4", "-rc", "vbr", "-cq", "18"] + hw_flags
+                elif "qsv" in hw_codec:
+                    hw_flags = ["-preset", "medium", "-global_quality", "18"] + hw_flags
+                pix_fmt = "nv12" if hw_codec != "h264_videotoolbox" else "nv12"
+                return _OutputPreset(
+                    name=f"{preset.name}_auto_hw",
+                    codec=hw_codec,
+                    pixel_format=pix_fmt,
+                    audio_codec=preset.audio_codec,
+                    audio_bitrate=preset.audio_bitrate,
+                    container=preset.container,
+                    extra_flags=hw_flags,
+                )
 
-    logger.info(
-        "hardware_encoder_unavailable",
-        requested=preset.codec,
-        fallback=fallback_name,
-    )
-    return get_preset(fallback_name)
+    return preset
 
 
 class FFmpegEncoder:
@@ -254,9 +304,9 @@ class FFmpegEncoder:
 
         cmd.extend(
             [
-                # High-quality chroma scaling for text/graphics
+                # Chroma scaling for text/graphics
                 "-sws_flags",
-                "lanczos+accurate_rnd+full_chroma_int",
+                "bilinear+accurate_rnd",
                 # Output codec
                 "-c:v",
                 preset.codec,

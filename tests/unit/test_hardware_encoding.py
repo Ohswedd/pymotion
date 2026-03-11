@@ -69,6 +69,8 @@ class TestHardwareDetection:
 
     def test_detect_only_known_codecs(self) -> None:
         known = {
+            "h264_videotoolbox",
+            "hevc_videotoolbox",
             "h264_nvenc",
             "hevc_nvenc",
             "h264_qsv",
@@ -84,8 +86,19 @@ class TestHardwareDetection:
 class TestResolvePresetWithFallback:
     """Tests for preset resolution with hardware fallback."""
 
-    def test_software_preset_passes_through(self) -> None:
+    def test_software_preset_resolves(self) -> None:
         preset = resolve_preset_with_fallback("h264_1080p")
+        # May auto-upgrade to hardware encoder on supported systems
+        assert preset.codec in (
+            "libx264",
+            "h264_videotoolbox",
+            "h264_nvenc",
+            "h264_qsv",
+            "h264_amf",
+        )
+
+    def test_software_preset_no_hardware(self) -> None:
+        preset = resolve_preset_with_fallback("h264_1080p", try_hardware=False)
         assert preset.codec == "libx264"
 
     def test_nvenc_falls_back_if_unavailable(self) -> None:
