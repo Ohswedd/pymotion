@@ -41,6 +41,11 @@ nav:
     - Captions & Subtitles: guides/captions-and-subtitles.md
     - Text-to-Speech: guides/tts.md
     - Color Science: guides/color-science.md
+    - AI Background & Objects: guides/ai-background-objects.md
+    - AI Enhancement & Restoration: guides/ai-enhancement.md
+    - AI Smart Editing: guides/ai-smart-editing.md
+    - AI Face & Body: guides/ai-face-body.md
+    - AI Voice & Audio: guides/ai-voice-audio.md
   - API Reference:
     - Composition: api/composition.md
     - Clips: api/clips.md
@@ -64,3 +69,5 @@ nav:
     - Captions & Subtitles: api/captions.md
     - Text-to-Speech: api/tts.md
     - Color Science: api/color-science.md
+    - AI Effects: api/ai-effects.md
+    - AI Helpers: api/ai-helpers.md

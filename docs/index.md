@@ -31,6 +31,10 @@ animation, and a render pipeline backed by Cairo, FFmpeg, and ModernGL.
 - **Text-to-speech** -- `TTSClip` with system (pyttsx3), OpenAI, and ElevenLabs engines.
 - **Color science** -- ACES 1.3 pipeline, HDR10/HLG presets, `ColorMatch`, `HSLSecondary`, 4 video scopes.
 - **Interchange export** -- EDL (CMX 3600) and OTIO (OpenTimelineIO) export from compositions.
+- **AI effects** -- `RemoveBackground`, `ReplaceBackground`, `ObjectSegmentation`, `RemoveObject`, `ExtendFrame`, `Upscale`, `Denoise`, `Deblur`, `FrameInterpolation`, `ColorizeClip`.
+- **AI editing** -- `SceneDetector`, `SilenceRemover`, `HighlightDetector`, `ContentAwareCrop`, `AutoColor`, `AutoEdit`.
+- **AI face & body** -- `FaceDetector`, `FaceTracker`, `FaceBlur` for automatic face detection, tracking, and anonymization.
+- **AI voice & audio** -- `VoiceConversion`, `MusicGeneration`, `SoundFXGeneration` for AI-powered audio synthesis.
 
 ## Installation
 
@@ -90,4 +94,4 @@ See the [Getting Started](guides/getting-started.md) guide for a full walkthroug
 
 ## Project status
 
-PyMotion v1.5 is stable and in active development. 1784 tests, 87% coverage.
+PyMotion v2.0 is stable and in active development. 2040 tests, 89% coverage.
