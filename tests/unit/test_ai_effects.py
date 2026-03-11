@@ -9,11 +9,16 @@ import pytest
 
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
 from pymotion.effects.ai import (
+    ColorizeClip,
+    Deblur,
+    Denoise,
     ExtendFrame,
+    FrameInterpolation,
     ObjectSegmentation,
     RemoveBackground,
     RemoveObject,
     ReplaceBackground,
+    Upscale,
 )
 
 
@@ -982,3 +987,350 @@ class TestExtendFramePublicAPI:
         from pymotion.effects.base import Effect
 
         assert issubclass(ExtendFrame, Effect)
+
+
+# ============================================================
+# 2.0.2 Enhancement & Restoration Effects
+# ============================================================
+
+
+class TestUpscaleInit:
+    """Tests for Upscale initialization."""
+
+    def test_default_factor(self) -> None:
+        effect = Upscale()
+        assert effect.factor == 2
+
+    def test_valid_factors(self) -> None:
+        for f in (2, 4):
+            assert Upscale(factor=f).factor == f
+
+    def test_invalid_factor_raises(self) -> None:
+        with pytest.raises(ValueError, match="factor must be 2 or 4"):
+            Upscale(factor=3)
+
+
+class TestUpscaleApply:
+    """Tests for Upscale.apply with mocked realesrgan."""
+
+    def test_apply_returns_same_shape(self) -> None:
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx()
+
+        # Mock realesrgan to return a 2x upscaled version
+        mock_upsampler = MagicMock()
+        upscaled = np.zeros((100, 100, 3), dtype=np.uint8)
+        upscaled[:, :] = [50, 100, 150]
+        mock_upsampler.enhance.return_value = (upscaled,)
+
+        rsg_mock = MagicMock()
+        rsg_mock.RealESRGANer.return_value = mock_upsampler
+
+        effect = Upscale(factor=2)
+
+        try:
+            sys.modules["realesrgan"] = rsg_mock
+            result = effect.apply(frame, ctx)
+            assert result.shape == frame.shape
+            # Alpha should be preserved
+            np.testing.assert_array_equal(result[:, :, 3], frame[:, :, 3])
+        finally:
+            sys.modules.pop("realesrgan", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["realesrgan"] = None  # type: ignore[assignment]
+        try:
+            effect = Upscale()
+            with pytest.raises(ImportError, match="realesrgan"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            sys.modules.pop("realesrgan", None)
+
+
+class TestUpscalePublicAPI:
+    """Test Upscale public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import Upscale as Up
+
+        assert Up is Upscale
+
+    def test_is_effect(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(Upscale, Effect)
+
+
+class TestDenoiseInit:
+    """Tests for Denoise initialization."""
+
+    def test_default_strength(self) -> None:
+        assert Denoise().strength == 0.5
+
+    def test_valid_range(self) -> None:
+        assert Denoise(strength=0.0).strength == 0.0
+        assert Denoise(strength=1.0).strength == 1.0
+
+    def test_invalid_strength(self) -> None:
+        with pytest.raises(ValueError, match="strength must be between"):
+            Denoise(strength=1.5)
+        with pytest.raises(ValueError, match="strength must be between"):
+            Denoise(strength=-0.1)
+
+
+class TestDenoiseApply:
+    """Tests for Denoise.apply with mocked OpenCV."""
+
+    def test_apply_returns_same_shape(self) -> None:
+        import sys
+
+        frame = _make_frame(30, 30)
+        ctx = _make_ctx()
+
+        cv2_mock = MagicMock()
+        cv2_mock.fastNlMeansDenoisingColored = MagicMock(return_value=frame[:, :, :3].copy())
+
+        effect = Denoise(strength=0.5)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+            assert result.shape == frame.shape
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["cv2"] = None  # type: ignore[assignment]
+        try:
+            effect = Denoise()
+            with pytest.raises(ImportError, match="opencv-python"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestDenoisePublicAPI:
+    """Test Denoise public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import Denoise as Dn
+
+        assert Dn is Denoise
+
+    def test_is_effect(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(Denoise, Effect)
+
+
+class TestDeblurInit:
+    """Tests for Deblur initialization."""
+
+    def test_defaults(self) -> None:
+        effect = Deblur()
+        assert effect.strength == 0.5
+        assert effect.kernel_size == 5
+
+    def test_invalid_strength(self) -> None:
+        with pytest.raises(ValueError, match="strength must be between"):
+            Deblur(strength=2.0)
+
+    def test_invalid_kernel_size_even(self) -> None:
+        with pytest.raises(ValueError, match="kernel_size must be odd"):
+            Deblur(kernel_size=4)
+
+    def test_invalid_kernel_size_small(self) -> None:
+        with pytest.raises(ValueError, match="kernel_size must be odd"):
+            Deblur(kernel_size=1)
+
+    def test_valid_kernel_sizes(self) -> None:
+        for k in (3, 5, 7, 9):
+            assert Deblur(kernel_size=k).kernel_size == k
+
+
+class TestDeblurApply:
+    """Tests for Deblur.apply with mocked OpenCV."""
+
+    def test_apply_returns_same_shape(self) -> None:
+        import sys
+
+        frame = _make_frame(30, 30)
+        ctx = _make_ctx()
+
+        cv2_mock = MagicMock()
+        cv2_mock.addWeighted = MagicMock(return_value=frame[:, :, :3].copy())
+
+        effect = Deblur(strength=0.5)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+            assert result.shape == frame.shape
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["cv2"] = None  # type: ignore[assignment]
+        try:
+            effect = Deblur()
+            with pytest.raises(ImportError, match="opencv-python"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestDeblurPublicAPI:
+    """Test Deblur public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import Deblur as Db
+
+        assert Db is Deblur
+
+    def test_is_effect(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(Deblur, Effect)
+
+
+class TestFrameInterpolationInit:
+    """Tests for FrameInterpolation initialization."""
+
+    def test_default_factor(self) -> None:
+        assert FrameInterpolation().factor == 2
+
+    def test_valid_factors(self) -> None:
+        for f in (2, 4, 8):
+            assert FrameInterpolation(factor=f).factor == f
+
+    def test_invalid_factor(self) -> None:
+        with pytest.raises(ValueError, match="factor must be one of"):
+            FrameInterpolation(factor=3)
+
+
+class TestFrameInterpolationApply:
+    """Tests for FrameInterpolation.apply."""
+
+    def test_apply_returns_copy(self) -> None:
+        import sys
+
+        frame = _make_frame(30, 30)
+        ctx = _make_ctx()
+
+        torch_mock = MagicMock()
+        effect = FrameInterpolation()
+
+        try:
+            sys.modules["torch"] = torch_mock
+            result = effect.apply(frame, ctx)
+            assert result.shape == frame.shape
+            np.testing.assert_array_equal(result, frame)
+            # Should be a copy, not same object
+            assert result is not frame
+        finally:
+            sys.modules.pop("torch", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["torch"] = None  # type: ignore[assignment]
+        try:
+            effect = FrameInterpolation()
+            with pytest.raises(ImportError, match="torch"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            sys.modules.pop("torch", None)
+
+
+class TestFrameInterpolationPublicAPI:
+    """Test FrameInterpolation public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import FrameInterpolation as FI  # noqa: N817
+
+        assert FI is FrameInterpolation
+
+    def test_is_effect(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(FrameInterpolation, Effect)
+
+
+class TestColorizeClipInit:
+    """Tests for ColorizeClip initialization."""
+
+    def test_default_saturation(self) -> None:
+        assert ColorizeClip().saturation == 1.0
+
+    def test_valid_range(self) -> None:
+        assert ColorizeClip(saturation=0.5).saturation == 0.5
+        assert ColorizeClip(saturation=2.0).saturation == 2.0
+
+    def test_invalid_saturation(self) -> None:
+        with pytest.raises(ValueError, match="saturation must be between"):
+            ColorizeClip(saturation=0.3)
+        with pytest.raises(ValueError, match="saturation must be between"):
+            ColorizeClip(saturation=2.5)
+
+
+class TestColorizeClipApply:
+    """Tests for ColorizeClip.apply with mocked OpenCV."""
+
+    def test_apply_returns_same_shape(self) -> None:
+        import sys
+
+        frame = _make_frame(30, 30)
+        ctx = _make_ctx()
+
+        cv2_mock = MagicMock()
+        cv2_mock.cvtColor = MagicMock(side_effect=lambda img, code: img.copy())
+        cv2_mock.COLOR_BGR2GRAY = 6
+        cv2_mock.COLOR_BGR2LAB = 44
+        cv2_mock.COLOR_LAB2BGR = 56
+        cv2_mock.COLORMAP_BONE = 7
+        clahe_mock = MagicMock()
+        clahe_mock.apply = MagicMock(return_value=np.zeros((30, 30), dtype=np.uint8))
+        cv2_mock.createCLAHE = MagicMock(return_value=clahe_mock)
+        cv2_mock.applyColorMap = MagicMock(return_value=frame[:, :, :3].copy())
+
+        effect = ColorizeClip()
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+            assert result.shape == frame.shape
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["cv2"] = None  # type: ignore[assignment]
+        try:
+            effect = ColorizeClip()
+            with pytest.raises(ImportError, match="opencv-python"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestColorizeClipPublicAPI:
+    """Test ColorizeClip public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import ColorizeClip as Colorize
+
+        assert Colorize is ColorizeClip
+
+    def test_is_effect(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(ColorizeClip, Effect)

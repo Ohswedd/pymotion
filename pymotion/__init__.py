@@ -117,11 +117,16 @@ from pymotion.color_science import (
 from pymotion.composition import AdjustmentLayer, Composition, CompositionClip, Track
 from pymotion.config import PyMotionConfig, get_config, reset_config, set_config
 from pymotion.effects.ai import (
+    ColorizeClip,
+    Deblur,
+    Denoise,
     ExtendFrame,
+    FrameInterpolation,
     ObjectSegmentation,
     RemoveBackground,
     RemoveObject,
     ReplaceBackground,
+    Upscale,
 )
 from pymotion.effects.base import Effect
 from pymotion.effects.color import (
@@ -408,11 +413,16 @@ __all__ = [
     "Saturation",
     "SplitToning",
     # AI effects
+    "ColorizeClip",
+    "Deblur",
+    "Denoise",
     "ExtendFrame",
+    "FrameInterpolation",
     "ObjectSegmentation",
     "RemoveBackground",
     "RemoveObject",
     "ReplaceBackground",
+    "Upscale",
     # Keying effects
     "ChromaKey",
     "ColorKey",
