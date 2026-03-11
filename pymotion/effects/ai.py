@@ -590,3 +590,143 @@ class RemoveObject(Effect):
         result[:, :, 3] = frame[:, :, 3]  # Preserve original alpha
 
         return result
+
+
+@dataclass
+class ExtendFrame(Effect):
+    """Extend frame edges using AI outpainting.
+
+    Pads the frame in the given direction, fills the extended region
+    using inpainting (OpenCV Telea by default), then scales the
+    result back to the original resolution.  The visual effect is a
+    "zoom out" that reveals plausible content beyond the original edges.
+
+    For diffusion-based outpainting set ``method="diffusion"`` (requires
+    ``diffusers``).
+
+    Args:
+        direction: Edge(s) to extend. One of ``"left"``, ``"right"``,
+            ``"top"``, ``"bottom"``, or ``"all"``.
+        amount: Number of pixels to extend in the specified direction(s).
+        method: Inpainting backend. ``"telea"`` (default, OpenCV),
+            ``"ns"`` (OpenCV Navier-Stokes), or ``"diffusion"``
+            (Stable Diffusion, requires ``diffusers``).
+        inpaint_radius: Radius for OpenCV inpainting.
+
+    Raises:
+        ValueError: If direction or method is invalid, or amount <= 0.
+        ImportError: If required packages are not installed.
+
+    Example::
+
+        from pymotion.effects.ai import ExtendFrame
+
+        clip.add_effect(ExtendFrame(direction="all", amount=100))
+    """
+
+    direction: str = "all"
+    amount: int = 100
+    method: str = "telea"
+    inpaint_radius: int = 3
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        valid_dirs = {"left", "right", "top", "bottom", "all"}
+        if self.direction not in valid_dirs:
+            msg = f"direction must be one of {sorted(valid_dirs)}, got '{self.direction}'"
+            raise ValueError(msg)
+        if self.amount <= 0:
+            msg = "amount must be > 0"
+            raise ValueError(msg)
+        valid_methods = {"telea", "ns", "diffusion"}
+        if self.method not in valid_methods:
+            msg = f"method must be one of {sorted(valid_methods)}, got '{self.method}'"
+            raise ValueError(msg)
+
+    def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
+        """Extend frame edges and scale back to original size.
+
+        Args:
+            frame: BGRA numpy array of shape (H, W, 4), dtype uint8.
+            ctx: Render context for this frame.
+
+        Returns:
+            BGRA numpy array of the same shape with extended edges.
+        """
+        h, w = frame.shape[:2]
+        amt = self.amount
+
+        # Calculate padding for each side
+        pad_top = amt if self.direction in ("top", "all") else 0
+        pad_bottom = amt if self.direction in ("bottom", "all") else 0
+        pad_left = amt if self.direction in ("left", "all") else 0
+        pad_right = amt if self.direction in ("right", "all") else 0
+
+        new_h = h + pad_top + pad_bottom
+        new_w = w + pad_left + pad_right
+
+        # Create padded frame with edge-reflected content
+        padded = np.zeros((new_h, new_w, 4), dtype=np.uint8)
+        padded[pad_top : pad_top + h, pad_left : pad_left + w] = frame
+
+        # Mirror-fill edges for a reasonable starting point
+        if pad_top > 0:
+            padded[:pad_top, pad_left : pad_left + w] = frame[:1]
+        if pad_bottom > 0:
+            padded[pad_top + h :, pad_left : pad_left + w] = frame[-1:]
+        if pad_left > 0:
+            padded[pad_top : pad_top + h, :pad_left] = frame[:, :1]
+        if pad_right > 0:
+            padded[pad_top : pad_top + h, pad_left + w :] = frame[:, -1:]
+        # Fill corners
+        if pad_top > 0 and pad_left > 0:
+            padded[:pad_top, :pad_left] = frame[0, 0]
+        if pad_top > 0 and pad_right > 0:
+            padded[:pad_top, pad_left + w :] = frame[0, -1]
+        if pad_bottom > 0 and pad_left > 0:
+            padded[pad_top + h :, :pad_left] = frame[-1, 0]
+        if pad_bottom > 0 and pad_right > 0:
+            padded[pad_top + h :, pad_left + w :] = frame[-1, -1]
+
+        # Build inpaint mask: 255 for extended regions, 0 for original
+        inpaint_mask = np.ones((new_h, new_w), dtype=np.uint8) * 255
+        inpaint_mask[pad_top : pad_top + h, pad_left : pad_left + w] = 0
+
+        # Convert to RGB for inpainting
+        rgb = np.empty((new_h, new_w, 3), dtype=np.uint8)
+        rgb[:, :, 0] = padded[:, :, 2]
+        rgb[:, :, 1] = padded[:, :, 1]
+        rgb[:, :, 2] = padded[:, :, 0]
+
+        # Use RemoveObject's inpainting logic
+        inpainter = RemoveObject(
+            mask=inpaint_mask,
+            method=self.method,
+            inpaint_radius=self.inpaint_radius,
+        )
+
+        if self.method == "diffusion":
+            inpainted = inpainter._inpaint_diffusion(rgb, inpaint_mask)
+        else:
+            inpainted = inpainter._inpaint_opencv(rgb, inpaint_mask, self.method)
+
+        # Convert back to BGRA
+        extended = np.empty((new_h, new_w, 4), dtype=np.uint8)
+        extended[:, :, 0] = inpainted[:, :, 2]
+        extended[:, :, 1] = inpainted[:, :, 1]
+        extended[:, :, 2] = inpainted[:, :, 0]
+        extended[:, :, 3] = 255
+
+        # Scale back to original resolution
+        from PIL import Image  # noqa: PLC0415
+
+        ext_img = Image.fromarray(extended[:, :, :3][:, :, ::-1])  # BGR→RGB for PIL
+        ext_img = ext_img.resize((w, h), Image.LANCZOS)  # type: ignore[attr-defined]
+        result = np.empty((h, w, 4), dtype=np.uint8)
+        rgb_arr = np.asarray(ext_img)
+        result[:, :, 0] = rgb_arr[:, :, 2]  # B
+        result[:, :, 1] = rgb_arr[:, :, 1]  # G
+        result[:, :, 2] = rgb_arr[:, :, 0]  # R
+        result[:, :, 3] = 255
+
+        return result

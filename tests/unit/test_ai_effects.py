@@ -9,6 +9,7 @@ import pytest
 
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
 from pymotion.effects.ai import (
+    ExtendFrame,
     ObjectSegmentation,
     RemoveBackground,
     RemoveObject,
@@ -834,3 +835,150 @@ class TestRemoveObjectPublicAPI:
         from pymotion.effects.base import Effect
 
         assert issubclass(RemoveObject, Effect)
+
+
+class TestExtendFrameInit:
+    """Tests for ExtendFrame initialization."""
+
+    def test_default_params(self) -> None:
+        effect = ExtendFrame()
+        assert effect.direction == "all"
+        assert effect.amount == 100
+        assert effect.method == "telea"
+        assert effect.inpaint_radius == 3
+
+    def test_custom_params(self) -> None:
+        effect = ExtendFrame(direction="left", amount=50, method="ns")
+        assert effect.direction == "left"
+        assert effect.amount == 50
+        assert effect.method == "ns"
+
+    def test_invalid_direction_raises(self) -> None:
+        with pytest.raises(ValueError, match="direction must be one of"):
+            ExtendFrame(direction="diagonal")
+
+    def test_invalid_amount_raises(self) -> None:
+        with pytest.raises(ValueError, match="amount must be > 0"):
+            ExtendFrame(amount=0)
+
+    def test_negative_amount_raises(self) -> None:
+        with pytest.raises(ValueError, match="amount must be > 0"):
+            ExtendFrame(amount=-10)
+
+    def test_invalid_method_raises(self) -> None:
+        with pytest.raises(ValueError, match="method must be one of"):
+            ExtendFrame(method="invalid")
+
+    def test_all_valid_directions(self) -> None:
+        for d in ("left", "right", "top", "bottom", "all"):
+            effect = ExtendFrame(direction=d)
+            assert effect.direction == d
+
+
+class TestExtendFrameApply:
+    """Tests for ExtendFrame.apply with mocked OpenCV."""
+
+    def test_output_same_shape(self) -> None:
+        """Output should match input shape regardless of extension amount."""
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx()
+
+        def mock_inpaint(img: np.ndarray, m: np.ndarray, r: int, f: int) -> np.ndarray:
+            return img.copy()
+
+        cv2_mock = MagicMock()
+        cv2_mock.inpaint = mock_inpaint
+        cv2_mock.INPAINT_TELEA = 1
+
+        effect = ExtendFrame(direction="all", amount=20)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+            assert result.shape == frame.shape
+            assert result.dtype == np.uint8
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_output_fully_opaque(self) -> None:
+        """Result alpha should be 255 everywhere."""
+        import sys
+
+        frame = _make_frame(30, 30)
+        ctx = _make_ctx()
+
+        cv2_mock = MagicMock()
+        cv2_mock.inpaint = MagicMock(side_effect=lambda img, m, r, f: img.copy())
+        cv2_mock.INPAINT_TELEA = 1
+
+        effect = ExtendFrame(direction="right", amount=10)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+            assert np.all(result[:, :, 3] == 255)
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_single_direction_padding(self) -> None:
+        """Verify that single-direction extends only one edge."""
+        import sys
+
+        frame = _make_frame(40, 40)
+        ctx = _make_ctx()
+
+        inpaint_calls: list[tuple[int, int]] = []
+
+        def mock_inpaint(img: np.ndarray, m: np.ndarray, r: int, f: int) -> np.ndarray:
+            inpaint_calls.append(img.shape[:2])
+            return img.copy()
+
+        cv2_mock = MagicMock()
+        cv2_mock.inpaint = mock_inpaint
+        cv2_mock.INPAINT_TELEA = 1
+
+        effect = ExtendFrame(direction="bottom", amount=20)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            effect.apply(frame, ctx)
+            # Padded image should be (40+20, 40) = (60, 40)
+            assert inpaint_calls[0] == (60, 40)
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestExtendFrameImportError:
+    """Tests for ExtendFrame ImportError."""
+
+    def test_raises_without_opencv(self) -> None:
+        import sys
+
+        original = sys.modules.get("cv2")
+        sys.modules["cv2"] = None  # type: ignore[assignment]
+
+        try:
+            effect = ExtendFrame(direction="all", amount=10)
+            with pytest.raises(ImportError, match="opencv-python"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            if original is not None:
+                sys.modules["cv2"] = original
+            else:
+                sys.modules.pop("cv2", None)
+
+
+class TestExtendFramePublicAPI:
+    """Test ExtendFrame public API."""
+
+    def test_importable_from_pymotion(self) -> None:
+        from pymotion import ExtendFrame as ExtFrame
+
+        assert ExtFrame is ExtendFrame
+
+    def test_is_effect_subclass(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(ExtendFrame, Effect)
