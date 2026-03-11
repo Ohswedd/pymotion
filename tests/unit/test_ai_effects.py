@@ -8,7 +8,12 @@ import numpy as np
 import pytest
 
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
-from pymotion.effects.ai import ObjectSegmentation, RemoveBackground, ReplaceBackground
+from pymotion.effects.ai import (
+    ObjectSegmentation,
+    RemoveBackground,
+    RemoveObject,
+    ReplaceBackground,
+)
 
 
 def _make_frame(h: int = 100, w: int = 100) -> np.ndarray:
@@ -625,3 +630,207 @@ class TestObjectSegmentationPublicAPI:
         from pymotion.effects.base import Effect
 
         assert issubclass(ObjectSegmentation, Effect)
+
+
+class TestRemoveObjectInit:
+    """Tests for RemoveObject initialization."""
+
+    def test_default_params(self) -> None:
+        mask = np.zeros((50, 50), dtype=np.uint8)
+        effect = RemoveObject(mask=mask)
+        assert effect.method == "telea"
+        assert effect.inpaint_radius == 3
+
+    def test_custom_method(self) -> None:
+        mask = np.zeros((50, 50), dtype=np.uint8)
+        effect = RemoveObject(mask=mask, method="ns", inpaint_radius=5)
+        assert effect.method == "ns"
+        assert effect.inpaint_radius == 5
+
+    def test_invalid_method_raises(self) -> None:
+        mask = np.zeros((50, 50), dtype=np.uint8)
+        with pytest.raises(ValueError, match="method must be one of"):
+            RemoveObject(mask=mask, method="invalid")
+
+    def test_invalid_radius_raises(self) -> None:
+        mask = np.zeros((50, 50), dtype=np.uint8)
+        with pytest.raises(ValueError, match="inpaint_radius must be >= 1"):
+            RemoveObject(mask=mask, inpaint_radius=0)
+
+    def test_accepts_clip_as_mask(self) -> None:
+        mock_clip = _make_mock_bg_clip(50, 50)
+        effect = RemoveObject(mask=mock_clip)
+        assert effect.mask is mock_clip
+
+    def test_accepts_3d_array_mask(self) -> None:
+        """A BGRA array should work — alpha channel is extracted."""
+        mask_4ch = np.zeros((50, 50, 4), dtype=np.uint8)
+        mask_4ch[:, :, 3] = 128
+        effect = RemoveObject(mask=mask_4ch)
+        assert effect.mask is mask_4ch
+
+
+class TestRemoveObjectApply:
+    """Tests for RemoveObject.apply with mocked OpenCV."""
+
+    def test_telea_method_with_numpy_mask(self) -> None:
+        """Test OpenCV Telea inpainting with a static numpy mask."""
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx()
+        mask = np.zeros((50, 50), dtype=np.uint8)
+        mask[10:30, 10:30] = 255  # Region to inpaint
+
+        # Mock cv2
+        cv2_mock = MagicMock()
+
+        def mock_inpaint(img: np.ndarray, m: np.ndarray, radius: int, flag: int) -> np.ndarray:
+            return img.copy()  # Return unchanged for test
+
+        cv2_mock.inpaint = mock_inpaint
+        cv2_mock.INPAINT_TELEA = 1
+
+        effect = RemoveObject(mask=mask, method="telea")
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+
+            # Shape should be preserved
+            assert result.shape == frame.shape
+            # Alpha should be preserved from original
+            np.testing.assert_array_equal(result[:, :, 3], frame[:, :, 3])
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_ns_method(self) -> None:
+        """Test OpenCV Navier-Stokes method."""
+        import sys
+
+        frame = _make_frame(30, 30)
+        ctx = _make_ctx()
+        mask = np.ones((30, 30), dtype=np.uint8) * 255
+
+        cv2_mock = MagicMock()
+        cv2_mock.inpaint = MagicMock(return_value=np.zeros((30, 30, 3), dtype=np.uint8))
+        cv2_mock.INPAINT_NS = 0
+
+        effect = RemoveObject(mask=mask, method="ns")
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+            assert result.shape == frame.shape
+            # Verify NS flag was used
+            cv2_mock.inpaint.assert_called_once()
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_clip_mask_renders_frame(self) -> None:
+        """When mask is a Clip, render_frame should be called."""
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx()
+
+        # Mock mask clip that returns a frame with alpha=255 in center
+        mask_frame = np.zeros((50, 50, 4), dtype=np.uint8)
+        mask_frame[10:30, 10:30, 3] = 255
+        mask_clip = MagicMock()
+        mask_clip.render_frame = MagicMock(return_value=mask_frame)
+
+        cv2_mock = MagicMock()
+        cv2_mock.inpaint = MagicMock(return_value=np.zeros((50, 50, 3), dtype=np.uint8))
+        cv2_mock.INPAINT_TELEA = 1
+
+        effect = RemoveObject(mask=mask_clip, method="telea")
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            effect.apply(frame, ctx)
+            mask_clip.render_frame.assert_called_once_with(ctx)
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_bgra_conversion_roundtrip(self) -> None:
+        """Verify BGRA→RGB→BGRA conversion preserves channels correctly."""
+        import sys
+
+        frame = np.zeros((10, 10, 4), dtype=np.uint8)
+        frame[:, :, 0] = 10  # B
+        frame[:, :, 1] = 20  # G
+        frame[:, :, 2] = 30  # R
+        frame[:, :, 3] = 255
+        ctx = _make_ctx()
+        mask = np.zeros((10, 10), dtype=np.uint8)
+
+        def identity_inpaint(img: np.ndarray, m: np.ndarray, r: int, f: int) -> np.ndarray:
+            return img.copy()
+
+        cv2_mock = MagicMock()
+        cv2_mock.inpaint = identity_inpaint
+        cv2_mock.INPAINT_TELEA = 1
+
+        effect = RemoveObject(mask=mask, method="telea")
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = effect.apply(frame, ctx)
+            np.testing.assert_array_equal(result[:, :, 0], frame[:, :, 0])  # B
+            np.testing.assert_array_equal(result[:, :, 1], frame[:, :, 1])  # G
+            np.testing.assert_array_equal(result[:, :, 2], frame[:, :, 2])  # R
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestRemoveObjectImportError:
+    """Tests for ImportError when deps are missing."""
+
+    def test_opencv_raises_import_error(self) -> None:
+        import sys
+
+        original = sys.modules.get("cv2")
+        sys.modules["cv2"] = None  # type: ignore[assignment]
+
+        try:
+            mask = np.zeros((20, 20), dtype=np.uint8)
+            effect = RemoveObject(mask=mask, method="telea")
+            with pytest.raises(ImportError, match="opencv-python"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            if original is not None:
+                sys.modules["cv2"] = original
+            else:
+                sys.modules.pop("cv2", None)
+
+    def test_diffusion_raises_import_error(self) -> None:
+        import sys
+
+        original = sys.modules.get("diffusers")
+        sys.modules["diffusers"] = None  # type: ignore[assignment]
+
+        try:
+            mask = np.zeros((20, 20), dtype=np.uint8)
+            effect = RemoveObject(mask=mask, method="diffusion")
+            with pytest.raises(ImportError, match="diffusers"):
+                effect.apply(_make_frame(20, 20), _make_ctx())
+        finally:
+            if original is not None:
+                sys.modules["diffusers"] = original
+            else:
+                sys.modules.pop("diffusers", None)
+
+
+class TestRemoveObjectPublicAPI:
+    """Test RemoveObject public API."""
+
+    def test_importable_from_pymotion(self) -> None:
+        from pymotion import RemoveObject as RmObj
+
+        assert RmObj is RemoveObject
+
+    def test_is_effect_subclass(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(RemoveObject, Effect)

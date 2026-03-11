@@ -409,3 +409,184 @@ class ObjectSegmentation(Effect):
         result = frame.copy()
         result[:, :, 3] = alpha
         return result
+
+
+@dataclass
+class RemoveObject(Effect):
+    """Remove an object from a frame by inpainting over a masked region.
+
+    Takes a mask clip whose alpha channel (or a static numpy mask)
+    indicates which pixels to remove.  White (255) pixels in the mask
+    are inpainted; black (0) pixels are kept.
+
+    Uses the ``diffusers`` library with a Stable Diffusion inpainting
+    pipeline by default.  Falls back to OpenCV's Telea inpainting if
+    ``diffusers`` is not installed.
+
+    Args:
+        mask: A :class:`~pymotion.clip.base.Clip` whose alpha channel
+            serves as the inpaint mask, or a static ``(H, W)`` uint8
+            numpy array (255 = inpaint, 0 = keep).
+        method: Inpainting method. ``"diffusion"`` uses Stable Diffusion
+            inpainting (requires ``diffusers``). ``"telea"`` uses
+            OpenCV's Telea algorithm (fast, no AI). ``"ns"`` uses
+            OpenCV's Navier-Stokes method.  Defaults to ``"telea"``.
+        inpaint_radius: Radius for OpenCV inpainting methods (pixels).
+
+    Raises:
+        ImportError: If required packages for the chosen method are missing.
+        ValueError: If method is not supported.
+
+    Example::
+
+        from pymotion.effects.ai import ObjectSegmentation, RemoveObject
+
+        mask_effect = ObjectSegmentation(prompt="person")
+        # Apply mask to get segmented clip, then use it to remove
+        clip.add_effect(RemoveObject(mask=mask_clip, method="telea"))
+    """
+
+    mask: Any  # Clip or np.ndarray
+    method: str = "telea"
+    inpaint_radius: int = 3
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        valid_methods = {"diffusion", "telea", "ns"}
+        if self.method not in valid_methods:
+            msg = f"method must be one of {sorted(valid_methods)}, got '{self.method}'"
+            raise ValueError(msg)
+        if self.inpaint_radius < 1:
+            msg = "inpaint_radius must be >= 1"
+            raise ValueError(msg)
+
+    def _get_mask_array(self, ctx: RenderContext, h: int, w: int) -> np.ndarray:
+        """Extract or render the inpaint mask as a (H, W) uint8 array.
+
+        Args:
+            ctx: Render context for this frame.
+            h: Expected height.
+            w: Expected width.
+
+        Returns:
+            Single-channel uint8 mask where 255 = inpaint, 0 = keep.
+        """
+        if isinstance(self.mask, np.ndarray):
+            mask_2d = self.mask
+            if mask_2d.ndim == 3:
+                mask_2d = mask_2d[:, :, 3]  # Use alpha channel
+            if mask_2d.shape != (h, w):
+                from PIL import Image  # noqa: PLC0415
+
+                mask_img = Image.fromarray(mask_2d)
+                resample = getattr(Image, "NEAREST", 0)
+                mask_img = mask_img.resize((w, h), resample)
+                mask_2d = np.asarray(mask_img)
+            return mask_2d.astype(np.uint8)
+
+        # Clip — render and extract alpha
+        mask_frame: np.ndarray = self.mask.render_frame(ctx)
+        mask_2d = mask_frame[:, :, 3]
+        if mask_2d.shape != (h, w):
+            from PIL import Image  # noqa: PLC0415
+
+            mask_img = Image.fromarray(mask_2d)
+            resample = getattr(Image, "NEAREST", 0)
+            mask_img = mask_img.resize((w, h), resample)
+            mask_2d = np.asarray(mask_img)
+        return mask_2d.astype(np.uint8)
+
+    def _inpaint_opencv(self, rgb: np.ndarray, mask: np.ndarray, method: str) -> np.ndarray:
+        """Inpaint using OpenCV.
+
+        Args:
+            rgb: RGB uint8 array (H, W, 3).
+            mask: Binary mask (H, W) uint8.
+            method: ``"telea"`` or ``"ns"``.
+
+        Returns:
+            Inpainted RGB array.
+        """
+        try:
+            import cv2  # noqa: PLC0415
+        except ImportError:
+            msg = (
+                "opencv-python is required for OpenCV inpainting. "
+                "Install it with: pip install opencv-python"
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        flag = cv2.INPAINT_TELEA if method == "telea" else cv2.INPAINT_NS
+        result: np.ndarray = cv2.inpaint(rgb, mask, self.inpaint_radius, flag)
+        return result
+
+    def _inpaint_diffusion(self, rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """Inpaint using Stable Diffusion.
+
+        Args:
+            rgb: RGB uint8 array (H, W, 3).
+            mask: Binary mask (H, W) uint8.
+
+        Returns:
+            Inpainted RGB array.
+        """
+        try:
+            from diffusers import StableDiffusionInpaintPipeline  # noqa: PLC0415
+        except ImportError:
+            msg = (
+                "diffusers is required for diffusion inpainting. "
+                'Install it with: pip install "pymotion-studio[ai]"'
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        from PIL import Image  # noqa: PLC0415
+
+        pipe = StableDiffusionInpaintPipeline.from_pretrained(
+            "stabilityai/stable-diffusion-2-inpainting",
+        )
+
+        pil_image = Image.fromarray(rgb)
+        pil_mask = Image.fromarray(mask)
+
+        logger.debug("running_diffusion_inpaint")
+        result_image = pipe(
+            prompt="",
+            image=pil_image,
+            mask_image=pil_mask,
+            num_inference_steps=20,
+        ).images[0]
+
+        return np.asarray(result_image, dtype=np.uint8)
+
+    def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
+        """Inpaint masked regions of the frame.
+
+        Args:
+            frame: BGRA numpy array of shape (H, W, 4), dtype uint8.
+            ctx: Render context for this frame.
+
+        Returns:
+            BGRA numpy array with masked regions inpainted.
+        """
+        h, w = frame.shape[:2]
+        mask = self._get_mask_array(ctx, h, w)
+
+        # Convert BGRA to RGB
+        rgb = np.empty((h, w, 3), dtype=np.uint8)
+        rgb[:, :, 0] = frame[:, :, 2]  # R
+        rgb[:, :, 1] = frame[:, :, 1]  # G
+        rgb[:, :, 2] = frame[:, :, 0]  # B
+
+        if self.method == "diffusion":
+            inpainted = self._inpaint_diffusion(rgb, mask)
+        else:
+            inpainted = self._inpaint_opencv(rgb, mask, self.method)
+
+        # Convert back to BGRA
+        result = np.empty_like(frame)
+        result[:, :, 0] = inpainted[:, :, 2]  # B
+        result[:, :, 1] = inpainted[:, :, 1]  # G
+        result[:, :, 2] = inpainted[:, :, 0]  # R
+        result[:, :, 3] = frame[:, :, 3]  # Preserve original alpha
+
+        return result
