@@ -24,6 +24,8 @@ class PyMotionConfig:
         max_image_size: Maximum image asset size in bytes (default 100 MB).
         max_audio_size: Maximum audio asset size in bytes (default 500 MB).
         max_model_size: Maximum 3D model size in bytes (default 200 MB).
+        gpu_compositing: Use GPU compute shaders for frame compositing.
+        gpu_vram_limit_bytes: Maximum VRAM budget for GPU compositing (default 2 GB).
         font_allowlist: Allowed domains for font downloads.
     """
 
@@ -32,6 +34,8 @@ class PyMotionConfig:
     max_image_size: int = 100 * 1024 * 1024
     max_audio_size: int = 500 * 1024 * 1024
     max_model_size: int = 200 * 1024 * 1024
+    gpu_compositing: bool = False
+    gpu_vram_limit_bytes: int = 2 * 1024 * 1024 * 1024
     font_allowlist: list[str] = field(
         default_factory=lambda: [
             "fonts.googleapis.com",

@@ -21,13 +21,36 @@ from pymotion.clip.base import BlendMode, Clip, RenderContext, Resolution, TimeR
 from pymotion.effects.base import Effect
 from pymotion.export.encoder import FFmpegEncoder
 from pymotion.export.presets import get_preset
-from pymotion.render.compositor import composite_layers
+from pymotion.render.compositor import composite_layers as _cpu_composite_layers
 from pymotion.utils.color import Color, ColorInput
 from pymotion.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 _MAX_NESTING_DEPTH = 10
+
+
+def _composite_layers(
+    background: np.ndarray,
+    layers: list[tuple[np.ndarray, BlendMode, float]],
+) -> np.ndarray:
+    """Route compositing to GPU or CPU based on config.
+
+    Args:
+        background: BGRA background frame, shape (H, W, 4), dtype uint8.
+        layers: List of (frame, blend_mode, opacity) tuples.
+
+    Returns:
+        Composited BGRA frame, shape (H, W, 4), dtype uint8.
+    """
+    from pymotion.config import get_config
+
+    if get_config().gpu_compositing:
+        from pymotion.render.gpu_compositor import gpu_composite_layers
+
+        return gpu_composite_layers(background, layers)
+    return _cpu_composite_layers(background, layers)
+
 
 _DEFAULT_CACHE_MAX_FRAMES = 256
 
@@ -260,7 +283,7 @@ class Composition:
 
                     if isinstance(clip, AdjustmentLayer):
                         # Flatten everything below, apply adjustment effects
-                        bg = composite_layers(bg, layers)
+                        bg = _composite_layers(bg, layers)
                         layers = []
                         bg = clip.apply_effects(bg, ctx)
                         continue
@@ -277,7 +300,7 @@ class Composition:
                     layers.append((rendered, blend, effective_opacity))
 
         # Composite remaining layers
-        result = composite_layers(bg, layers)
+        result = _composite_layers(bg, layers)
 
         return result
 

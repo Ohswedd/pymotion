@@ -94,7 +94,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["openai.*", "whisper.*", "pyttsx3.*", "opentimelineio.*", "rembg.*", "segment_anything.*", "transformers.*", "diffusers.*", "cv2.*", "realesrgan.*", "torch.*"]
+module = ["openai.*", "whisper.*", "pyttsx3.*", "opentimelineio.*", "rembg.*", "segment_anything.*", "transformers.*", "diffusers.*", "cv2.*", "realesrgan.*", "torch.*", "wgpu.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
