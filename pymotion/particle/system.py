@@ -50,6 +50,7 @@ class Emitter:
     gravity: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
     drag: float = 0.0
     turbulence: float = 0.0
+    rotation_speed: tuple[float, float] = (0.0, 0.0)
     sprite: np.ndarray | None = None
     blend_mode: BlendMode = BlendMode.ADD
 
@@ -88,6 +89,8 @@ class ParticleSystem:
         self._age = np.zeros(self._capacity, dtype=np.float32)
         self._max_age = np.zeros(self._capacity, dtype=np.float32)
         self._sizes = np.zeros(self._capacity, dtype=np.float32)
+        self._rotation = np.zeros(self._capacity, dtype=np.float32)
+        self._angular_vel = np.zeros(self._capacity, dtype=np.float32)
         self._emitter_idx = np.zeros(self._capacity, dtype=np.int32)
         self._rng = np.random.default_rng(42)
         # Fractional accumulator per emitter for sub-frame spawn rates
@@ -115,6 +118,8 @@ class ParticleSystem:
         new_age = np.zeros(new_cap, dtype=np.float32)
         new_max_age = np.zeros(new_cap, dtype=np.float32)
         new_sizes = np.zeros(new_cap, dtype=np.float32)
+        new_rotation = np.zeros(new_cap, dtype=np.float32)
+        new_angular_vel = np.zeros(new_cap, dtype=np.float32)
         new_eidx = np.zeros(new_cap, dtype=np.int32)
 
         n = self._count
@@ -123,6 +128,8 @@ class ParticleSystem:
         new_age[:n] = self._age[:n]
         new_max_age[:n] = self._max_age[:n]
         new_sizes[:n] = self._sizes[:n]
+        new_rotation[:n] = self._rotation[:n]
+        new_angular_vel[:n] = self._angular_vel[:n]
         new_eidx[:n] = self._emitter_idx[:n]
 
         self._pos = new_pos
@@ -130,6 +137,8 @@ class ParticleSystem:
         self._age = new_age
         self._max_age = new_max_age
         self._sizes = new_sizes
+        self._rotation = new_rotation
+        self._angular_vel = new_angular_vel
         self._emitter_idx = new_eidx
         self._capacity = new_cap
 
@@ -182,6 +191,12 @@ class ParticleSystem:
                 emitter.size[0], emitter.size[1], n_new
             ).astype(np.float32)
 
+            # Rotation
+            self._rotation[start:end] = self._rng.uniform(0.0, math.tau, n_new).astype(np.float32)
+            self._angular_vel[start:end] = self._rng.uniform(
+                emitter.rotation_speed[0], emitter.rotation_speed[1], n_new
+            ).astype(np.float32)
+
             # Age starts at 0
             self._age[start:end] = 0.0
 
@@ -209,6 +224,8 @@ class ParticleSystem:
             self._age[:alive_count] = self._age[:n][alive]
             self._max_age[:alive_count] = self._max_age[:n][alive]
             self._sizes[:alive_count] = self._sizes[:n][alive]
+            self._rotation[:alive_count] = self._rotation[:n][alive]
+            self._angular_vel[:alive_count] = self._angular_vel[:n][alive]
             self._emitter_idx[:alive_count] = self._emitter_idx[:n][alive]
             self._count = alive_count
             n = alive_count
@@ -236,6 +253,9 @@ class ParticleSystem:
 
         # Apply velocity to position
         self._pos[:n] += self._vel[:n]
+
+        # Update rotation
+        self._rotation[:n] += self._angular_vel[:n]
 
     def _render_frame(self) -> np.ndarray:
         """Render current particle state to BGRA array (fully vectorized).
@@ -312,6 +332,7 @@ class ParticleSystem:
             # Render particles using their size
             sizes_vis = self._sizes[:n][mask][visible]
             vel_vis = self._vel[:n][mask][visible]
+            rot_vis = self._rotation[:n][mask][visible]
 
             for i in range(len(v_px)):
                 px_i, py_i = int(v_px[i]), int(v_py[i])
@@ -345,20 +366,44 @@ class ParticleSystem:
                         else:
                             frame[py_i, px_i] = bgra_val
                 else:
-                    # Multi-pixel particle
+                    # Multi-pixel particle with rotation
                     half = sz // 2
-                    y0 = max(0, py_i - half)
-                    y1 = min(self._height, py_i + half + 1)
-                    x0 = max(0, px_i - half)
-                    x1 = min(self._width, px_i + half + 1)
-                    if y1 > y0 and x1 > x0:
-                        if emitter.blend_mode == BlendMode.ADD:
-                            region = frame[y0:y1, x0:x1].astype(np.uint16) + bgra_val.astype(
-                                np.uint16
-                            )
-                            frame[y0:y1, x0:x1] = np.minimum(region, 255).astype(np.uint8)
-                        else:
-                            frame[y0:y1, x0:x1] = bgra_val
+                    rot = float(rot_vis[i])
+                    # For rotated particles, rasterize a rotated rectangle
+                    if abs(rot % math.pi) > 0.05 and sz >= 3:
+                        cos_r = math.cos(rot)
+                        sin_r = math.sin(rot)
+                        hw = sz / 2.0
+                        hh = sz / 3.0  # rectangle aspect ratio ~3:2
+                        for dy in range(-int(hw) - 1, int(hw) + 2):
+                            for dx in range(-int(hw) - 1, int(hw) + 2):
+                                # Inverse rotate to check if in rectangle
+                                lx = dx * cos_r + dy * sin_r
+                                ly = -dx * sin_r + dy * cos_r
+                                if abs(lx) <= hw and abs(ly) <= hh:
+                                    sy = py_i + dy
+                                    sx = px_i + dx
+                                    if 0 <= sx < self._width and 0 <= sy < self._height:
+                                        if emitter.blend_mode == BlendMode.ADD:
+                                            acc = frame[sy, sx].astype(np.uint16) + bgra_val.astype(
+                                                np.uint16
+                                            )
+                                            frame[sy, sx] = np.minimum(acc, 255).astype(np.uint8)
+                                        else:
+                                            frame[sy, sx] = bgra_val
+                    else:
+                        y0 = max(0, py_i - half)
+                        y1 = min(self._height, py_i + half + 1)
+                        x0 = max(0, px_i - half)
+                        x1 = min(self._width, px_i + half + 1)
+                        if y1 > y0 and x1 > x0:
+                            if emitter.blend_mode == BlendMode.ADD:
+                                region = frame[y0:y1, x0:x1].astype(np.uint16) + bgra_val.astype(
+                                    np.uint16
+                                )
+                                frame[y0:y1, x0:x1] = np.minimum(region, 255).astype(np.uint8)
+                            else:
+                                frame[y0:y1, x0:x1] = bgra_val
 
         return frame
 
@@ -513,6 +558,7 @@ def confetti(width: int = 1920, height: int = 1080) -> ParticleSystem:
             opacity_over_life=[1.0, 1.0, 0.5],
             gravity=Vec2(0.0, 0.3),
             drag=0.01,
+            rotation_speed=(-0.15, 0.15),
             blend_mode=BlendMode.NORMAL,
         )
     )
