@@ -106,7 +106,7 @@ class TTSClip:
             ImportError: If pyttsx3 is not installed.
         """
         try:
-            import pyttsx3  # type: ignore[import-not-found]  # noqa: PLC0415
+            import pyttsx3  # noqa: PLC0415
         except ImportError:
             msg = "pyttsx3 is required for system TTS. Install it with: pip install pyttsx3"
             raise ImportError(msg)  # noqa: B904

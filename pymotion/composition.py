@@ -422,7 +422,7 @@ class Composition:
             ImportError: If opentimelineio is not installed.
         """
         try:
-            import opentimelineio as otio  # type: ignore[import-not-found]  # noqa: PLC0415
+            import opentimelineio as otio  # noqa: PLC0415
         except ImportError:
             msg = (
                 "opentimelineio is required for OTIO export. "

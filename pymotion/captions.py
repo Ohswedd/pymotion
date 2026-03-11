@@ -491,7 +491,7 @@ class AutoCaptions:
             ImportError: If ``openai-whisper`` is not installed.
         """
         try:
-            import whisper  # type: ignore[import-not-found]  # noqa: PLC0415
+            import whisper  # noqa: PLC0415
         except ImportError:
             msg = (
                 "openai-whisper is required for AutoCaptions. "

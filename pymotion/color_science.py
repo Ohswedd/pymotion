@@ -409,7 +409,7 @@ class HSLSecondary(Effect):
         r[mask4], g[mask4], b[mask4] = x[mask4], 0, c[mask4]
         r[mask5], g[mask5], b[mask5] = c[mask5], 0, x[mask5]
 
-        result = np.clip(np.stack([r + m, g + m, b + m], axis=-1), 0, 1)
+        result: np.ndarray = np.clip(np.stack([r + m, g + m, b + m], axis=-1), 0, 1)
         return result
 
 

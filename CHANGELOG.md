@@ -2,6 +2,20 @@
 
 All notable changes to PyMotion are documented here.
 
+## [1.5.0] — 2026-03-11
+
+### Added
+- **Advanced audio mixing** — 5.1 surround channel routing (`SurroundChannel`), audio bus routing with volume/pan automation, audio crossfades (linear, equal-power, S-curve), multiband compressor, convolution reverb, LUFS normalization, silence generator
+- **Audio visualization** — `WaveformClip` (bars/line), `SpectrumClip` (FFT frequency spectrum with color maps), `SpectrogramClip` (scrolling heatmap), `AudioReactiveEffect` (modulate any effect property from audio amplitude)
+- **Captions & subtitles** — SRT/VTT/ASS import (`import_subtitles`, `parse_srt`, `parse_vtt`, `parse_ass`), `SubtitleClip` with 4 built-in styles (netflix, youtube, tiktok, karaoke), `AutoCaptions` via Whisper, `WordTimestamp` for word-level timing, subtitle export
+- **Text-to-speech** — `TTSClip` with system (pyttsx3) and OpenAI engines
+- **ACES color science** — sRGB ↔ ACES AP0 conversion with filmic tone mapping, HDR10 (PQ/ST 2084) and HLG (ARIB STD-B67) transfer functions
+- **Color grading** — `ColorMatch` (Reinhard color transfer), `HSLSecondary` (range-based HSL secondary grading with hue wrapping)
+- **Video scopes** — `WaveformScopeClip`, `VectorscopeClip`, `HistogramClip`, `ParadeScopeClip` (Cairo-rendered)
+- **EDL/OTIO export** — `Composition.export_edl()` (CMX 3600), `Composition.export_otio()` (OpenTimelineIO)
+- Example 09: Audio & Color Science showcase
+- 5 new guide docs and 5 API reference docs
+
 ## [1.4.0] — 2026-03-10
 
 ### Added
