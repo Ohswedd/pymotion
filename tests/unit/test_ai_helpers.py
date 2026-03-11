@@ -11,6 +11,9 @@ from pymotion.ai import (
     AutoColor,
     AutoEdit,
     ContentAwareCrop,
+    FaceBlur,
+    FaceDetector,
+    FaceTracker,
     HighlightDetector,
     SceneDetector,
     SilenceRemover,
@@ -388,3 +391,253 @@ class TestAutoEditPublicAPI:
         from pymotion import AutoEdit as AE  # noqa: N817
 
         assert AE is AutoEdit
+
+
+# ============================================================
+# 2.0.4 Face & Body
+# ============================================================
+
+
+class TestFaceDetectorInit:
+    """Tests for FaceDetector initialization."""
+
+    def test_defaults(self) -> None:
+        fd = FaceDetector(clip=MagicMock())
+        assert fd.method == "haar"
+        assert fd.min_confidence == 0.5
+
+    def test_invalid_method(self) -> None:
+        with pytest.raises(ValueError, match="method must be one of"):
+            FaceDetector(clip=MagicMock(), method="invalid")
+
+    def test_invalid_confidence(self) -> None:
+        with pytest.raises(ValueError, match="min_confidence must be between"):
+            FaceDetector(clip=MagicMock(), min_confidence=1.5)
+
+
+class TestFaceDetectorDetect:
+    """Tests for FaceDetector.detect with mocked OpenCV."""
+
+    def test_detect_returns_dict(self) -> None:
+        import sys
+
+        clip = _make_mock_clip(duration=5, width=50, height=50)
+
+        cv2_mock = MagicMock()
+        cv2_mock.data = MagicMock()
+        cv2_mock.data.haarcascades = "/fake/path/"
+        cascade_mock = MagicMock()
+        cascade_mock.detectMultiScale = MagicMock(return_value=np.array([[10, 10, 20, 20]]))
+        cv2_mock.CascadeClassifier = MagicMock(return_value=cascade_mock)
+        cv2_mock.cvtColor = MagicMock(return_value=np.zeros((50, 50), dtype=np.uint8))
+        cv2_mock.COLOR_BGR2GRAY = 6
+
+        fd = FaceDetector(clip=clip)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = fd.detect()
+            assert isinstance(result, dict)
+            assert len(result) == 5
+            for _frame_idx, faces in result.items():
+                assert isinstance(faces, list)
+                for x, _y, w, _h in faces:
+                    assert x >= 0
+                    assert w > 0
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["cv2"] = None  # type: ignore[assignment]
+        try:
+            fd = FaceDetector(clip=_make_mock_clip(duration=1))
+            with pytest.raises(ImportError, match="opencv-python"):
+                fd.detect()
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestFaceDetectorPublicAPI:
+    """Test FaceDetector public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import FaceDetector as FD  # noqa: N817
+
+        assert FD is FaceDetector
+
+
+class TestFaceTrackerInit:
+    """Tests for FaceTracker initialization."""
+
+    def test_defaults(self) -> None:
+        ft = FaceTracker(clip=MagicMock())
+        assert ft.max_distance == 100.0
+
+    def test_invalid_max_distance(self) -> None:
+        with pytest.raises(ValueError, match="max_distance must be > 0"):
+            FaceTracker(clip=MagicMock(), max_distance=0)
+
+
+class TestFaceTrackerTrack:
+    """Tests for FaceTracker.track with mocked OpenCV."""
+
+    def test_track_returns_dict(self) -> None:
+        import sys
+
+        clip = _make_mock_clip(duration=3, width=50, height=50)
+
+        cv2_mock = MagicMock()
+        cv2_mock.data = MagicMock()
+        cv2_mock.data.haarcascades = "/fake/"
+        cascade_mock = MagicMock()
+        # Return one face at similar positions
+        cascade_mock.detectMultiScale = MagicMock(return_value=np.array([[10, 10, 20, 20]]))
+        cv2_mock.CascadeClassifier = MagicMock(return_value=cascade_mock)
+        cv2_mock.cvtColor = MagicMock(return_value=np.zeros((50, 50), dtype=np.uint8))
+        cv2_mock.COLOR_BGR2GRAY = 6
+
+        ft = FaceTracker(clip=clip)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            tracks = ft.track()
+            assert isinstance(tracks, dict)
+            # Should have at least one track
+            assert len(tracks) >= 1
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_to_keyframes(self) -> None:
+        import sys
+
+        clip = _make_mock_clip(duration=3, width=50, height=50)
+
+        cv2_mock = MagicMock()
+        cv2_mock.data = MagicMock()
+        cv2_mock.data.haarcascades = "/fake/"
+        cascade_mock = MagicMock()
+        cascade_mock.detectMultiScale = MagicMock(return_value=np.array([[10, 10, 20, 20]]))
+        cv2_mock.CascadeClassifier = MagicMock(return_value=cascade_mock)
+        cv2_mock.cvtColor = MagicMock(return_value=np.zeros((50, 50), dtype=np.uint8))
+        cv2_mock.COLOR_BGR2GRAY = 6
+
+        ft = FaceTracker(clip=clip)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            kf = ft.to_keyframes(face_id=0)
+            assert isinstance(kf, dict)
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_to_keyframes_missing_id_returns_empty(self) -> None:
+        import sys
+
+        clip = _make_mock_clip(duration=2, width=50, height=50)
+
+        cv2_mock = MagicMock()
+        cv2_mock.data = MagicMock()
+        cv2_mock.data.haarcascades = "/fake/"
+        cascade_mock = MagicMock()
+        cascade_mock.detectMultiScale = MagicMock(return_value=np.array([]))
+        cv2_mock.CascadeClassifier = MagicMock(return_value=cascade_mock)
+        cv2_mock.cvtColor = MagicMock(return_value=np.zeros((50, 50), dtype=np.uint8))
+        cv2_mock.COLOR_BGR2GRAY = 6
+
+        ft = FaceTracker(clip=clip)
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            kf = ft.to_keyframes(face_id=999)
+            assert kf == {}
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestFaceTrackerPublicAPI:
+    """Test FaceTracker public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import FaceTracker as FT  # noqa: N817
+
+        assert FT is FaceTracker
+
+
+class TestFaceBlurInit:
+    """Tests for FaceBlur initialization."""
+
+    def test_defaults(self) -> None:
+        fb = FaceBlur(clip=MagicMock())
+        assert fb.strength == 5
+        assert fb.method == "haar"
+
+    def test_invalid_strength(self) -> None:
+        with pytest.raises(ValueError, match="strength must be between"):
+            FaceBlur(clip=MagicMock(), strength=0)
+        with pytest.raises(ValueError, match="strength must be between"):
+            FaceBlur(clip=MagicMock(), strength=11)
+
+    def test_invalid_method(self) -> None:
+        with pytest.raises(ValueError, match="method must be one of"):
+            FaceBlur(clip=MagicMock(), method="invalid")
+
+
+class TestFaceBlurApply:
+    """Tests for FaceBlur.apply_blur with mocked OpenCV."""
+
+    def test_apply_blur_to_regions(self) -> None:
+        import sys
+
+        frame = np.full((50, 50, 4), 128, dtype=np.uint8)
+        regions = [(10, 10, 20, 20)]
+
+        cv2_mock = MagicMock()
+        cv2_mock.GaussianBlur = MagicMock(return_value=np.zeros((20, 20, 3), dtype=np.uint8))
+
+        fb = FaceBlur(clip=MagicMock())
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = fb.apply_blur(frame, regions)
+            assert result.shape == frame.shape
+            cv2_mock.GaussianBlur.assert_called_once()
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_apply_blur_empty_regions(self) -> None:
+        import sys
+
+        frame = np.full((50, 50, 4), 128, dtype=np.uint8)
+        cv2_mock = MagicMock()
+
+        fb = FaceBlur(clip=MagicMock())
+
+        try:
+            sys.modules["cv2"] = cv2_mock
+            result = fb.apply_blur(frame, [])
+            np.testing.assert_array_equal(result, frame)
+        finally:
+            sys.modules.pop("cv2", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["cv2"] = None  # type: ignore[assignment]
+        try:
+            fb = FaceBlur(clip=MagicMock())
+            frame = np.zeros((20, 20, 4), dtype=np.uint8)
+            with pytest.raises(ImportError, match="opencv-python"):
+                fb.apply_blur(frame, [(0, 0, 10, 10)])
+        finally:
+            sys.modules.pop("cv2", None)
+
+
+class TestFaceBlurPublicAPI:
+    """Test FaceBlur public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import FaceBlur as FB  # noqa: N817
+
+        assert FB is FaceBlur

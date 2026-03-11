@@ -660,3 +660,288 @@ class AutoEdit:
 
         logger.debug("auto_edit_complete", segments=len(edl), total_frames=total_frames)
         return edl
+
+
+@dataclass
+class FaceDetector:
+    """Detect face bounding boxes in a clip per frame.
+
+    Uses OpenCV's Haar cascade or DNN face detector.
+
+    Args:
+        clip: Source clip to analyze.
+        method: Detection method. ``"haar"`` (fast, OpenCV Haar cascade)
+            or ``"dnn"`` (more accurate, OpenCV DNN).
+        min_confidence: Minimum confidence for DNN method (0.0–1.0).
+
+    Example::
+
+        detector = pm.FaceDetector(clip)
+        faces = detector.detect()
+        # faces = {0: [(x, y, w, h), ...], 1: [...], ...}
+    """
+
+    clip: Any  # Clip
+    method: str = "haar"
+    min_confidence: float = 0.5
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        valid_methods = {"haar", "dnn"}
+        if self.method not in valid_methods:
+            msg = f"method must be one of {sorted(valid_methods)}, got '{self.method}'"
+            raise ValueError(msg)
+        if not 0.0 <= self.min_confidence <= 1.0:
+            msg = "min_confidence must be between 0.0 and 1.0"
+            raise ValueError(msg)
+
+    def detect(self) -> dict[int, list[tuple[int, int, int, int]]]:
+        """Detect faces in every frame.
+
+        Returns:
+            Dictionary mapping frame index to a list of face bounding
+            boxes ``(x, y, width, height)``.
+
+        Raises:
+            ImportError: If OpenCV is not installed.
+        """
+        try:
+            import cv2  # noqa: PLC0415
+        except ImportError:
+            msg = (
+                "opencv-python is required for FaceDetector. "
+                "Install it with: pip install opencv-python"
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        from pymotion.clip.base import RenderContext, Resolution, TimeRange  # noqa: PLC0415
+
+        duration = self.clip.end - self.clip.start
+        fps = getattr(self.clip, "fps", 30)
+        clip_w = getattr(self.clip, "width", 320)
+        clip_h = getattr(self.clip, "height", 240)
+        res = Resolution(clip_w, clip_h)
+
+        # Load Haar cascade
+        cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        )
+
+        result: dict[int, list[tuple[int, int, int, int]]] = {}
+
+        for i in range(duration):
+            ctx = RenderContext(
+                frame=i + self.clip.start,
+                fps=fps,
+                resolution=res,
+                time_range=TimeRange(self.clip.start, self.clip.end),
+                local_frame=i,
+                progress=i / max(duration - 1, 1),
+            )
+            frame = self.clip.render_frame(ctx)
+            gray = cv2.cvtColor(frame[:, :, :3], cv2.COLOR_BGR2GRAY)
+
+            faces = cascade.detectMultiScale(gray, 1.1, 4, minSize=(30, 30))
+            face_list: list[tuple[int, int, int, int]] = []
+            if len(faces) > 0:
+                for x, y, w, h in faces:
+                    face_list.append((int(x), int(y), int(w), int(h)))
+            result[i] = face_list
+
+        logger.debug(
+            "face_detection_complete",
+            frames=duration,
+            total_faces=sum(len(v) for v in result.values()),
+        )
+        return result
+
+
+@dataclass
+class FaceTracker:
+    """Track faces across frames.
+
+    Uses :class:`FaceDetector` on the first frame, then tracks each
+    detected face using simple centroid tracking.
+
+    Args:
+        clip: Source clip to track.
+        max_distance: Maximum pixel distance to match faces across frames.
+
+    Example::
+
+        tracker = pm.FaceTracker(clip)
+        tracks = tracker.track()
+        # tracks = {0: {frame: (cx, cy), ...}, 1: {...}}
+    """
+
+    clip: Any  # Clip
+    max_distance: float = 100.0
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        if self.max_distance <= 0:
+            msg = "max_distance must be > 0"
+            raise ValueError(msg)
+
+    def track(self) -> dict[int, dict[int, tuple[float, float]]]:
+        """Track faces across all frames.
+
+        Returns:
+            Dictionary mapping face_id to a dict of
+            ``{frame_index: (center_x, center_y)}``.
+
+        Raises:
+            ImportError: If OpenCV is not installed.
+        """
+        try:
+            import cv2  # noqa: PLC0415, F401
+        except ImportError:
+            msg = (
+                "opencv-python is required for FaceTracker. "
+                "Install it with: pip install opencv-python"
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        detector = FaceDetector(clip=self.clip, method="haar")
+        detections = detector.detect()
+
+        tracks: dict[int, dict[int, tuple[float, float]]] = {}
+        next_id = 0
+        active: dict[int, tuple[float, float]] = {}  # face_id → last centroid
+
+        for frame_idx in sorted(detections.keys()):
+            faces = detections[frame_idx]
+            centroids = [(x + w / 2.0, y + h / 2.0) for x, y, w, h in faces]
+
+            matched: set[int] = set()
+            used_centroids: set[int] = set()
+
+            # Match existing tracks to current detections
+            for fid, (prev_cx, prev_cy) in list(active.items()):
+                best_dist = self.max_distance
+                best_ci = -1
+                for ci, (cx, cy) in enumerate(centroids):
+                    if ci in used_centroids:
+                        continue
+                    dist = ((cx - prev_cx) ** 2 + (cy - prev_cy) ** 2) ** 0.5
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_ci = ci
+                if best_ci >= 0:
+                    tracks[fid][frame_idx] = centroids[best_ci]
+                    active[fid] = centroids[best_ci]
+                    matched.add(fid)
+                    used_centroids.add(best_ci)
+
+            # Create new tracks for unmatched centroids
+            for ci, centroid in enumerate(centroids):
+                if ci not in used_centroids:
+                    tracks[next_id] = {frame_idx: centroid}
+                    active[next_id] = centroid
+                    next_id += 1
+
+            # Remove tracks that weren't matched
+            for fid in list(active.keys()):
+                if fid not in matched and frame_idx > 0:
+                    del active[fid]
+
+        logger.debug("face_tracking_complete", tracks=len(tracks))
+        return tracks
+
+    def to_keyframes(self, face_id: int = 0) -> dict[int, tuple[float, float]]:
+        """Convert a face track to keyframe data.
+
+        Args:
+            face_id: Which tracked face to extract (default: first).
+
+        Returns:
+            Dictionary mapping frame index to (x, y) position.
+        """
+        tracks = self.track()
+        if face_id in tracks:
+            return tracks[face_id]
+        return {}
+
+
+@dataclass
+class FaceBlur:
+    """Automatically detect and blur all faces in a clip.
+
+    Uses :class:`FaceDetector` to find faces and applies Gaussian
+    blur to each detected region.
+
+    Args:
+        clip: Source clip to process.
+        strength: Blur kernel size multiplier (1–10).
+        method: Face detection method (``"haar"`` or ``"dnn"``).
+
+    Example::
+
+        blurrer = pm.FaceBlur(clip, strength=5)
+        blur_regions = blurrer.get_blur_regions()
+    """
+
+    clip: Any  # Clip
+    strength: int = 5
+    method: str = "haar"
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        if self.strength < 1 or self.strength > 10:
+            msg = "strength must be between 1 and 10"
+            raise ValueError(msg)
+        valid_methods = {"haar", "dnn"}
+        if self.method not in valid_methods:
+            msg = f"method must be one of {sorted(valid_methods)}, got '{self.method}'"
+            raise ValueError(msg)
+
+    def get_blur_regions(self) -> dict[int, list[tuple[int, int, int, int]]]:
+        """Get face regions to blur per frame.
+
+        Returns:
+            Dictionary mapping frame index to list of face bounding
+            boxes ``(x, y, width, height)`` that should be blurred.
+
+        Raises:
+            ImportError: If OpenCV is not installed.
+        """
+        detector = FaceDetector(clip=self.clip, method=self.method)
+        return detector.detect()
+
+    def apply_blur(self, frame: np.ndarray, regions: list[tuple[int, int, int, int]]) -> np.ndarray:
+        """Apply Gaussian blur to specified regions of a frame.
+
+        Args:
+            frame: BGRA numpy array of shape (H, W, 4), dtype uint8.
+            regions: List of (x, y, width, height) bounding boxes.
+
+        Returns:
+            BGRA numpy array with faces blurred.
+
+        Raises:
+            ImportError: If OpenCV is not installed.
+        """
+        try:
+            import cv2  # noqa: PLC0415
+        except ImportError:
+            msg = (
+                "opencv-python is required for FaceBlur. Install it with: pip install opencv-python"
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        result = frame.copy()
+        ksize = self.strength * 10 + 1  # Must be odd
+        if ksize % 2 == 0:
+            ksize += 1
+
+        for x, y, w, h in regions:
+            x = max(0, x)
+            y = max(0, y)
+            x2 = min(frame.shape[1], x + w)
+            y2 = min(frame.shape[0], y + h)
+            if x2 > x and y2 > y:
+                roi = result[y:y2, x:x2, :3]
+                blurred: np.ndarray = cv2.GaussianBlur(roi, (ksize, ksize), 0)
+                result[y:y2, x:x2, :3] = blurred
+
+        return result
