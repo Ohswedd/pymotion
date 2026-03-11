@@ -39,6 +39,100 @@ def _find_ffmpeg() -> str:
     return ffmpeg
 
 
+def detect_hardware_encoders() -> list[str]:
+    """Detect available hardware encoders by probing FFmpeg.
+
+    Checks for NVENC, QSV, and AMF encoders by running ``ffmpeg -encoders``
+    and parsing the output.
+
+    Returns:
+        List of available hardware encoder codec names
+        (e.g. ``["h264_nvenc", "hevc_nvenc", "h264_qsv"]``).
+    """
+    try:
+        ffmpeg = _find_ffmpeg()
+    except RuntimeError:
+        return []
+
+    try:
+        result = subprocess.run(  # noqa: S603
+            [ffmpeg, "-encoders", "-hide_banner"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            shell=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+
+    if result.returncode != 0:
+        return []
+
+    hw_codecs = [
+        "h264_nvenc",
+        "hevc_nvenc",
+        "h264_qsv",
+        "hevc_qsv",
+        "h264_amf",
+        "hevc_amf",
+    ]
+    available: list[str] = []
+    for line in result.stdout.splitlines():
+        for codec in hw_codecs:
+            if codec in line:
+                available.append(codec)
+
+    logger.info("hardware_encoders_detected", encoders=available)
+    return available
+
+
+# Software fallback mapping: hardware preset -> software preset name
+_HW_FALLBACK_MAP: dict[str, str] = {
+    "h264_nvenc": "h264_1080p",
+    "h265_nvenc": "h265_1080p",
+    "h264_qsv": "h264_1080p",
+    "h264_amf": "h264_1080p",
+}
+
+
+def resolve_preset_with_fallback(preset_name: str) -> OutputPreset:
+    """Resolve a preset name, falling back to software if hardware is unavailable.
+
+    If the preset uses a hardware encoder that is not available on this
+    system, it transparently falls back to the equivalent software preset.
+
+    Args:
+        preset_name: Name of the requested preset.
+
+    Returns:
+        The resolved OutputPreset (hardware or software fallback).
+
+    Raises:
+        ValueError: If the preset name is unknown.
+    """
+    from pymotion.export.presets import get_preset
+
+    preset = get_preset(preset_name)
+
+    # Check if this is a hardware preset
+    fallback_name = _HW_FALLBACK_MAP.get(preset_name)
+    if fallback_name is None:
+        return preset  # Not a hardware preset — use as-is
+
+    # Check if the hardware encoder is available
+    available = detect_hardware_encoders()
+    if preset.codec in available:
+        logger.info("using_hardware_encoder", codec=preset.codec)
+        return preset
+
+    logger.info(
+        "hardware_encoder_unavailable",
+        requested=preset.codec,
+        fallback=fallback_name,
+    )
+    return get_preset(fallback_name)
+
+
 class FFmpegEncoder:
     """Encodes rendered frames to video using FFmpeg subprocess.
 

@@ -179,7 +179,15 @@ from pymotion.effects.visual import (
     Sharpen,
     Vignette,
 )
-from pymotion.export.presets import OutputPreset, get_preset
+from pymotion.export.encoder import detect_hardware_encoders, resolve_preset_with_fallback
+from pymotion.export.presets import (
+    H264_AMF,
+    H264_NVENC,
+    H264_QSV,
+    H265_NVENC,
+    OutputPreset,
+    get_preset,
+)
 from pymotion.expressions import ExpressionContext, ExpressionFn, loop_in, loop_out, wiggle
 from pymotion.layout import grid, pip, split_screen, stack
 from pymotion.masking import (
@@ -576,8 +584,14 @@ __all__ = [
     "MotionTracker",
     "StabilizedClip",
     # Export
+    "H264_AMF",
+    "H264_NVENC",
+    "H264_QSV",
+    "H265_NVENC",
     "OutputPreset",
+    "detect_hardware_encoders",
     "get_preset",
+    "resolve_preset_with_fallback",
     # Template
     "Template",
     "TemplateValidationError",

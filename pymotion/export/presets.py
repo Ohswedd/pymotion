@@ -224,6 +224,82 @@ FRAME_SEQUENCE_PNG = OutputPreset(
     container="image2",
 )
 
+# ── Hardware-accelerated encoding presets ──────────────────────────────
+
+H264_NVENC = OutputPreset(
+    name="h264_nvenc",
+    codec="h264_nvenc",
+    pixel_format="yuv420p",
+    bitrate="8M",
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=[
+        "-preset",
+        "p4",
+        "-rc",
+        "vbr",
+        "-cq",
+        "18",
+        "-movflags",
+        "+faststart",
+    ],
+)
+
+H265_NVENC = OutputPreset(
+    name="h265_nvenc",
+    codec="hevc_nvenc",
+    pixel_format="yuv420p",
+    bitrate="8M",
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=[
+        "-preset",
+        "p4",
+        "-rc",
+        "vbr",
+        "-cq",
+        "20",
+        "-movflags",
+        "+faststart",
+    ],
+)
+
+H264_QSV = OutputPreset(
+    name="h264_qsv",
+    codec="h264_qsv",
+    pixel_format="nv12",
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=[
+        "-preset",
+        "medium",
+        "-global_quality",
+        "18",
+        "-movflags",
+        "+faststart",
+    ],
+)
+
+H264_AMF = OutputPreset(
+    name="h264_amf",
+    codec="h264_amf",
+    pixel_format="nv12",
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=[
+        "-quality",
+        "balanced",
+        "-rc",
+        "vbr_peak",
+        "-movflags",
+        "+faststart",
+    ],
+)
+
 _PRESET_REGISTRY: dict[str, OutputPreset] = {
     "h264_1080p": H264_1080P,
     "h264_4k": H264_4K,
@@ -240,6 +316,11 @@ _PRESET_REGISTRY: dict[str, OutputPreset] = {
     "youtube_4k": YOUTUBE_4K,
     "tiktok": TIKTOK,
     "frame_sequence_png": FRAME_SEQUENCE_PNG,
+    # Hardware-accelerated presets
+    "h264_nvenc": H264_NVENC,
+    "h265_nvenc": H265_NVENC,
+    "h264_qsv": H264_QSV,
+    "h264_amf": H264_AMF,
 }
 
 

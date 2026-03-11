@@ -20,8 +20,8 @@ from pymotion.export.presets import (
 class TestPresetRegistry:
     """Test preset registry completeness and lookup."""
 
-    def test_15_presets_registered(self) -> None:
-        assert len(_PRESET_REGISTRY) == 15
+    def test_19_presets_registered(self) -> None:
+        assert len(_PRESET_REGISTRY) == 19
 
     @pytest.mark.parametrize(
         "name",
