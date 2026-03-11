@@ -241,6 +241,47 @@ class TestGPUCompositorFallback:
         assert result.dtype == np.uint8
 
 
+class TestGPUMemoryBudgetFallback:
+    """Tests for automatic CPU fallback when VRAM budget is exhausted."""
+
+    def test_vram_exhaustion_falls_back_to_cpu(self, gpu: GPUCompositor) -> None:
+        """When VRAM budget is too small, gpu_composite_layers falls back to CPU."""
+        pool = gpu.buffer_pool
+        assert pool is not None
+
+        # Set VRAM budget to 0 so any allocation fails
+        original_budget = pool.vram_budget
+        pool.vram_budget = 0
+        gpu._release_buffers_to_pool()
+        pool.clear()
+
+        h, w = 32, 32
+        bg = _make_frame(h, w, (100, 150, 200, 255))
+        layer = _make_frame(h, w, (255, 0, 0, 200))
+
+        # gpu_composite_layers should fall back to CPU
+        result = gpu_composite_layers(bg.copy(), [(layer, BlendMode.NORMAL, 1.0)])
+        assert result.shape == (h, w, 4)
+        assert result.dtype == np.uint8
+
+        # Restore budget
+        pool.vram_budget = original_budget
+
+    def test_config_vram_limit_propagates_to_pool(self) -> None:
+        """gpu_vram_limit_bytes from config is used to init the pool."""
+        reset_config()
+        set_config(PyMotionConfig(gpu_compositing=True, gpu_vram_limit_bytes=64 * 1024 * 1024))
+        try:
+            comp = GPUCompositor()
+            if not comp.available:
+                pytest.skip("WGPU GPU not available")
+            pool = comp.buffer_pool
+            assert pool is not None
+            assert pool.vram_budget == 64 * 1024 * 1024
+        finally:
+            reset_config()
+
+
 class TestGPUCompositorConfig:
     """Tests for config-based GPU compositing toggle."""
 
