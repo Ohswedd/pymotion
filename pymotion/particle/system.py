@@ -96,6 +96,13 @@ class ParticleSystem:
         # Fractional accumulator per emitter for sub-frame spawn rates
         self._spawn_accum: list[float] = []
 
+    def __repr__(self) -> str:
+        """Return a developer-friendly string representation."""
+        return (
+            f"ParticleSystem({self._width}x{self._height}, "
+            f"emitters={len(self._emitters)}, particles={self._count})"
+        )
+
     def add_emitter(self, emitter: Emitter) -> None:
         """Add an emitter to the system.
 

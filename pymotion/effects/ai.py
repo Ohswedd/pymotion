@@ -60,10 +60,10 @@ class RemoveBackground(Effect):
             msg = "model name must not be empty"
             raise ValueError(msg)
         if not 0 <= self.foreground_threshold <= 255:
-            msg = "foreground_threshold must be 0–255"
+            msg = f"foreground_threshold must be 0–255, got {self.foreground_threshold}"
             raise ValueError(msg)
         if not 0 <= self.background_threshold <= 255:
-            msg = "background_threshold must be 0–255"
+            msg = f"background_threshold must be 0–255, got {self.background_threshold}"
             raise ValueError(msg)
 
     def _get_session(self) -> Any:
@@ -267,7 +267,7 @@ class ObjectSegmentation(Effect):
             raise ValueError(msg)
         self.prompt = sanitize_text(self.prompt, max_length=1000)
         if not 0.0 <= self.threshold <= 1.0:
-            msg = "threshold must be between 0.0 and 1.0"
+            msg = f"threshold must be between 0.0 and 1.0, got {self.threshold}"
             raise ValueError(msg)
         valid_models = {"vit_b", "vit_l", "vit_h"}
         if self.model not in valid_models:
@@ -457,7 +457,7 @@ class RemoveObject(Effect):
             msg = f"method must be one of {sorted(valid_methods)}, got '{self.method}'"
             raise ValueError(msg)
         if self.inpaint_radius < 1:
-            msg = "inpaint_radius must be >= 1"
+            msg = f"inpaint_radius must be >= 1, got {self.inpaint_radius}"
             raise ValueError(msg)
 
     def _get_mask_array(self, ctx: RenderContext, h: int, w: int) -> np.ndarray:
@@ -636,7 +636,7 @@ class ExtendFrame(Effect):
             msg = f"direction must be one of {sorted(valid_dirs)}, got '{self.direction}'"
             raise ValueError(msg)
         if self.amount <= 0:
-            msg = "amount must be > 0"
+            msg = f"amount must be > 0, got {self.amount}"
             raise ValueError(msg)
         valid_methods = {"telea", "ns", "diffusion"}
         if self.method not in valid_methods:
@@ -877,7 +877,7 @@ class Denoise(Effect):
     def __post_init__(self) -> None:
         """Validate parameters."""
         if not 0.0 <= self.strength <= 1.0:
-            msg = "strength must be between 0.0 and 1.0"
+            msg = f"strength must be between 0.0 and 1.0, got {self.strength}"
             raise ValueError(msg)
 
     def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
@@ -933,10 +933,10 @@ class Deblur(Effect):
     def __post_init__(self) -> None:
         """Validate parameters."""
         if not 0.0 <= self.strength <= 1.0:
-            msg = "strength must be between 0.0 and 1.0"
+            msg = f"strength must be between 0.0 and 1.0, got {self.strength}"
             raise ValueError(msg)
         if self.kernel_size < 3 or self.kernel_size % 2 == 0:
-            msg = "kernel_size must be odd and >= 3"
+            msg = f"kernel_size must be odd and >= 3, got {self.kernel_size}"
             raise ValueError(msg)
 
     def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
@@ -1091,7 +1091,7 @@ class ColorizeClip(Effect):
     def __post_init__(self) -> None:
         """Validate parameters."""
         if not 0.5 <= self.saturation <= 2.0:
-            msg = "saturation must be between 0.5 and 2.0"
+            msg = f"saturation must be between 0.5 and 2.0, got {self.saturation}"
             raise ValueError(msg)
 
     def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:

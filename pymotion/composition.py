@@ -202,6 +202,14 @@ class Composition:
         self.tracks.append(self._default_track)
         self._bg_frame: np.ndarray | None = None
 
+    def __repr__(self) -> str:
+        """Return a developer-friendly string representation."""
+        return (
+            f"Composition({self.resolution.width}x{self.resolution.height}, "
+            f"fps={self.fps}, duration={self.duration}, "
+            f"tracks={len(self.tracks)})"
+        )
+
     def add(self, *clips: Clip) -> Composition:
         """Add clips to the default track.
 

@@ -216,12 +216,16 @@ from pymotion.path_animation import StrokeClip, follow_path, morph_paths
 from pymotion.proxy import ProxyClip, clear_proxy_cache, proxy_cache_size
 from pymotion.render.backend_3d import (
     AmbientLight,
+    BloomConfig,
     Camera,
+    DepthOfFieldConfig,
     DirectionalLight,
     HDRIEnvironment,
     PBRMaterial,
     PointLight,
+    ShadowMapConfig,
     SpotLight,
+    SSAOConfig,
 )
 from pymotion.render.color_pipeline import (
     tone_map_aces,
@@ -394,6 +398,10 @@ __all__ = [
     "AmbientLight",
     "HDRIEnvironment",
     "PBRMaterial",
+    "SSAOConfig",
+    "BloomConfig",
+    "DepthOfFieldConfig",
+    "ShadowMapConfig",
     # Text helpers
     "Shadow",
     "download_google_font",
