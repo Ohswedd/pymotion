@@ -6,14 +6,17 @@ All AI effects require optional dependencies. Each effect raises
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from pymotion.clip.base import RenderContext
 from pymotion.effects.base import Effect
 from pymotion.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from pymotion.clip.base import Clip
 
 logger = get_logger(__name__)
 
@@ -129,5 +132,92 @@ class RemoveBackground(Effect):
         result[:, :, 1] = rgba_out[:, :, 1]  # G
         result[:, :, 2] = rgba_out[:, :, 0]  # R
         result[:, :, 3] = rgba_out[:, :, 3]  # A (foreground mask)
+
+        return result
+
+
+@dataclass
+class ReplaceBackground(Effect):
+    """Remove the original background and composite over a new one.
+
+    Combines :class:`RemoveBackground` with alpha compositing: the
+    foreground is extracted via ``rembg``, then blended over the new
+    background clip's frame at the same time index.
+
+    Args:
+        new_bg: A :class:`~pymotion.clip.base.Clip` to use as the
+            replacement background. Its ``render_frame`` is called with
+            the same :class:`RenderContext` to produce the background.
+        model: Model name passed to :class:`RemoveBackground`.
+        alpha_matting: Enable alpha matting for finer edges.
+        foreground_threshold: Alpha matting foreground threshold (0–255).
+        background_threshold: Alpha matting background threshold (0–255).
+
+    Raises:
+        ImportError: If ``rembg`` is not installed.
+
+    Example::
+
+        from pymotion.effects.ai import ReplaceBackground
+        from pymotion import ColorClip
+
+        bg = ColorClip("#1A1A2E").set_duration(60)
+        clip.add_effect(ReplaceBackground(new_bg=bg))
+    """
+
+    new_bg: Clip = field(repr=False)
+    model: str = "u2net"
+    alpha_matting: bool = False
+    foreground_threshold: int = 240
+    background_threshold: int = 10
+
+    _remove_bg: RemoveBackground = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Create the internal RemoveBackground effect."""
+        self._remove_bg = RemoveBackground(
+            model=self.model,
+            alpha_matting=self.alpha_matting,
+            foreground_threshold=self.foreground_threshold,
+            background_threshold=self.background_threshold,
+        )
+
+    def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
+        """Remove background and composite foreground over new_bg.
+
+        Args:
+            frame: BGRA numpy array of shape (H, W, 4), dtype uint8.
+            ctx: Render context for this frame.
+
+        Returns:
+            BGRA numpy array composited over the new background.
+        """
+        # Step 1: remove background → get foreground with alpha matte
+        fg = self._remove_bg.apply(frame, ctx)
+
+        # Step 2: render background frame at the same context
+        bg = self.new_bg.render_frame(ctx)
+
+        # Ensure bg matches foreground dimensions
+        h, w = fg.shape[:2]
+        if bg.shape[:2] != (h, w):
+            from PIL import Image  # noqa: PLC0415
+
+            bg_img = Image.fromarray(bg[:, :, :3])
+            bg_img = bg_img.resize((w, h), Image.LANCZOS)  # type: ignore[attr-defined]
+            bg_resized = np.zeros((h, w, 4), dtype=np.uint8)
+            bg_resized[:, :, :3] = np.asarray(bg_img)
+            bg_resized[:, :, 3] = 255
+            bg = bg_resized
+
+        # Step 3: alpha composite fg over bg
+        alpha = fg[:, :, 3:4].astype(np.uint16)
+        inv_alpha = np.uint16(255) - alpha
+        result = np.empty_like(fg)
+        result[:, :, :3] = (
+            (fg[:, :, :3].astype(np.uint16) * alpha + bg[:, :, :3].astype(np.uint16) * inv_alpha)
+            + np.uint16(128)
+        ) >> np.uint16(8)
+        result[:, :, 3] = 255  # fully opaque composite
 
         return result

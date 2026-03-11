@@ -116,7 +116,7 @@ from pymotion.color_science import (
 )
 from pymotion.composition import AdjustmentLayer, Composition, CompositionClip, Track
 from pymotion.config import PyMotionConfig, get_config, reset_config, set_config
-from pymotion.effects.ai import RemoveBackground
+from pymotion.effects.ai import RemoveBackground, ReplaceBackground
 from pymotion.effects.base import Effect
 from pymotion.effects.color import (
     BleachBypass,
@@ -403,6 +403,7 @@ __all__ = [
     "SplitToning",
     # AI effects
     "RemoveBackground",
+    "ReplaceBackground",
     # Keying effects
     "ChromaKey",
     "ColorKey",

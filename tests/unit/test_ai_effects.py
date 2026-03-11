@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from pymotion.clip.base import RenderContext, Resolution, TimeRange
-from pymotion.effects.ai import RemoveBackground
+from pymotion.effects.ai import RemoveBackground, ReplaceBackground
 
 
 def _make_frame(h: int = 100, w: int = 100) -> np.ndarray:
@@ -262,3 +262,181 @@ class TestRemoveBackgroundPublicAPI:
         effect = RemoveBackground()
         assert hasattr(effect, "apply")
         assert callable(effect.apply)
+
+
+def _make_mock_bg_clip(h: int = 100, w: int = 100) -> MagicMock:
+    """Create a mock clip that returns a solid blue BGRA frame."""
+    bg_frame = np.zeros((h, w, 4), dtype=np.uint8)
+    bg_frame[:, :, 0] = 200  # B
+    bg_frame[:, :, 1] = 100  # G
+    bg_frame[:, :, 2] = 50  # R
+    bg_frame[:, :, 3] = 255  # A
+    mock_clip = MagicMock()
+    mock_clip.render_frame = MagicMock(return_value=bg_frame)
+    return mock_clip
+
+
+class TestReplaceBackgroundInit:
+    """Tests for ReplaceBackground initialization."""
+
+    def test_default_params(self) -> None:
+        bg = _make_mock_bg_clip()
+        effect = ReplaceBackground(new_bg=bg)
+        assert effect.model == "u2net"
+        assert effect.alpha_matting is False
+        assert effect.new_bg is bg
+
+    def test_custom_model(self) -> None:
+        bg = _make_mock_bg_clip()
+        effect = ReplaceBackground(new_bg=bg, model="isnet-general-use")
+        assert effect.model == "isnet-general-use"
+
+    def test_internal_remove_bg_created(self) -> None:
+        bg = _make_mock_bg_clip()
+        effect = ReplaceBackground(
+            new_bg=bg, model="isnet-general-use", alpha_matting=True, foreground_threshold=200
+        )
+        assert isinstance(effect._remove_bg, RemoveBackground)
+        assert effect._remove_bg.model == "isnet-general-use"
+        assert effect._remove_bg.alpha_matting is True
+        assert effect._remove_bg.foreground_threshold == 200
+
+
+class TestReplaceBackgroundApply:
+    """Tests for ReplaceBackground.apply with mocked rembg."""
+
+    def test_fully_opaque_foreground(self) -> None:
+        """When rembg returns alpha=255, result should be the foreground."""
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx()
+        bg = _make_mock_bg_clip(50, 50)
+
+        # Mock rembg to return unchanged (alpha stays 255 = full foreground)
+        rembg_mock = MagicMock()
+        rembg_mock.remove = MagicMock(side_effect=lambda img, **kw: img.copy())
+        rembg_mock.new_session = MagicMock(return_value=MagicMock())
+
+        effect = ReplaceBackground(new_bg=bg)
+
+        try:
+            sys.modules["rembg"] = rembg_mock
+            result = effect.apply(frame, ctx)
+
+            # With alpha=255, composite should be very close to foreground
+            # (±1 from integer rounding in alpha blend formula)
+            assert np.max(np.abs(result[:, :, 0].astype(int) - frame[:, :, 0].astype(int))) <= 1
+            assert np.max(np.abs(result[:, :, 1].astype(int) - frame[:, :, 1].astype(int))) <= 1
+            assert np.max(np.abs(result[:, :, 2].astype(int) - frame[:, :, 2].astype(int))) <= 1
+            # Result should be fully opaque
+            assert np.all(result[:, :, 3] == 255)
+        finally:
+            sys.modules.pop("rembg", None)
+
+    def test_fully_transparent_foreground(self) -> None:
+        """When rembg returns alpha=0, result should be the background."""
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx()
+        bg_clip = _make_mock_bg_clip(50, 50)
+        bg_frame = bg_clip.render_frame(ctx)
+
+        def mock_remove_fn(img: np.ndarray, **kwargs: object) -> np.ndarray:
+            out = img.copy()
+            out[:, :, 3] = 0  # Fully transparent
+            return out
+
+        rembg_mock = MagicMock()
+        rembg_mock.remove = mock_remove_fn
+        rembg_mock.new_session = MagicMock(return_value=MagicMock())
+
+        effect = ReplaceBackground(new_bg=bg_clip)
+
+        try:
+            sys.modules["rembg"] = rembg_mock
+            result = effect.apply(frame, ctx)
+
+            # With alpha=0, composite should be very close to background
+            assert np.max(np.abs(result[:, :, 0].astype(int) - bg_frame[:, :, 0].astype(int))) <= 1
+            assert np.max(np.abs(result[:, :, 1].astype(int) - bg_frame[:, :, 1].astype(int))) <= 1
+            assert np.max(np.abs(result[:, :, 2].astype(int) - bg_frame[:, :, 2].astype(int))) <= 1
+        finally:
+            sys.modules.pop("rembg", None)
+
+    def test_half_transparent_blending(self) -> None:
+        """When alpha=128, result should be roughly 50/50 blend."""
+        import sys
+
+        fg_frame = np.zeros((10, 10, 4), dtype=np.uint8)
+        fg_frame[:, :, 0] = 0  # B
+        fg_frame[:, :, 1] = 0  # G
+        fg_frame[:, :, 2] = 200  # R
+        fg_frame[:, :, 3] = 255  # A
+
+        ctx = _make_ctx()
+        bg_clip = MagicMock()
+        bg_frame = np.zeros((10, 10, 4), dtype=np.uint8)
+        bg_frame[:, :, 0] = 200  # B
+        bg_frame[:, :, 1] = 0  # G
+        bg_frame[:, :, 2] = 0  # R
+        bg_frame[:, :, 3] = 255  # A
+        bg_clip.render_frame = MagicMock(return_value=bg_frame)
+
+        def mock_remove_fn(img: np.ndarray, **kwargs: object) -> np.ndarray:
+            out = img.copy()
+            out[:, :, 3] = 128
+            return out
+
+        rembg_mock = MagicMock()
+        rembg_mock.remove = mock_remove_fn
+        rembg_mock.new_session = MagicMock(return_value=MagicMock())
+
+        effect = ReplaceBackground(new_bg=bg_clip)
+
+        try:
+            sys.modules["rembg"] = rembg_mock
+            result = effect.apply(fg_frame, ctx)
+
+            # B channel: fg=0, bg=200, alpha=128 → ~100
+            assert 90 <= result[0, 0, 0] <= 110
+            # R channel: fg=200, bg=0, alpha=128 → ~100
+            assert 90 <= result[0, 0, 2] <= 110
+        finally:
+            sys.modules.pop("rembg", None)
+
+    def test_bg_render_frame_called_with_ctx(self) -> None:
+        """Verify new_bg.render_frame is called with the same ctx."""
+        import sys
+
+        frame = _make_frame(50, 50)
+        ctx = _make_ctx(frame=5)
+        bg = _make_mock_bg_clip(50, 50)
+
+        rembg_mock = MagicMock()
+        rembg_mock.remove = MagicMock(side_effect=lambda img, **kw: img.copy())
+        rembg_mock.new_session = MagicMock(return_value=MagicMock())
+
+        effect = ReplaceBackground(new_bg=bg)
+
+        try:
+            sys.modules["rembg"] = rembg_mock
+            effect.apply(frame, ctx)
+            bg.render_frame.assert_called_once_with(ctx)
+        finally:
+            sys.modules.pop("rembg", None)
+
+
+class TestReplaceBackgroundPublicAPI:
+    """Test that ReplaceBackground is accessible from the public API."""
+
+    def test_importable_from_pymotion(self) -> None:
+        from pymotion import ReplaceBackground as ReplaceBg
+
+        assert ReplaceBg is ReplaceBackground
+
+    def test_is_effect_subclass(self) -> None:
+        from pymotion.effects.base import Effect
+
+        assert issubclass(ReplaceBackground, Effect)
