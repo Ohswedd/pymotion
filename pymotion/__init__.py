@@ -11,8 +11,11 @@ from pymotion.ai import (
     FaceDetector,
     FaceTracker,
     HighlightDetector,
+    MusicGeneration,
     SceneDetector,
     SilenceRemover,
+    SoundFXGeneration,
+    VoiceConversion,
 )
 from pymotion.animation.easing import (
     EasingFn,
@@ -431,8 +434,11 @@ __all__ = [
     "FaceDetector",
     "FaceTracker",
     "HighlightDetector",
+    "MusicGeneration",
     "SceneDetector",
     "SilenceRemover",
+    "SoundFXGeneration",
+    "VoiceConversion",
     # AI effects
     "ColorizeClip",
     "Deblur",

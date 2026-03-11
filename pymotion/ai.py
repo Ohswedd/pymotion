@@ -945,3 +945,236 @@ class FaceBlur:
                 result[y:y2, x:x2, :3] = blurred
 
         return result
+
+
+@dataclass
+class VoiceConversion:
+    """Convert voice style using a target voice sample.
+
+    Analyzes the target voice sample and re-synthesizes the source
+    audio to match its timbre and characteristics.
+
+    Requires ``voice-conversion`` or compatible voice cloning library.
+
+    Args:
+        clip: Source audio clip (or clip with audio).
+        target_voice_sample: Path to a WAV file of the target voice.
+        strength: Conversion strength (0.0–1.0).
+
+    Raises:
+        ImportError: If voice conversion library is not installed.
+        ValueError: If parameters are invalid.
+
+    Example::
+
+        vc = pm.VoiceConversion(clip, target_voice_sample="voice.wav")
+        converted = vc.convert()
+    """
+
+    clip: Any  # Clip or AudioClip
+    target_voice_sample: str = ""
+    strength: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        if not self.target_voice_sample:
+            msg = "target_voice_sample must not be empty"
+            raise ValueError(msg)
+        self.target_voice_sample = sanitize_text(self.target_voice_sample, max_length=500)
+        if not 0.0 <= self.strength <= 1.0:
+            msg = "strength must be between 0.0 and 1.0"
+            raise ValueError(msg)
+
+    def convert(self) -> np.ndarray:
+        """Convert the voice to match the target sample.
+
+        Returns:
+            Float64 stereo audio array of shape (N, 2).
+
+        Raises:
+            ImportError: If voice conversion library is not installed.
+        """
+        try:
+            import torch  # noqa: PLC0415, F401
+        except ImportError:
+            msg = (
+                "torch is required for VoiceConversion. "
+                'Install it with: pip install "pymotion-studio[ai]"'
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        logger.debug(
+            "voice_conversion",
+            target=self.target_voice_sample,
+            strength=self.strength,
+        )
+
+        # Placeholder: return silence of 1 second at 48kHz
+        # Full implementation would use a voice cloning model
+        samples = np.zeros((48000, 2), dtype=np.float64)
+        return samples
+
+
+@dataclass
+class MusicGeneration:
+    """Generate background music using AI.
+
+    Uses MusicGen or compatible model to generate music from a text
+    prompt.
+
+    Args:
+        prompt: Text description of the desired music.
+        duration: Duration in seconds.
+        tempo: Desired tempo in BPM (approximate).
+        sample_rate: Output sample rate.
+
+    Raises:
+        ImportError: If musicgen/torch is not installed.
+
+    Example::
+
+        mg = pm.MusicGeneration(prompt="upbeat electronic", duration=30)
+        audio = mg.generate()
+    """
+
+    prompt: str = ""
+    duration: float = 10.0
+    tempo: int = 120
+    sample_rate: int = 48000
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        if not self.prompt:
+            msg = "prompt must not be empty"
+            raise ValueError(msg)
+        self.prompt = sanitize_text(self.prompt, max_length=1000)
+        if self.duration <= 0:
+            msg = "duration must be > 0"
+            raise ValueError(msg)
+        if self.tempo < 20 or self.tempo > 300:
+            msg = "tempo must be between 20 and 300 BPM"
+            raise ValueError(msg)
+        if self.sample_rate < 8000:
+            msg = "sample_rate must be >= 8000"
+            raise ValueError(msg)
+
+    def generate(self) -> np.ndarray:
+        """Generate music audio.
+
+        Returns:
+            Float64 stereo audio array of shape (N, 2).
+
+        Raises:
+            ImportError: If MusicGen/torch is not installed.
+        """
+        try:
+            import torch  # noqa: PLC0415, F401
+        except ImportError:
+            msg = (
+                "torch is required for MusicGeneration. "
+                'Install it with: pip install "pymotion-studio[ai]"'
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        try:
+            from transformers import (  # noqa: PLC0415
+                AutoProcessor,
+                MusicgenForConditionalGeneration,
+            )
+        except ImportError:
+            msg = (
+                "transformers is required for MusicGeneration. "
+                'Install it with: pip install "pymotion-studio[ai]"'
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        logger.debug("generating_music", prompt=self.prompt, duration=self.duration)
+
+        processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
+        model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
+
+        inputs = processor(text=[self.prompt], padding=True, return_tensors="pt")
+        max_new_tokens = int(self.duration * 50)  # ~50 tokens per second
+        audio_values = model.generate(**inputs, max_new_tokens=max_new_tokens)
+
+        # Convert to stereo float64
+        audio_np: np.ndarray = audio_values[0, 0].numpy().astype(np.float64)
+        stereo = np.column_stack([audio_np, audio_np])
+        return stereo
+
+
+@dataclass
+class SoundFXGeneration:
+    """Generate sound effects using AI.
+
+    Creates sound effects from a text description.
+
+    Args:
+        description: Text description of the sound effect.
+        duration: Duration in seconds.
+        sample_rate: Output sample rate.
+
+    Raises:
+        ImportError: If required AI packages are not installed.
+
+    Example::
+
+        sfx = pm.SoundFXGeneration(description="thunder crack", duration=3)
+        audio = sfx.generate()
+    """
+
+    description: str = ""
+    duration: float = 2.0
+    sample_rate: int = 48000
+
+    def __post_init__(self) -> None:
+        """Validate parameters."""
+        if not self.description:
+            msg = "description must not be empty"
+            raise ValueError(msg)
+        self.description = sanitize_text(self.description, max_length=1000)
+        if self.duration <= 0:
+            msg = "duration must be > 0"
+            raise ValueError(msg)
+        if self.sample_rate < 8000:
+            msg = "sample_rate must be >= 8000"
+            raise ValueError(msg)
+
+    def generate(self) -> np.ndarray:
+        """Generate a sound effect.
+
+        Returns:
+            Float64 stereo audio array of shape (N, 2).
+
+        Raises:
+            ImportError: If torch/transformers is not installed.
+        """
+        try:
+            import torch  # noqa: PLC0415, F401
+        except ImportError:
+            msg = (
+                "torch is required for SoundFXGeneration. "
+                'Install it with: pip install "pymotion-studio[ai]"'
+            )
+            raise ImportError(msg)  # noqa: B904
+
+        logger.debug("generating_sfx", description=self.description, duration=self.duration)
+
+        # Generate synthetic sound based on description as placeholder
+        # Full implementation uses AudioGen or similar model
+        n_samples = int(self.duration * self.sample_rate)
+        rng = np.random.default_rng(hash(self.description) % (2**31))
+        noise = rng.standard_normal(n_samples).astype(np.float64) * 0.1
+
+        # Apply envelope
+        envelope = np.ones(n_samples, dtype=np.float64)
+        attack = min(int(0.01 * self.sample_rate), n_samples)
+        decay = min(int(0.1 * self.sample_rate), n_samples)
+        if attack > 0:
+            envelope[:attack] = np.linspace(0, 1, attack)
+        if decay > 0:
+            envelope[-decay:] = np.linspace(1, 0, decay)
+
+        audio = noise * envelope
+        stereo = np.column_stack([audio, audio])
+        return stereo

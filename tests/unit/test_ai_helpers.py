@@ -15,8 +15,11 @@ from pymotion.ai import (
     FaceDetector,
     FaceTracker,
     HighlightDetector,
+    MusicGeneration,
     SceneDetector,
     SilenceRemover,
+    SoundFXGeneration,
+    VoiceConversion,
 )
 from pymotion.clip.base import RenderContext
 
@@ -641,3 +644,206 @@ class TestFaceBlurPublicAPI:
         from pymotion import FaceBlur as FB  # noqa: N817
 
         assert FB is FaceBlur
+
+
+# ============================================================
+# 2.0.5 AI Voice & Audio
+# ============================================================
+
+
+class TestVoiceConversionInit:
+    """Tests for VoiceConversion initialization."""
+
+    def test_defaults(self) -> None:
+        vc = VoiceConversion(clip=MagicMock(), target_voice_sample="voice.wav")
+        assert vc.target_voice_sample == "voice.wav"
+        assert vc.strength == 1.0
+
+    def test_empty_sample_raises(self) -> None:
+        with pytest.raises(ValueError, match="target_voice_sample must not be empty"):
+            VoiceConversion(clip=MagicMock(), target_voice_sample="")
+
+    def test_invalid_strength(self) -> None:
+        with pytest.raises(ValueError, match="strength must be between"):
+            VoiceConversion(clip=MagicMock(), target_voice_sample="v.wav", strength=1.5)
+
+
+class TestVoiceConversionConvert:
+    """Tests for VoiceConversion.convert."""
+
+    def test_convert_returns_stereo_array(self) -> None:
+        import sys
+
+        torch_mock = MagicMock()
+        vc = VoiceConversion(clip=MagicMock(), target_voice_sample="voice.wav")
+
+        try:
+            sys.modules["torch"] = torch_mock
+            result = vc.convert()
+            assert result.ndim == 2
+            assert result.shape[1] == 2
+            assert result.dtype == np.float64
+        finally:
+            sys.modules.pop("torch", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["torch"] = None  # type: ignore[assignment]
+        try:
+            vc = VoiceConversion(clip=MagicMock(), target_voice_sample="v.wav")
+            with pytest.raises(ImportError, match="torch"):
+                vc.convert()
+        finally:
+            sys.modules.pop("torch", None)
+
+
+class TestVoiceConversionPublicAPI:
+    """Test VoiceConversion public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import VoiceConversion as VC  # noqa: N817
+
+        assert VC is VoiceConversion
+
+
+class TestMusicGenerationInit:
+    """Tests for MusicGeneration initialization."""
+
+    def test_defaults(self) -> None:
+        mg = MusicGeneration(prompt="upbeat")
+        assert mg.duration == 10.0
+        assert mg.tempo == 120
+        assert mg.sample_rate == 48000
+
+    def test_empty_prompt_raises(self) -> None:
+        with pytest.raises(ValueError, match="prompt must not be empty"):
+            MusicGeneration(prompt="")
+
+    def test_invalid_duration(self) -> None:
+        with pytest.raises(ValueError, match="duration must be > 0"):
+            MusicGeneration(prompt="test", duration=0)
+
+    def test_invalid_tempo(self) -> None:
+        with pytest.raises(ValueError, match="tempo must be between"):
+            MusicGeneration(prompt="test", tempo=10)
+
+    def test_invalid_sample_rate(self) -> None:
+        with pytest.raises(ValueError, match="sample_rate must be >= 8000"):
+            MusicGeneration(prompt="test", sample_rate=100)
+
+
+class TestMusicGenerationGenerate:
+    """Tests for MusicGeneration.generate."""
+
+    def test_import_error_torch(self) -> None:
+        import sys
+
+        sys.modules["torch"] = None  # type: ignore[assignment]
+        try:
+            mg = MusicGeneration(prompt="test")
+            with pytest.raises(ImportError, match="torch"):
+                mg.generate()
+        finally:
+            sys.modules.pop("torch", None)
+
+    def test_import_error_transformers(self) -> None:
+        import sys
+
+        torch_mock = MagicMock()
+        sys.modules["torch"] = torch_mock
+        sys.modules["transformers"] = None  # type: ignore[assignment]
+
+        try:
+            mg = MusicGeneration(prompt="test")
+            with pytest.raises(ImportError, match="transformers"):
+                mg.generate()
+        finally:
+            sys.modules.pop("torch", None)
+            sys.modules.pop("transformers", None)
+
+
+class TestMusicGenerationPublicAPI:
+    """Test MusicGeneration public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import MusicGeneration as MG  # noqa: N817
+
+        assert MG is MusicGeneration
+
+
+class TestSoundFXGenerationInit:
+    """Tests for SoundFXGeneration initialization."""
+
+    def test_defaults(self) -> None:
+        sfx = SoundFXGeneration(description="thunder")
+        assert sfx.duration == 2.0
+        assert sfx.sample_rate == 48000
+
+    def test_empty_description_raises(self) -> None:
+        with pytest.raises(ValueError, match="description must not be empty"):
+            SoundFXGeneration(description="")
+
+    def test_invalid_duration(self) -> None:
+        with pytest.raises(ValueError, match="duration must be > 0"):
+            SoundFXGeneration(description="test", duration=0)
+
+    def test_invalid_sample_rate(self) -> None:
+        with pytest.raises(ValueError, match="sample_rate must be >= 8000"):
+            SoundFXGeneration(description="test", sample_rate=100)
+
+
+class TestSoundFXGenerationGenerate:
+    """Tests for SoundFXGeneration.generate."""
+
+    def test_generate_returns_stereo(self) -> None:
+        import sys
+
+        torch_mock = MagicMock()
+
+        sfx = SoundFXGeneration(description="thunder", duration=1.0)
+
+        try:
+            sys.modules["torch"] = torch_mock
+            result = sfx.generate()
+            assert result.ndim == 2
+            assert result.shape[1] == 2
+            assert result.dtype == np.float64
+            # Should be ~48000 samples for 1 second
+            assert result.shape[0] == 48000
+        finally:
+            sys.modules.pop("torch", None)
+
+    def test_import_error(self) -> None:
+        import sys
+
+        sys.modules["torch"] = None  # type: ignore[assignment]
+        try:
+            sfx = SoundFXGeneration(description="test")
+            with pytest.raises(ImportError, match="torch"):
+                sfx.generate()
+        finally:
+            sys.modules.pop("torch", None)
+
+    def test_deterministic_output(self) -> None:
+        """Same description should produce same output."""
+        import sys
+
+        sys.modules["torch"] = MagicMock()
+        try:
+            sfx1 = SoundFXGeneration(description="rain", duration=0.5)
+            sfx2 = SoundFXGeneration(description="rain", duration=0.5)
+            r1 = sfx1.generate()
+            r2 = sfx2.generate()
+            np.testing.assert_array_equal(r1, r2)
+        finally:
+            sys.modules.pop("torch", None)
+
+
+class TestSoundFXGenerationPublicAPI:
+    """Test SoundFXGeneration public API."""
+
+    def test_importable(self) -> None:
+        from pymotion import SoundFXGeneration as SoundFX  # noqa: N817
+
+        assert SoundFX is SoundFXGeneration
