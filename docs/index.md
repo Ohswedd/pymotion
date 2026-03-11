@@ -4,7 +4,8 @@
 
 PyMotion lets you create, animate, and render videos entirely from Python code.
 No timeline GUIs, no drag-and-drop -- just composable objects, keyframe
-animation, and a render pipeline backed by Cairo, FFmpeg, and ModernGL.
+animation, and a render pipeline backed by Cairo, FFmpeg, ModernGL, and
+optional WGPU GPU acceleration.
 
 ## Features
 
@@ -21,7 +22,7 @@ animation, and a render pipeline backed by Cairo, FFmpeg, and ModernGL.
 - **Multi-track audio** -- 5.1 surround mixing, bus routing, crossfades, multiband compressor, convolution reverb, LUFS normalization.
 - **3D rendering** -- `Scene3D` with Cook-Torrance PBR materials, lights, OBJ loading, and headless ModernGL.
 - **Template system** -- subclass `Template` for reusable, parameterized video generators with typed field validation.
-- **Export presets** -- 15 built-in presets for H.264, HEVC, ProRes, WebM, GIF, and frame sequences.
+- **Export presets** -- 19 built-in presets for H.264, HEVC, ProRes, WebM, GIF, frame sequences, plus NVENC, QSV, and AMF hardware encoding.
 - **Animated text** -- `Typewriter`, `KineticText`, `LetterByLetter`, `GlitchText`, `CountUp`, and more.
 - **Charts & data viz** -- `BarChartClip`, `LineChartClip`, `PieChartClip`, `AreaChartClip`, `RadarChartClip`, `ScatterPlotClip`, `NumberCounter`, `ProgressBar` with 4 themes.
 - **Motion graphics** -- `LowerThird`, `LogoReveal`, `CallToAction`, `SocialHandle`, `Countdown`, `QuoteCard`, `Divider`, `TransitionTitle`, `Watermark`.
@@ -35,6 +36,12 @@ animation, and a render pipeline backed by Cairo, FFmpeg, and ModernGL.
 - **AI editing** -- `SceneDetector`, `SilenceRemover`, `HighlightDetector`, `ContentAwareCrop`, `AutoColor`, `AutoEdit`.
 - **AI face & body** -- `FaceDetector`, `FaceTracker`, `FaceBlur` for automatic face detection, tracking, and anonymization.
 - **AI voice & audio** -- `VoiceConversion`, `MusicGeneration`, `SoundFXGeneration` for AI-powered audio synthesis.
+- **GPU compositing** -- WGPU compute shader compositor with 8 blend modes, VRAM-budgeted buffer pool, and automatic CPU fallback.
+- **GPU effects** -- Batch single-pass processing for Brightness, Contrast, Saturation, and HSL effects on GPU.
+- **Hardware encoding** -- NVENC, QSV, AMF presets with auto-detection via `detect_hardware_encoders()` and transparent software fallback.
+- **Distributed rendering** -- `render_frames_ray()` and `render_frames_dask()` for multi-machine rendering with frame-level checkpointing.
+- **Render optimizations** -- `IncrementalRenderer`, `StaticLayerCache`, `MappedFrameBuffer`, `try_simd_blend`, `render_audio_parallel`.
+- **Profiling & diagnostics** -- `profile_composition()`, `benchmark()`, `memory_report()`, `detect_bottlenecks()`, `frame_diff()`.
 
 ## Installation
 
@@ -94,4 +101,4 @@ See the [Getting Started](guides/getting-started.md) guide for a full walkthroug
 
 ## Project status
 
-PyMotion v2.0 is stable and in active development. 2040 tests, 89% coverage.
+PyMotion v2.5 is stable and in active development. 2185 tests, 89% coverage.

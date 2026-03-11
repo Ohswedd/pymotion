@@ -46,6 +46,10 @@ nav:
     - AI Smart Editing: guides/ai-smart-editing.md
     - AI Face & Body: guides/ai-face-body.md
     - AI Voice & Audio: guides/ai-voice-audio.md
+    - GPU Acceleration: guides/gpu-acceleration.md
+    - Hardware Encoding: guides/hardware-encoding.md
+    - Distributed Rendering: guides/distributed-rendering.md
+    - Performance & Profiling: guides/performance-profiling.md
   - API Reference:
     - Composition: api/composition.md
     - Clips: api/clips.md
@@ -71,3 +75,8 @@ nav:
     - Color Science: api/color-science.md
     - AI Effects: api/ai-effects.md
     - AI Helpers: api/ai-helpers.md
+    - GPU Compositor: api/gpu-compositor.md
+    - GPU Effects: api/gpu-effects.md
+    - Distributed Rendering: api/distributed-rendering.md
+    - Render Optimizations: api/render-optimizations.md
+    - Profiling & Diagnostics: api/profiling.md
