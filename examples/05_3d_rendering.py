@@ -8,6 +8,7 @@ Features exercised:
   PBRMaterial, PointLight, DirectionalLight, AmbientLight, SpotLight,
   HDRIEnvironment, SSAOConfig, BloomConfig, DepthOfFieldConfig, ShadowMapConfig,
   tone_map_aces, tone_map_filmic, tone_map_reinhard,
+  srgb_to_aces, aces_to_srgb, HDR10_PRESET, HLG_PRESET,
   ColorBalance
 
 Output: 1920x1080, 30fps, 30s, preset h264_fast -> outputs/05_3d.mp4
@@ -144,13 +145,24 @@ def main() -> None:
     reinhard = pm.tone_map_reinhard(test_frame)
     print(f"17. tone_map_reinhard: {reinhard.shape}, mean={reinhard[:, :, :3].mean():.1f}")
 
+    # ── ACES color space conversion ────────────────────────────────────
+    aces_frame = pm.srgb_to_aces(test_frame)
+    print(f"18. srgb_to_aces: {aces_frame.shape}, dtype={aces_frame.dtype}")
+
+    roundtrip = pm.aces_to_srgb(aces_frame)
+    print(f"19. aces_to_srgb: {roundtrip.shape}, dtype={roundtrip.dtype}")
+
+    # ── HDR presets ────────────────────────────────────────────────────
+    print(f"20. HDR10_PRESET: {pm.HDR10_PRESET}")
+    print(f"21. HLG_PRESET: {pm.HLG_PRESET}")
+
     # ── ColorBalance effect ──────────────────────────────────────────────
     cb = pm.ColorBalance(
         shadows="#1a1a40",
         midtones="#2a3a2a",
         highlights="#ffe0c0",
     )
-    print(f"18. ColorBalance: shadows={cb.shadows}, highlights={cb.highlights}")
+    print(f"22. ColorBalance: shadows={cb.shadows}, highlights={cb.highlights}")
 
     # ── Composition: 3D scene over gradient background ───────────────────
     comp = pm.Composition(width=1920, height=1080, fps=30, duration=TOTAL)

@@ -20,8 +20,8 @@ from pymotion.export.presets import (
 class TestPresetRegistry:
     """Test preset registry completeness and lookup."""
 
-    def test_19_presets_registered(self) -> None:
-        assert len(_PRESET_REGISTRY) == 19
+    def test_22_presets_registered(self) -> None:
+        assert len(_PRESET_REGISTRY) == 22
 
     @pytest.mark.parametrize(
         "name",
@@ -41,6 +41,9 @@ class TestPresetRegistry:
             "youtube_4k",
             "tiktok",
             "frame_sequence_png",
+            "h264_1080p_hq",
+            "h264_fast",
+            "h264_videotoolbox",
         ],
     )
     def test_all_presets_exist(self, name: str) -> None:

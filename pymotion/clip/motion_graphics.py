@@ -130,6 +130,7 @@ class LowerThird(Clip):
     animate_out: int = 15
     margin_bottom: float = 80.0
     margin_left: float = 60.0
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a lower third frame with slide animation.
@@ -165,6 +166,11 @@ class LowerThird(Clip):
         elif ctx.local_frame > dur - self.animate_out:
             remaining = dur - ctx.local_frame
             progress = _ease_out_cubic(remaining / max(1, self.animate_out))
+
+        # Return cached static frame when not animating
+        if progress == 1.0 and self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
 
         # Slide from left
         slide_offset = (1.0 - progress) * -300
@@ -216,7 +222,10 @@ class LowerThird(Clip):
         cr.move_to(bx + accent_w + pad_x, by + pad_y + name_size + pad_y + title_size)
         cr.show_text(self.title)
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        if progress == 1.0:
+            self._static_cache = result.copy()
+        return result
 
 
 # ── LogoReveal ──────────────────────────────────────────────────────────
@@ -245,6 +254,7 @@ class LogoReveal(Clip):
     reveal_duration: int = 30
     logo_color: Color = field(default_factory=lambda: Color(1.0, 1.0, 1.0, 1.0))
     logo_size: tuple[float, float] = (200.0, 200.0)
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a logo reveal frame.
@@ -272,6 +282,11 @@ class LogoReveal(Clip):
         else:
             t = 1.0
 
+        # Return cached static frame when reveal is complete
+        if t == 1.0 and self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
+
         lw, lh = self.logo_size
         lx = (w - lw) / 2
         ly = (h - lh) / 2
@@ -282,7 +297,7 @@ class LogoReveal(Clip):
             cr.rectangle(lx, ly, lw, lh)
             cr.fill()
         elif self.style == "grow":
-            s = t
+            s = max(t, 1e-6)
             cr.save()
             cr.translate(w / 2, h / 2)
             cr.scale(s, s)
@@ -358,7 +373,10 @@ class LogoReveal(Clip):
                     cr.rectangle(px + ox, py_base + oy, pw, ph)
                     cr.fill()
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        if t == 1.0:
+            self._static_cache = result.copy()
+        return result
 
 
 # ── CallToAction ────────────────────────────────────────────────────────
@@ -401,6 +419,7 @@ class CallToAction(Clip):
     sub_text: str = ""
     style: str = "default"
     animate_in: int = 15
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a call-to-action frame.
@@ -427,6 +446,11 @@ class CallToAction(Clip):
             t = _ease_out_cubic(ctx.local_frame / self.animate_in)
         else:
             t = 1.0
+
+        # Return cached static frame when not animating
+        if t == 1.0 and self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
 
         text_size = max(20.0, min(36.0, h * 0.045))
         sub_size = max(12.0, min(20.0, h * 0.025))
@@ -477,7 +501,10 @@ class CallToAction(Clip):
 
         cr.restore()
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        if t == 1.0:
+            self._static_cache = result.copy()
+        return result
 
 
 # ── SocialHandle ────────────────────────────────────────────────────────
@@ -506,6 +533,7 @@ class SocialHandle(Clip):
     handle: str = "@user"
     style: str = "default"
     animate_in: int = 15
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a social handle overlay frame.
@@ -519,15 +547,20 @@ class SocialHandle(Clip):
         w = ctx.resolution.width
         h = ctx.resolution.height
 
-        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
-        cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
-
         platform_color = _SOCIAL_COLORS.get(self.platform.lower(), Color.parse("#6B7280"))
 
         if self.animate_in > 0 and ctx.local_frame < self.animate_in:
             t = _ease_out_cubic(ctx.local_frame / self.animate_in)
         else:
             t = 1.0
+
+        # Return cached static frame when not animating
+        if t == 1.0 and self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
+
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+        cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
 
         text_size = max(16.0, min(24.0, h * 0.03))
         pad_x, pad_y = 16.0, 10.0
@@ -578,7 +611,10 @@ class SocialHandle(Clip):
         cr.move_to(bx + pad_x * 2 + icon_size + slide_x, by + box_h / 2 + text_size * 0.35)
         cr.show_text(self.handle)
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        if t == 1.0:
+            self._static_cache = result.copy()
+        return result
 
 
 # ── Countdown ───────────────────────────────────────────────────────────
@@ -703,6 +739,7 @@ class QuoteCard(Clip):
     attribution: str = ""
     style: str = "default"
     animate_in: int = 20
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a quote card frame.
@@ -730,6 +767,11 @@ class QuoteCard(Clip):
             t = _ease_out_cubic(ctx.local_frame / self.animate_in)
         else:
             t = 1.0
+
+        # Return cached static frame when not animating
+        if t == 1.0 and self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
 
         pad = 60.0
         box_w = w * 0.7
@@ -793,7 +835,10 @@ class QuoteCard(Clip):
             cr.move_to(bx + pad, text_y + attr_size + 10)
             cr.show_text(self.attribution)
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        if t == 1.0:
+            self._static_cache = result.copy()
+        return result
 
 
 # ── Divider ─────────────────────────────────────────────────────────────
@@ -818,6 +863,7 @@ class Divider(Clip):
     div_duration: int = 20
     color: Color = field(default_factory=lambda: Color(1.0, 1.0, 1.0, 0.8))
     thickness: float = 2.0
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a divider frame.
@@ -831,13 +877,18 @@ class Divider(Clip):
         w = ctx.resolution.width
         h = ctx.resolution.height
 
-        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
-        cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
-
         if self.div_duration > 0 and ctx.local_frame < self.div_duration:
             t = _ease_out_cubic(ctx.local_frame / self.div_duration)
         else:
             t = 1.0
+
+        # Return cached static frame when not animating
+        if t == 1.0 and self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
+
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+        cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
 
         c = self.color
         cr.set_source_rgba(c.r, c.g, c.b, c.a * t)
@@ -880,7 +931,10 @@ class Divider(Clip):
                 cr.line_to(x_start + length, cy)
                 cr.stroke()
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        if t == 1.0:
+            self._static_cache = result.copy()
+        return result
 
 
 # ── TransitionTitle ─────────────────────────────────────────────────────
@@ -928,6 +982,7 @@ class TransitionTitle(Clip):
     animate_in: int = 15
     animate_out: int = 15
     font_size: float = 48.0
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a transition title frame.
@@ -960,6 +1015,11 @@ class TransitionTitle(Clip):
 
         t = min(t_in, t_out)
 
+        # Return cached static frame when not animating
+        if t == 1.0 and self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
+
         # Background
         cr.set_source_rgba(bg.r, bg.g, bg.b, bg.a * t)
         cr.paint()
@@ -985,7 +1045,10 @@ class TransitionTitle(Clip):
         cr.show_text(self.text)
         cr.restore()
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        if t == 1.0:
+            self._static_cache = result.copy()
+        return result
 
 
 # ── Watermark ───────────────────────────────────────────────────────────
@@ -1025,6 +1088,7 @@ class Watermark(Clip):
     font_size: float = 18.0
     color: Color = field(default_factory=lambda: Color(1.0, 1.0, 1.0, 1.0))
     margin: float = 20.0
+    _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a watermark frame.
@@ -1037,6 +1101,11 @@ class Watermark(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+
+        # Watermark is fully static — cache after first render
+        if self._static_cache is not None:
+            if self._static_cache.shape[:2] == (h, w):
+                return self._static_cache.copy()
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
@@ -1071,4 +1140,6 @@ class Watermark(Clip):
         cr.move_to(tx, ty)
         cr.show_text(self.image_or_text)
 
-        return _surface_to_frame(surface, h, w)
+        result = _surface_to_frame(surface, h, w)
+        self._static_cache = result.copy()
+        return result

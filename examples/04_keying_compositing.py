@@ -7,9 +7,9 @@ Features exercised:
   ChromaKey, LumaKey, ColorKey, DifferenceKey,
   AdjustmentLayer (keying context), TrackMatte (alpha matte),
   SplitToning, ChromaticAberration,
-  SlideLeft, ColorMatch
+  SlideLeft, CircularWipe, IrisIn, IrisOut, ColorMatch
 
-Output: 1920x1080, 30fps, 16s, preset h264_fast -> outputs/04_keying.mp4
+Output: 1920x1080, 30fps, 22s, preset h264_fast -> outputs/04_keying.mp4
 Estimated render time: ~60s
 """
 
@@ -26,7 +26,7 @@ OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 SEC = 60  # 2s per section at 30fps
-TOTAL = SEC * 8  # 8 sections = 16s
+TOTAL = SEC * 11  # 11 sections = 22s
 
 
 def main() -> None:
@@ -159,10 +159,58 @@ def main() -> None:
     comp.tracks.append(sec8_track)
     print("8. SlideLeft transition: 30 frames overlap")
 
+    # ── Section 9: CircularWipe transition ─────────────────────────────
+    sec9_track = pm.Track(name="sec9_circwipe")
+    cw_a = pm.ImageClip(str(ASSETS / "product_a.jpg"))
+    cw_a.set_duration(SEC)
+    cw_b = pm.ImageClip(str(ASSETS / "product_b.jpg"))
+    cw_b.set_duration(SEC)
+    cw_concat = pm.concatenate(
+        [cw_a, cw_b],
+        transition=pm.CircularWipe(),
+        transition_duration=30,
+    )
+    cw_concat.at(SEC * 8)
+    sec9_track.clips.append(cw_concat)
+    comp.tracks.append(sec9_track)
+    print("9. CircularWipe transition: 30 frames overlap")
+
+    # ── Section 10: IrisIn transition ──────────────────────────────────
+    sec10_track = pm.Track(name="sec10_irisin")
+    ii_a = pm.ImageClip(str(ASSETS / "product_hero.jpg"))
+    ii_a.set_duration(SEC)
+    ii_b = pm.ImageClip(str(ASSETS / "product_c.jpg"))
+    ii_b.set_duration(SEC)
+    ii_concat = pm.concatenate(
+        [ii_a, ii_b],
+        transition=pm.IrisIn(),
+        transition_duration=30,
+    )
+    ii_concat.at(SEC * 9)
+    sec10_track.clips.append(ii_concat)
+    comp.tracks.append(sec10_track)
+    print("10. IrisIn transition: 30 frames overlap")
+
+    # ── Section 11: IrisOut transition ─────────────────────────────────
+    sec11_track = pm.Track(name="sec11_irisout")
+    io_a = pm.ImageClip(str(ASSETS / "product_b.jpg"))
+    io_a.set_duration(SEC)
+    io_b = pm.ImageClip(str(ASSETS / "product_a.jpg"))
+    io_b.set_duration(SEC)
+    io_concat = pm.concatenate(
+        [io_a, io_b],
+        transition=pm.IrisOut(),
+        transition_duration=30,
+    )
+    io_concat.at(SEC * 10)
+    sec11_track.clips.append(io_concat)
+    comp.tracks.append(sec11_track)
+    print("11. IrisOut transition: 30 frames overlap")
+
     # ── Audit frames ─────────────────────────────────────────────────────
     audit_dir = Path(__file__).parent.parent / "audit"
     audit_dir.mkdir(exist_ok=True)
-    for sec in range(8):
+    for sec in range(11):
         mid = sec * SEC + SEC // 2
         try:
             comp.export_frame(frame=mid, output=audit_dir / f"ex04_sec{sec + 1}.png")

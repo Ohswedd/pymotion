@@ -109,6 +109,9 @@ class Vignette(Effect):
     radius: float = 0.8
     feather: float = 0.3
 
+    _cached_mask: np.ndarray | None = None
+    _cached_key: tuple[int, int, float, float, float] | None = None
+
     def apply(self, frame: np.ndarray, ctx: RenderContext) -> np.ndarray:
         """Apply vignette effect to a BGRA frame.
 
@@ -121,21 +124,22 @@ class Vignette(Effect):
         """
         h, w = frame.shape[:2]
 
-        # Create distance map from center
-        y = np.linspace(-1, 1, h, dtype=np.float32)
-        x = np.linspace(-1, 1, w, dtype=np.float32)
-        xx, yy = np.meshgrid(x, y)
-        dist = np.sqrt(xx**2 + yy**2)
+        # Cache the vignette mask — it only depends on resolution and params
+        cache_key = (h, w, self.strength, self.radius, self.feather)
+        if self._cached_key != cache_key or self._cached_mask is None:
+            y = np.linspace(-1, 1, h, dtype=np.float32)
+            x = np.linspace(-1, 1, w, dtype=np.float32)
+            xx, yy = np.meshgrid(x, y)
+            dist = np.sqrt(xx**2 + yy**2)
 
-        # Create vignette mask with smooth falloff (smoothstep)
-        t = np.clip((dist - self.radius) / max(self.feather, 0.001), 0.0, 1.0)
-        vignette = 1.0 - t * t * (3.0 - 2.0 * t)  # smoothstep
-        vignette = 1.0 - self.strength * (1.0 - vignette)
+            t = np.clip((dist - self.radius) / max(self.feather, 0.001), 0.0, 1.0)
+            vignette = 1.0 - t * t * (3.0 - 2.0 * t)  # smoothstep
+            self._cached_mask = (1.0 - self.strength * (1.0 - vignette)).astype(np.float32)
+            self._cached_key = cache_key
 
         result = frame.astype(np.float32)
         # Apply to BGR channels only, preserve alpha
-        for c in range(3):
-            result[:, :, c] *= vignette
+        result[:, :, :3] *= self._cached_mask[:, :, np.newaxis]
 
         return np.clip(result, 0, 255).astype(np.uint8)
 

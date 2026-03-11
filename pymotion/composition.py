@@ -19,8 +19,7 @@ import numpy as np
 
 from pymotion.clip.base import BlendMode, Clip, RenderContext, Resolution, TimeRange
 from pymotion.effects.base import Effect
-from pymotion.export.encoder import FFmpegEncoder
-from pymotion.export.presets import get_preset
+from pymotion.export.encoder import FFmpegEncoder, resolve_preset_with_fallback
 from pymotion.render.compositor import composite_layers as _cpu_composite_layers
 from pymotion.utils.color import Color, ColorInput
 from pymotion.utils.logging import get_logger
@@ -324,8 +323,12 @@ class Composition:
         """
         if end is None:
             end = self.duration
+        total = end - start
         for frame in range(start, end):
             yield self._render_frame(frame)
+            done = frame - start + 1
+            if done % 100 == 0 or done == total:
+                logger.info("render_progress", frame=done, total=total)
 
     def render(
         self,
@@ -355,7 +358,7 @@ class Composition:
             Path to the rendered output file.
         """
         output_path = Path(output)
-        preset_config = get_preset(preset)
+        preset_config = resolve_preset_with_fallback(preset)
 
         if end is None:
             end = self.duration

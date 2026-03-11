@@ -9,9 +9,12 @@ Features exercised:
   confetti, Confetti, smoke, Smoke, stars, Stars,
   FilmGrain, MotionBlur, GodRays, NeonGlow, LightLeak, Bloom, Sharpen,
   LensFlare, LensFlareLight,
-  Fisheye, PerspectiveWarp, Ripple, Twirl, WaveWarp
+  Fisheye, PerspectiveWarp, Ripple, Twirl, WaveWarp,
+  RevealLeft, RevealRight, RevealUp, RevealDown,
+  Glitch, FilmBurn, MorphWarp, PageTurn, PixelDissolve,
+  ScaleDissolve, Shatter, Vortex, ZoomBlur, ZoomIn, ZoomOut
 
-Output: 1920x1080, 30fps, 30s, preset h264_fast -> outputs/06_vfx.mp4
+Output: 1920x1080, 30fps, ~42s, preset h264_fast -> outputs/06_vfx.mp4
 Estimated render time: ~120s
 """
 
@@ -26,7 +29,7 @@ OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 SEC = 75  # 2.5s per section at 30fps
-TOTAL = SEC * 12  # 12 sections = 30s
+TOTAL = SEC * 17  # 17 sections = ~42s
 
 
 def main() -> None:
@@ -201,10 +204,53 @@ def main() -> None:
     comp.tracks.append(sec12)
     print("12. Twirl + WaveWarp applied")
 
+    # Helper: create a transition demo concatenation on its own track
+    def _trans_demo(
+        name: str,
+        trans: pm.Transition,
+        sec_offset: int,
+        label: str,
+    ) -> None:
+        t = pm.Track(name=name)
+        a = pm.ImageClip(str(ASSETS / "product_hero.jpg"))
+        a.set_duration(SEC)
+        b = pm.ImageClip(str(ASSETS / "product_a.jpg"))
+        b.set_duration(SEC)
+        c = pm.concatenate([a, b], transition=trans, transition_duration=30)
+        c.at(sec_offset)
+        t.clips.append(c)
+        comp.tracks.append(t)
+        print(label)
+
+    # ── Section 13: RevealLeft + RevealRight + RevealUp ─────────────────
+    _trans_demo("sec13a", pm.RevealLeft(), SEC * 12, "13a. RevealLeft")
+    _trans_demo("sec13b", pm.RevealRight(), SEC * 12, "13b. RevealRight")
+    _trans_demo("sec13c", pm.RevealUp(), SEC * 12, "13c. RevealUp")
+
+    # ── Section 14: RevealDown + Glitch + FilmBurn ──────────────────────
+    _trans_demo("sec14a", pm.RevealDown(), SEC * 13, "14a. RevealDown")
+    _trans_demo("sec14b", pm.Glitch(), SEC * 13, "14b. Glitch")
+    _trans_demo("sec14c", pm.FilmBurn(), SEC * 13, "14c. FilmBurn")
+
+    # ── Section 15: MorphWarp + PageTurn + PixelDissolve ────────────────
+    _trans_demo("sec15a", pm.MorphWarp(), SEC * 14, "15a. MorphWarp")
+    _trans_demo("sec15b", pm.PageTurn(), SEC * 14, "15b. PageTurn")
+    _trans_demo("sec15c", pm.PixelDissolve(), SEC * 14, "15c. PixelDissolve")
+
+    # ── Section 16: ScaleDissolve + Shatter + Vortex ────────────────────
+    _trans_demo("sec16a", pm.ScaleDissolve(), SEC * 15, "16a. ScaleDissolve")
+    _trans_demo("sec16b", pm.Shatter(), SEC * 15, "16b. Shatter")
+    _trans_demo("sec16c", pm.Vortex(), SEC * 15, "16c. Vortex")
+
+    # ── Section 17: ZoomBlur + ZoomIn + ZoomOut ─────────────────────────
+    _trans_demo("sec17a", pm.ZoomBlur(), SEC * 16, "17a. ZoomBlur")
+    _trans_demo("sec17b", pm.ZoomIn(), SEC * 16, "17b. ZoomIn")
+    _trans_demo("sec17c", pm.ZoomOut(), SEC * 16, "17c. ZoomOut")
+
     # ── Audit frames ─────────────────────────────────────────────────────
     audit_dir = Path(__file__).parent.parent / "audit"
     audit_dir.mkdir(exist_ok=True)
-    for sec_idx in range(12):
+    for sec_idx in range(17):
         mid = sec_idx * SEC + SEC // 2
         try:
             comp.export_frame(frame=mid, output=audit_dir / f"ex06_sec{sec_idx + 1}.png")

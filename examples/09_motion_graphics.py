@@ -8,15 +8,18 @@ Features exercised:
   SocialHandle, Watermark, Countdown, LogoReveal,
   BarChartClip, LineChartClip, PieChartClip, AreaChartClip,
   RadarChartClip, ScatterPlotClip, NumberCounter, ProgressBar,
-  BrowserMockup, DesktopMockup, PhoneMockup
+  BrowserMockup, DesktopMockup, PhoneMockup,
+  SlideRight, SlideDown, SlideUp, WipeLeft, WipeRight, WipeDiagonal
 
-Output: 1920x1080, 30fps, 30s, preset h264_fast -> outputs/09_mograph.mp4
+Output: 1920x1080, 30fps, 35s, preset h264_fast -> outputs/09_mograph.mp4
 Estimated render time: ~60s
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+
+import numpy as np
 
 import pymotion as pm
 
@@ -25,7 +28,7 @@ OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 SEC = 75  # 2.5s per section
-TOTAL = SEC * 12  # 12 sections = 30s
+TOTAL = SEC * 14  # 14 sections = 35s
 
 
 def main() -> None:
@@ -305,10 +308,59 @@ def main() -> None:
     comp.tracks.append(sec12)
     print("12. BrowserMockup + PhoneMockup + DesktopMockup")
 
+    # ── Section 13: SlideRight + SlideDown + SlideUp transitions ────────
+    offset = SEC * 12
+    sec13 = pm.Track(name="sec13_slides")
+    sr_a = pm.ImageClip(str(ASSETS / "product_hero.jpg"))
+    sr_a.set_duration(SEC)
+    sr_b = pm.ImageClip(str(ASSETS / "product_a.jpg"))
+    sr_b.set_duration(SEC)
+    sr_concat = pm.concatenate(
+        [sr_a, sr_b],
+        transition=pm.SlideRight(),
+        transition_duration=25,
+    )
+    sr_concat.at(offset)
+    sec13.clips.append(sr_concat)
+    comp.tracks.append(sec13)
+
+    # SlideDown + SlideUp — demonstrate by rendering mid-frame
+    frame_a = np.full((100, 100, 4), [200, 150, 100, 255], dtype=np.uint8)
+    frame_b = np.full((100, 100, 4), [50, 100, 200, 255], dtype=np.uint8)
+    sd_result = pm.SlideDown().render_frame(frame_a, frame_b, 0.5)
+    su_result = pm.SlideUp().render_frame(frame_a, frame_b, 0.5)
+    print(
+        f"13. SlideRight + SlideDown(mean={sd_result.mean():.0f})"
+        f" + SlideUp(mean={su_result.mean():.0f})"
+    )
+
+    # ── Section 14: WipeLeft + WipeRight + WipeDiagonal ─────────────────
+    offset = SEC * 13
+    sec14 = pm.Track(name="sec14_wipes")
+    wl_a = pm.ImageClip(str(ASSETS / "product_b.jpg"))
+    wl_a.set_duration(SEC)
+    wl_b = pm.ImageClip(str(ASSETS / "product_c.jpg"))
+    wl_b.set_duration(SEC)
+    wl_concat = pm.concatenate(
+        [wl_a, wl_b],
+        transition=pm.WipeLeft(),
+        transition_duration=25,
+    )
+    wl_concat.at(offset)
+    sec14.clips.append(wl_concat)
+    comp.tracks.append(sec14)
+
+    wr_result = pm.WipeRight().render_frame(frame_a, frame_b, 0.5)
+    wd_result = pm.WipeDiagonal().render_frame(frame_a, frame_b, 0.5)
+    print(
+        f"14. WipeLeft + WipeRight(mean={wr_result.mean():.0f})"
+        f" + WipeDiagonal(mean={wd_result.mean():.0f})"
+    )
+
     # ── Audit frames ─────────────────────────────────────────────────────
     audit_dir = Path(__file__).parent.parent / "audit"
     audit_dir.mkdir(exist_ok=True)
-    for sec_idx in range(12):
+    for sec_idx in range(14):
         mid = sec_idx * SEC + SEC // 2
         try:
             comp.export_frame(frame=mid, output=audit_dir / f"ex09_sec{sec_idx + 1}.png")

@@ -40,6 +40,24 @@ H264_1080P = OutputPreset(
     name="h264_1080p",
     codec="libx264",
     pixel_format="yuv420p",
+    crf=18,
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=[
+        "-preset",
+        "fast",
+        "-tune",
+        "animation",
+        "-movflags",
+        "+faststart",
+    ],
+)
+
+H264_1080P_HQ = OutputPreset(
+    name="h264_1080p_hq",
+    codec="libx264",
+    pixel_format="yuv420p",
     crf=10,
     audio_codec="aac",
     audio_bitrate="320k",
@@ -56,21 +74,37 @@ H264_1080P = OutputPreset(
     ],
 )
 
+H264_FAST = OutputPreset(
+    name="h264_fast",
+    codec="libx264",
+    pixel_format="yuv420p",
+    crf=22,
+    audio_codec="aac",
+    audio_bitrate="192k",
+    container="mp4",
+    extra_flags=[
+        "-preset",
+        "ultrafast",
+        "-tune",
+        "fastdecode",
+        "-movflags",
+        "+faststart",
+    ],
+)
+
 H264_4K = OutputPreset(
     name="h264_4k",
     codec="libx264",
     pixel_format="yuv420p",
-    crf=10,
+    crf=18,
     audio_codec="aac",
     audio_bitrate="320k",
     container="mp4",
     extra_flags=[
         "-preset",
-        "medium",
+        "fast",
         "-tune",
         "animation",
-        "-x264-params",
-        "no-dct-decimate=1:no-fast-pskip=1",
         "-movflags",
         "+faststart",
     ],
@@ -300,8 +334,27 @@ H264_AMF = OutputPreset(
     ],
 )
 
+H264_VIDEOTOOLBOX = OutputPreset(
+    name="h264_videotoolbox",
+    codec="h264_videotoolbox",
+    pixel_format="nv12",
+    audio_codec="aac",
+    audio_bitrate="320k",
+    container="mp4",
+    extra_flags=[
+        "-q:v",
+        "65",
+        "-allow_sw",
+        "1",
+        "-movflags",
+        "+faststart",
+    ],
+)
+
 _PRESET_REGISTRY: dict[str, OutputPreset] = {
     "h264_1080p": H264_1080P,
+    "h264_1080p_hq": H264_1080P_HQ,
+    "h264_fast": H264_FAST,
     "h264_4k": H264_4K,
     "h265_1080p": H265_1080P,
     "h265_4k": H265_4K,
@@ -321,6 +374,7 @@ _PRESET_REGISTRY: dict[str, OutputPreset] = {
     "h265_nvenc": H265_NVENC,
     "h264_qsv": H264_QSV,
     "h264_amf": H264_AMF,
+    "h264_videotoolbox": H264_VIDEOTOOLBOX,
 }
 
 
