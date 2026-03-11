@@ -2,6 +2,26 @@
 
 All notable changes to PyMotion are documented here.
 
+## [3.0.0] — 2026-03-11
+
+### Fixed
+- **Expressions** — `loop_out()` now correctly loops the last N frames instead of duplicating `loop_in()` behavior
+- **Transitions** — Bilinear interpolation for zoom/scale transitions (was nearest-neighbor); smoothstep feathered edges on iris transitions; glitch transition now has color channel separation; CrossDissolve uses smoothstep curve
+- **Particles** — Circular anti-aliased rendering for multi-pixel particles; fractional spawn rate accumulation; per-particle rotation for confetti; motion blur streaks for rain; `_sizes` array now used in rendering
+- **Effects** — Vignette uses smoothstep falloff (eliminates banding); bloom uses downsampling pyramid for natural glow; neon chart theme has actual glow effect
+- **Audio** — Sidechain compressor implemented; 5.1 surround export with proper channel count; audio export via temp WAV → FFmpeg AAC encoding
+- **Layout** — `pip()` shadow parameter now renders actual drop shadows
+- **Text** — Emoji glyphs log debug warning instead of silently dropping
+- **Captions** — Karaoke word highlighting renders spoken/upcoming words in different colors
+
+### Changed
+- **Examples** — Complete rewrite: 8 production-quality self-contained showcase scripts replacing 11 older examples
+- **API** — Export 3D post-processing configs (SSAOConfig, BloomConfig, DepthOfFieldConfig, ShadowMapConfig); `__repr__` on Composition and ParticleSystem; error messages include received values
+
+### Improved
+- **Coverage** — 2427 tests (up from 2185), 91% coverage (up from 88%)
+- **Quality** — ruff format clean, ruff check clean, mypy --strict clean
+
 ## [2.0.0] — 2026-03-11
 
 ### Added
