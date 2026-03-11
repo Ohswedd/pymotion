@@ -118,11 +118,33 @@ def detect_hardware_encoders() -> list[str]:
         "h264_amf",
         "hevc_amf",
     ]
-    available: list[str] = []
+    candidates: list[str] = []
     for line in result.stdout.splitlines():
         for codec in hw_codecs:
             if codec in line:
+                candidates.append(codec)
+
+    # Validate each candidate by attempting a minimal test encode.
+    # Some systems list hardware encoders in ffmpeg but lack the actual
+    # GPU hardware (e.g. CI runners with nvenc headers but no NVIDIA GPU).
+    available: list[str] = []
+    for codec in candidates:
+        try:
+            test = subprocess.run(  # noqa: S603
+                [
+                    ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                    "-f", "lavfi", "-i", "color=black:s=64x64:d=0.1",
+                    "-c:v", codec, "-frames:v", "1",
+                    "-f", "null", "-",
+                ],
+                capture_output=True,
+                timeout=10,
+                shell=False,
+            )
+            if test.returncode == 0:
                 available.append(codec)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
 
     logger.info("hardware_encoders_detected", encoders=available)
     return available
