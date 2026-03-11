@@ -10,16 +10,17 @@ and line styles:
 
 ```python
 from pymotion import WaveformClip, Composition, Track
+from pymotion.utils.color import Color
 import numpy as np
 
 comp = Composition(1920, 1080, fps=30, duration=90)
 
 samples = np.random.randn(48000 * 3, 2) * 0.5  # 3 seconds of audio
 wave = WaveformClip(
-    audio_samples=samples,
+    audio=samples,
     style="bars",
-    color="#00FF88",
-    background="#111111",
+    color=Color.parse("#00FF88"),
+    background=Color.parse("#111111"),
     sample_rate=48000,
 )
 wave.set_duration(90)
@@ -39,12 +40,13 @@ logarithmic frequency binning:
 
 ```python
 from pymotion import SpectrumClip
+from pymotion.utils.color import Color
 
 spectrum = SpectrumClip(
-    audio_samples=samples,
+    audio=samples,
     bands=64,
     style="bars",
-    color_map=["#FF0000", "#FFFF00", "#00FF00"],
+    color_map=[Color.parse("#FF0000"), Color.parse("#FFFF00"), Color.parse("#00FF00")],
     sample_rate=48000,
 )
 spectrum.set_duration(90)
@@ -60,7 +62,7 @@ The `color_map` interpolates across bands from low to high frequency.
 from pymotion import SpectrogramClip
 
 spectrogram = SpectrogramClip(
-    audio_samples=samples,
+    audio=samples,
     style="heatmap",
     sample_rate=48000,
 )
@@ -78,13 +80,14 @@ from pymotion.effects.visual import Glow
 
 reactive = AudioReactiveEffect(
     effect=Glow(strength=0.0),
-    audio_samples=samples,
+    audio=samples,
     property_name="strength",
-    band=(80.0, 500.0),      # react to bass frequencies
+    band="low",              # react to bass frequencies (20-200 Hz)
     sensitivity=2.0,
     sample_rate=48000,
 )
 ```
 
-The `band` tuple specifies the frequency range in Hz. The `sensitivity`
+The `band` parameter accepts `"low"` (20-200 Hz), `"mid"` (200-2000 Hz),
+`"high"` (2000-20000 Hz), or `"full"` (all frequencies). The `sensitivity`
 multiplier scales how strongly the audio amplitude drives the property.

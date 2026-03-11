@@ -10,9 +10,9 @@ Configure the mixer for 5.1 surround output with SMPTE/ITU channel
 ordering (L, R, C, LFE, Ls, Rs):
 
 ```python
-from pymotion import AudioMixer, ChannelLayout
+from pymotion import AudioMixer
 
-mixer = AudioMixer(sample_rate=48000, channels=6, layout=ChannelLayout.SURROUND_51)
+mixer = AudioMixer(sample_rate=48000, channels=6)
 ```
 
 Route individual tracks to specific channels using a channel weight map:
@@ -70,7 +70,7 @@ clip_a = np.random.randn(48000 * 5, 2) * 0.5
 clip_b = np.random.randn(48000 * 5, 2) * 0.5
 
 # Equal-power crossfade (smoothest perceived transition)
-result = audio_crossfade(clip_a, clip_b, fade_samples=24000, curve="equal_power")
+result = audio_crossfade(clip_a, clip_b, crossfade_samples=24000, curve="equal_power")
 
 # Other curves: "linear", "s_curve"
 ```

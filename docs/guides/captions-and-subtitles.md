@@ -14,7 +14,7 @@ from pymotion import import_subtitles
 segments = import_subtitles("captions.srt")
 # Returns a list of CaptionSegment objects
 for seg in segments:
-    print(f"{seg.start_time:.2f}s - {seg.end_time:.2f}s: {seg.text}")
+    print(f"{seg.start_sec:.2f}s - {seg.end_sec:.2f}s: {seg.text}")
 ```
 
 Or use format-specific parsers directly:
@@ -96,8 +96,8 @@ Export caption segments back to SRT or VTT format:
 ```python
 from pymotion import export_subtitles
 
-export_subtitles(segments, "output.srt", format="srt")
-export_subtitles(segments, "output.vtt", format="vtt")
+export_subtitles(segments, "output.srt", fmt="srt")
+export_subtitles(segments, "output.vtt", fmt="vtt")
 ```
 
 ## Word-level timestamps
@@ -109,12 +109,12 @@ karaoke-style highlighting:
 from pymotion import CaptionSegment, WordTimestamp
 
 segment = CaptionSegment(
-    start_time=1.0,
-    end_time=3.0,
     text="Hello world",
+    start_sec=1.0,
+    end_sec=3.0,
     words=[
-        WordTimestamp(word="Hello", start=1.0, end=1.8),
-        WordTimestamp(word="world", start=1.9, end=3.0),
+        WordTimestamp(word="Hello", start_sec=1.0, end_sec=1.8),
+        WordTimestamp(word="world", start_sec=1.9, end_sec=3.0),
     ],
 )
 ```

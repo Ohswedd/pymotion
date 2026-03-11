@@ -19,7 +19,6 @@ from pymotion import (
     AudioMixer,
     BarChartClip,
     CaptionSegment,
-    ChannelLayout,
     ColorClip,
     Composition,
     HistogramClip,
@@ -46,7 +45,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 def demo_surround_bus_mixing() -> None:
     """5.1 surround mixing with bus routing and LUFS normalization."""
-    mixer = AudioMixer(sample_rate=48000, channels=6, layout=ChannelLayout.SURROUND_51)
+    mixer = AudioMixer(sample_rate=48000, channels=6)
 
     # Synthetic dialogue (mono center)
     dialogue = np.random.default_rng(42).standard_normal((48000 * 3, 2)) * 0.4
@@ -68,7 +67,7 @@ def demo_surround_bus_mixing() -> None:
     mixer.normalize(target_lufs=-14)
 
     output = mixer.render()
-    print(f"Surround mix: {output.shape[0]} samples, {output.shape[1]} channels")
+    print(f"Surround mix: {output.shape[0]} samples (interleaved int32)")
 
 
 def demo_audio_crossfade() -> None:
@@ -77,7 +76,7 @@ def demo_audio_crossfade() -> None:
     clip_a = rng.standard_normal((48000 * 3, 2)) * 0.5
     clip_b = rng.standard_normal((48000 * 3, 2)) * 0.5
 
-    result = audio_crossfade(clip_a, clip_b, fade_samples=24000, curve="equal_power")
+    result = audio_crossfade(clip_a, clip_b, crossfade_samples=24000, curve="equal_power")
     print(f"Crossfaded audio: {result.shape[0]} samples")
 
 
@@ -94,10 +93,10 @@ def demo_audio_visualization() -> None:
     # Waveform clip (top half)
     wave_track = Track(name="waveform")
     wave = WaveformClip(
-        audio_samples=samples,
+        audio=samples,
         style="bars",
-        color="#00FF88",
-        background="#111111",
+        color=Color.parse("#00FF88"),
+        background=Color.parse("#111111"),
         sample_rate=48000,
     )
     wave.set_duration(90).set_position(60.0, 60.0)
@@ -106,10 +105,10 @@ def demo_audio_visualization() -> None:
     # Spectrum clip (bottom half)
     spec_track = Track(name="spectrum")
     spectrum = SpectrumClip(
-        audio_samples=samples,
+        audio=samples,
         bands=32,
         style="bars",
-        color_map=["#FF3366", "#FFCC00", "#00FF88"],
+        color_map=[Color.parse("#FF3366"), Color.parse("#FFCC00"), Color.parse("#00FF88")],
         sample_rate=48000,
     )
     spectrum.set_duration(90).set_position(60.0, 560.0)
@@ -132,25 +131,25 @@ def demo_captions() -> None:
     """Caption segment creation and subtitle export."""
     segments = [
         CaptionSegment(
-            start_time=0.0,
-            end_time=2.0,
             text="Welcome to the broadcast.",
+            start_sec=0.0,
+            end_sec=2.0,
             words=[
-                WordTimestamp(word="Welcome", start=0.0, end=0.5),
-                WordTimestamp(word="to", start=0.5, end=0.7),
-                WordTimestamp(word="the", start=0.7, end=0.9),
-                WordTimestamp(word="broadcast.", start=0.9, end=2.0),
+                WordTimestamp(word="Welcome", start_sec=0.0, end_sec=0.5),
+                WordTimestamp(word="to", start_sec=0.5, end_sec=0.7),
+                WordTimestamp(word="the", start_sec=0.7, end_sec=0.9),
+                WordTimestamp(word="broadcast.", start_sec=0.9, end_sec=2.0),
             ],
         ),
         CaptionSegment(
-            start_time=2.5,
-            end_time=5.0,
             text="Today we analyze Q4 results.",
+            start_sec=2.5,
+            end_sec=5.0,
         ),
     ]
 
     srt_path = OUTPUT_DIR / "09_captions.srt"
-    export_subtitles(segments, str(srt_path), format="srt")
+    export_subtitles(segments, str(srt_path), fmt="srt")
     print(f"Exported SRT: {srt_path}")
 
 
