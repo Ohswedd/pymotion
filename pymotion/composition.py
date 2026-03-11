@@ -704,7 +704,7 @@ class CompositionClip(Clip):
             return frame
 
         try:
-            import cv2  # type: ignore[import-not-found]
+            import cv2  # noqa: PLC0415
 
             if dst_w < src_w or dst_h < src_h:
                 interp = cv2.INTER_AREA

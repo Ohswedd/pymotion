@@ -246,7 +246,7 @@ class SpeedClip(Clip):
         frame_b = self._source.render_frame(ctx_b)
 
         try:
-            import cv2  # type: ignore[import-not-found]
+            import cv2  # noqa: PLC0415
 
             gray_a = cv2.cvtColor(frame_a[:, :, :3], cv2.COLOR_BGR2GRAY)
             gray_b = cv2.cvtColor(frame_b[:, :, :3], cv2.COLOR_BGR2GRAY)

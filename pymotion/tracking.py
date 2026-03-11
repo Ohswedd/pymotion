@@ -107,7 +107,7 @@ class MotionTracker:
             (dx, dy) displacement in pixels.
         """
         try:
-            import cv2  # type: ignore[import-not-found]
+            import cv2  # noqa: PLC0415
 
             prev_gray = cv2.cvtColor(prev[:, :, :3], cv2.COLOR_BGR2GRAY)
             curr_gray = cv2.cvtColor(curr[:, :, :3], cv2.COLOR_BGR2GRAY)

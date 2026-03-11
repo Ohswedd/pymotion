@@ -545,7 +545,7 @@ class TrackMatte(Mask):
         # Resize if source has different resolution
         if rendered.shape[:2] != (h, w):
             try:
-                import cv2  # type: ignore[import-not-found]
+                import cv2  # noqa: PLC0415
 
                 rendered = cv2.resize(rendered, (w, h))
             except ImportError:
