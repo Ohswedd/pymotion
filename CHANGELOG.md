@@ -2,6 +2,16 @@
 
 All notable changes to PyMotion are documented here.
 
+## [2.0.0] — 2026-03-11
+
+### Added
+- **Background & object manipulation** — `RemoveBackground` (rembg), `ReplaceBackground`, `ObjectSegmentation` (SAM + text prompt), `RemoveObject` (inpainting), `ExtendFrame` (outpainting)
+- **Enhancement & restoration** — `Upscale` (Real-ESRGAN 2×/4×), `Denoise` (deep learning denoiser), `Deblur` (blind deconvolution), `FrameInterpolation` (RIFE-based), `ColorizeClip` (grayscale → color)
+- **Smart editing helpers** — `SceneDetector`, `SilenceRemover`, `HighlightDetector`, `ContentAwareCrop` (AI reframing), `AutoColor` (one-click correction), `AutoEdit` (AI-powered rough cut)
+- **Face & body** — `FaceDetector`, `FaceTracker`, `FaceBlur` (automatic face detection + blur)
+- **AI voice & audio** — `VoiceConversion` (voice style transfer), `MusicGeneration` (MusicGen background music), `SoundFXGeneration` (AI sound effects)
+- All AI features are optional extras — no AI dependency required for core library (`pip install "pymotion-studio[ai]"`)
+
 ## [1.5.0] — 2026-03-11
 
 ### Added
