@@ -737,7 +737,9 @@ class PieChartClip(Clip):
             slice_angle = (abs(val) / total) * max_sweep
             color = colors[i % len(colors)]
 
-            # Draw slice
+            # Draw slice — new_sub_path prevents implicit line from
+            # previous show_text current point to the arc start.
+            cr.new_sub_path()
             cr.set_source_rgba(color.r, color.g, color.b, color.a)
             if inner_r > 0:
                 cr.arc(cx, cy, radius, current_angle, current_angle + slice_angle)
@@ -750,6 +752,7 @@ class PieChartClip(Clip):
             cr.fill()
 
             # Slice border
+            cr.new_sub_path()
             cr.set_source_rgba(
                 theme_cfg["background"].r,
                 theme_cfg["background"].g,
@@ -757,6 +760,7 @@ class PieChartClip(Clip):
                 1.0,
             )
             cr.set_line_width(2.0)
+            cr.set_line_join(cairo.LINE_JOIN_ROUND)
             if inner_r > 0:
                 cr.arc(cx, cy, radius, current_angle, current_angle + slice_angle)
                 cr.arc_negative(cx, cy, inner_r, current_angle + slice_angle, current_angle)
@@ -1179,13 +1183,17 @@ class NumberCounter(Clip):
         else:
             text = f"{current:.1f}"
 
-        # Draw text centered
+        # Draw text at position (center of content). Falls back to
+        # frame center when position is the default (0, 0).
+        cx = self._position.x if self._position.x != 0.0 else w / 2
+        cy = self._position.y if self._position.y != 0.0 else h / 2
+
         cr.select_font_face(self.font, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(self.size)
         cr.set_source_rgba(self.color.r, self.color.g, self.color.b, self.color.a)
         extents = cr.text_extents(text)
-        tx = w / 2 - extents.width / 2
-        ty = h / 2 + extents.height / 2
+        tx = cx - extents.width / 2
+        ty = cy + extents.height / 2
         cr.move_to(tx, ty)
         cr.show_text(text)
 
@@ -1246,9 +1254,12 @@ class ProgressBar(Clip):
         else:
             val = max(0.0, min(1.0, self.value))
 
-        # Center the bar
-        bx = (w - self.bar_width) / 2
-        by = (h - self.bar_height) / 2
+        # Position the bar at clip position. Falls back to frame center
+        # when position is the default (0, 0).
+        cx = self._position.x if self._position.x != 0.0 else w / 2
+        cy = self._position.y if self._position.y != 0.0 else h / 2
+        bx = cx - self.bar_width / 2
+        by = cy - self.bar_height / 2
         r = min(self.radius, self.bar_height / 2, self.bar_width / 2)
 
         # Background bar (rounded rect)

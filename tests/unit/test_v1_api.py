@@ -279,4 +279,4 @@ class TestPublicAPIImports:
     def test_version(self) -> None:
         import pymotion
 
-        assert pymotion.__version__ == "3.2.0"
+        assert pymotion.__version__ == "3.4.0"

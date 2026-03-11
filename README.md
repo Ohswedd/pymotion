@@ -1,486 +1,165 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/PyMotion-v2.5.0-blue?style=for-the-badge&labelColor=0D1B2A&color=D4AF37" alt="Version"/>
-</p>
+# PyMotion
 
-<h1 align="center">PyMotion</h1>
+Code-first video generation for Python. Build motion graphics, animated explainers, data visualizations, and production videos entirely in code.
 
-<p align="center">
-  <strong>Code-first video generation for Python.</strong><br>
-  Build professional motion graphics, animated explainers, social ads, and product videos — entirely in Python.
-</p>
+[![CI](https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pymotion-studio)](https://pypi.org/project/pymotion-studio/)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](https://pypi.org/project/pymotion-studio/)
+[![License](https://img.shields.io/badge/license-Source%20Available-blue)](https://github.com/Ohswedd/pymotion/blob/main/LICENSE)
 
-<p align="center">
-  <a href="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml"><img src="https://github.com/Ohswedd/pymotion/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/PyPI-v2.5.0-D4AF37" alt="PyPI"></a>
-  <a href="https://pypi.org/project/pymotion-studio/"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue" alt="Python"></a>
-  <a href="https://github.com/Ohswedd/pymotion/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Source%20Available-blue" alt="License"></a>
-</p>
+## Install
 
-<p align="center">
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/tests-2185%20passed-brightgreen" alt="Tests"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/coverage-89%25-brightgreen" alt="Coverage"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/mypy-strict-blue" alt="mypy strict"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/ruff-clean-purple" alt="Ruff"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/badge/pip--audit-passing-green" alt="Security Audit"></a>
-</p>
-
-<p align="center">
-  <a href="https://pepy.tech/project/pymotion-studio"><img src="https://static.pepy.tech/badge/pymotion-studio" alt="PyPI Downloads"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/stars/Ohswedd/pymotion?style=flat&label=stars&color=D4AF37" alt="GitHub Stars"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/forks/Ohswedd/pymotion?style=flat&label=forks&color=blue" alt="GitHub Forks"></a>
-  <a href="https://github.com/Ohswedd/pymotion/issues"><img src="https://img.shields.io/github/issues/Ohswedd/pymotion?label=issues&color=orange" alt="Issues"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/last-commit/Ohswedd/pymotion?label=last%20commit&color=brightgreen" alt="Last Commit"></a>
-  <a href="https://github.com/Ohswedd/pymotion"><img src="https://img.shields.io/github/repo-size/Ohswedd/pymotion?label=repo%20size&color=blue" alt="Repo Size"></a>
-</p>
-
----
-
-## Why PyMotion?
-
-Most video tools force you into a GUI timeline. PyMotion doesn't. You write Python, you get broadcast-quality video. No templates to fight, no drag-and-drop constraints — just code that renders frames.
-
-It ships with a Cairo 2D backend, a ModernGL 3D pipeline, FreeType+HarfBuzz typography, a full audio DSP chain, 19 FFmpeg export presets (including hardware NVENC/QSV/AMF), GPU-accelerated compositing, distributed rendering, and built-in profiling tools. One `pip install`, one `comp.render()` call, done.
-
-```python
-from pymotion import Composition, ColorClip, TextClip, Track
-
-comp = Composition(1920, 1080, fps=30, duration=150)
-
-track = Track(name="main")
-bg = ColorClip(color="#1a1a2e")
-bg.set_duration(150)
-track.add(bg)
-
-title = TextClip("Hello, PyMotion!", font="Arial", size=72.0, color="#FFFFFF")
-title.set_duration(150).set_position(480.0, 500.0)
-track.add(title)
-
-comp.add_track(track)
-comp.render("output.mp4", preset="h264_1080p")
-```
-
-That's a full 1080p video in 12 lines.
-
----
-
-## At a Glance
-
-| | |
-|---|---|
-| **Public API** | 290+ symbols — clips, effects, transitions, audio, color, AI, GPU, profiling |
-| **Source** | 83 modules, ~30k lines of production code |
-| **Tests** | 2185 tests, 89% coverage, ~19k lines of test code |
-| **Quality** | `mypy --strict`, `ruff` (format + lint), `pip-audit` — all clean |
-| **Docs** | 33 guides, 29 API reference pages, 11 runnable examples |
-| **Version** | v2.5.0 — Performance & Scale |
-
----
-
-## Features
-
-| | |
-|---|---|
-| **2D Rendering** | Color, image, shape, gradient, and text clips — Cairo backend |
-| **3D Rendering** | PBR materials, point/spot/directional/ambient lights, SSAO, bloom, DOF (ModernGL headless) |
-| **Animation** | Keyframe tracks, 30+ easing functions, spring physics, cubic bezier curves |
-| **Typography** | FreeType + HarfBuzz shaping, variable fonts, 9 animated text presets (Typewriter, CountUp, Scramble, ...) |
-| **Audio** | 5.1 surround, bus routing, crossfades, multiband compressor, convolution reverb, LUFS normalization, EQ, beat detection |
-| **Effects** | 30+ visual/color/distortion/light effects (blur, grain, glow, LUT, wave warp, god rays, ...) |
-| **Keying** | ChromaKey, LumaKey, ColorKey, DifferenceKey — with feathering, choking, despill |
-| **Editing** | Split, join, subclip, repeat, freeze frame, concatenate with transitions |
-| **Speed/Time** | Uniform speed, speed ramp, reverse, time remap, optical flow slow-motion |
-| **Layout** | Picture-in-picture, grid, split screen, stack — named anchor positioning |
-| **Tracking** | Motion tracking, video stabilization, follow-tracker binding |
-| **Compositing** | Nested compositions (pre-comps), adjustment layers, clip parenting with NullObject |
-| **Masking** | Bezier, linear/radial gradient, track matte, text masks — boolean ops (add, intersect, subtract) |
-| **Expressions** | Drive any property with Python callables — wiggle, loop_in, loop_out helpers |
-| **Path Animation** | SVG path following, StrokeClip draw-on/off, bezier path morphing |
-| **Charts** | Animated bar, line, pie, area, radar, scatter charts + number counter, progress bar — 4 themes |
-| **Motion Graphics** | LowerThird, LogoReveal, CallToAction, SocialHandle, Countdown, QuoteCard, Divider, TransitionTitle, Watermark |
-| **Device Mockups** | BrowserMockup, PhoneMockup, DesktopMockup — wrap content clips inside device frames |
-| **Proxy** | Low-res proxy generation with disk cache for fast preview |
-| **Transitions** | 39 built-in (fade, slide, wipe, zoom, glitch, film burn, shatter, vortex, ...) |
-| **Particles** | 9 presets — fire, sparkles, confetti, rain, smoke, stars, dust, explosion, bubbles |
-| **Export** | 19 presets — H.264, H.265, ProRes, AV1, WebM, GIF, PNG/EXR, NVENC, QSV, AMF hardware encoding |
-| **Batch** | Template system with field validation for data-driven video generation |
-| **Audio Viz** | WaveformClip, SpectrumClip, SpectrogramClip, AudioReactiveEffect — animated audio visualizations |
-| **Captions** | AutoCaptions (Whisper), SubtitleClip, SRT/VTT/ASS import/export, 4 caption styles (netflix, youtube, tiktok, karaoke) |
-| **TTS** | TTSClip with system (pyttsx3), OpenAI, and ElevenLabs engines |
-| **Color Science** | ACES 1.3 pipeline, HDR10/HLG presets, ColorMatch, HSLSecondary grading, 4 video scopes |
-| **Color** | .cube LUT loading, lift/gamma/gain grading, ACES/Reinhard/Filmic tone mapping |
-| **Interchange** | EDL export (CMX 3600), OTIO export (OpenTimelineIO) |
-| **AI Effects** | RemoveBackground, ReplaceBackground, ObjectSegmentation, RemoveObject, ExtendFrame, Upscale (2×/4×), Denoise, Deblur, FrameInterpolation, ColorizeClip |
-| **AI Editing** | SceneDetector, SilenceRemover, HighlightDetector, ContentAwareCrop (AI reframing), AutoColor, AutoEdit |
-| **AI Face** | FaceDetector, FaceTracker, FaceBlur — automatic face detection, tracking, and anonymization |
-| **AI Audio** | VoiceConversion, MusicGeneration (MusicGen), SoundFXGeneration — AI voice and audio synthesis |
-| **GPU Compositing** | WGPU compute shader compositor, 8 blend modes, VRAM-budgeted buffer pool with CPU fallback |
-| **GPU Effects** | Batch single-pass processing for Brightness, Contrast, Saturation, HSL on GPU |
-| **Hardware Encoding** | NVENC, QSV, AMF presets with auto-detection and transparent software fallback |
-| **Distributed** | Ray and Dask backends for multi-machine rendering, frame-level checkpointing |
-| **Optimizations** | Incremental rendering, static layer baking, memory-mapped 4K buffers, SIMD blend, parallel audio |
-| **Profiling** | `profile_composition()`, `benchmark()`, `memory_report()`, `detect_bottlenecks()`, `frame_diff()` |
-| **CLI** | `render`, `preview`, `benchmark`, `validate`, `doctor`, `new` |
-
----
-
-## Installation
-
-**Prerequisites:** Python 3.12+, FFmpeg, Cairo
+Requires Python 3.12+ and FFmpeg.
 
 ```bash
+# Install system dependencies
 # macOS
 brew install ffmpeg cairo pkg-config
 
 # Ubuntu / Debian
 sudo apt-get install ffmpeg libcairo2-dev pkg-config libfreetype6-dev
 
-# Windows (via chocolatey)
+# Windows (chocolatey)
 choco install ffmpeg cairo
 ```
 
-**Install from PyPI:**
-
 ```bash
+# Install PyMotion
 pip install pymotion-studio
-```
 
-**With extras:**
-
-```bash
-pip install "pymotion-studio[3d-extras]"     # GLTF model loading
-pip install "pymotion-studio[gpu-compute]"   # WGPU GPU compositing & effects
-pip install "pymotion-studio[jit]"           # Numba JIT compilation
+# Optional extras
 pip install "pymotion-studio[ai]"            # AI features (rembg, SAM, Real-ESRGAN, MusicGen)
+pip install "pymotion-studio[3d-extras]"     # GLTF model loading
+pip install "pymotion-studio[gpu-compute]"   # WGPU GPU compositing
 pip install "pymotion-studio[dev]"           # Development tools
-pip install ray                              # Distributed rendering (Ray backend)
-pip install dask                             # Distributed rendering (Dask backend)
 ```
 
-> **Note:** The Python import name is `pymotion` (no hyphen):
-> ```python
-> from pymotion import Composition, ColorClip, Track
-> ```
-
----
-
-## Quick Start
-
-### Animated Text with Particles
+The Python import name is `pymotion`:
 
 ```python
 from pymotion import Composition, ColorClip, Track
-from pymotion.text.animated import Typewriter
-from pymotion.particle.system import sparkles
-from pymotion.utils.color import Color
+```
 
-comp = Composition(1920, 1080, fps=30, duration=150)
+## Quick start
 
-# Background
-bg_track = Track(name="bg")
-bg = ColorClip(color="#0D1B2A")
-bg.set_duration(150)
-bg_track.add(bg)
-
-# Typewriter text
-text_track = Track(name="text")
-tw = Typewriter(
-    text="Welcome to PyMotion",
-    font_size=64.0,
-    color=Color(1.0, 1.0, 1.0, 1.0),
-    chars_per_frame=1.5,
+```python
+from pymotion import (
+    Composition, ColorClip, TextClip, Track,
+    GaussianBlur, Fade, animate
 )
-tw.set_duration(150).at(10)
-text_track.add(tw)
-
-# Sparkle particles
-fx_track = Track(name="fx")
-sparks = sparkles(1920, 1080).to_clip(150)
-sparks.set_duration(150)
-fx_track.add(sparks)
-
-comp.add_track(bg_track)
-comp.add_track(text_track)
-comp.add_track(fx_track)
-comp.render("intro.mp4", preset="h264_1080p")
-```
-
-### Batch Rendering with Templates
-
-```python
-from pymotion import Template, Composition, ColorClip, TextClip, Track
-
-class ProductVideo(Template):
-    product_name: str
-    brand_color: str = "#FF5500"
-
-    def build(self) -> Composition:
-        comp = Composition(1920, 1080, fps=30, duration=90)
-        track = Track(name="main")
-        bg = ColorClip(color=self.brand_color)
-        bg.set_duration(90)
-        track.add(bg)
-        label = TextClip(self.product_name, font="Arial", size=80.0, color="#FFFFFF")
-        label.set_duration(90).set_position(600.0, 480.0)
-        track.add(label)
-        comp.add_track(track)
-        return comp
-
-for name in ["Widget Pro", "Gadget X", "Tool Kit"]:
-    ProductVideo(product_name=name).render(f"{name.lower().replace(' ', '_')}.mp4")
-```
-
-### Data Visualization
-
-```python
-from pymotion import BarChartClip, NumberCounter, Composition, Track
 
 comp = Composition(1920, 1080, fps=30, duration=90)
 
-chart_track = Track(name="chart")
-chart = BarChartClip(
-    data={"Q1": 120, "Q2": 200, "Q3": 180, "Q4": 250},
-    animate_duration=30,
-    theme="corporate",
-    title="Quarterly Revenue",
-    show_values=True,
-)
-chart.set_duration(90)
-chart_track.add(chart)
-comp.add_track(chart_track)
-comp.render("chart.mp4", preset="h264_1080p")
+# Dark background
+bg_track = Track(name="bg")
+bg = ColorClip(color="#1a1a2e")
+bg.set_duration(90)
+bg_track.add(bg)
+
+# Colored card with a blur effect
+content_track = Track(name="content")
+card = ColorClip(color="#e94560")
+card.set_duration(60).set_position(360.0, 240.0).set_scale(0.6)
+card.add_effect(GaussianBlur(radius=2.0))
+content_track.add(card)
+
+# Title text
+text_track = Track(name="text")
+title = TextClip("Hello, PyMotion", font="Arial", size=64.0, color="#FFFFFF")
+title.set_duration(90).set_position(560.0, 480.0)
+text_track.add(title)
+
+# Assemble and render
+comp.add_track(bg_track)
+comp.add_track(content_track)
+comp.add_track(text_track)
+comp.render("output.mp4", preset="h264_1080p")
 ```
 
-### Video Editing Operations
+## What PyMotion can do
 
-```python
-from pymotion import ColorClip, concatenate, CrossDissolve, pip, grid
+PyMotion started as a 2D rendering pipeline with Cairo, then grew into a full video production framework. The core gives you compositions, tracks, clips, keyframe animation with 30 easing functions, and an effect chain that processes BGRA frames through NumPy. Eight blend modes, a sparse bounding-box compositor, and FreeType+HarfBuzz typography are built in.
 
-# Split, speed, reverse
-clip = ColorClip(color="#e94560")
-clip.set_duration(120)
-first, second = clip.split(60)
-slow = first.speed(0.5)
-backwards = second.reverse()
+Video editing operations cover split, join, subclip, repeat, freeze frame, concatenate with transitions, speed control, speed ramp, reverse, and time remap with optical flow interpolation. Four keying effects (chroma, luma, color, difference) handle green screen and isolation work. Layout helpers arrange clips in picture-in-picture, grid, split screen, and stack configurations. Motion tracking and video stabilization use OpenCV under the hood, and a proxy workflow caches low-res versions for fast iteration.
 
-# Concatenate with transitions
-final = concatenate([slow, backwards], transition=CrossDissolve(), transition_duration=15)
+The compositing layer adds nested compositions (pre-comps), adjustment layers, clip parenting with NullObject, a Bezier/gradient/track-matte/text mask system with boolean operations, Python expressions on any animatable property, and SVG path animation with draw-on strokes and path morphing.
 
-# Picture-in-picture
-main = ColorClip(color="#1a1a2e").set_duration(90)
-overlay = ColorClip(color="#e94560").set_duration(90)
-comp = pip(main, overlay, position="bottom-right", size=(320, 180))
+Nine motion graphics components (LowerThird, LogoReveal, CallToAction, SocialHandle, Countdown, QuoteCard, Divider, TransitionTitle, Watermark), eight animated chart types, three device mockups, and a number counter and progress bar cover data visualization and overlay needs.
 
-# Grid layout
-clips = [ColorClip(color=c).set_duration(90) for c in ["#e94560", "#0f3460", "#533483", "#16213e"]]
-comp = grid(clips, rows=2, cols=2, gap=10)
-```
+Professional audio includes 5.1 surround mixing with bus routing, twelve DSP effects, LUFS normalization, beat detection, audio-reactive visual effects, Whisper-powered auto-captions with four subtitle styles, and text-to-speech. The color science module provides an ACES 1.3 pipeline, HDR10 and HLG output, secondary color grading, four video scopes, and EDL/OTIO interchange export.
 
----
+AI features are optional extras that add background removal, object segmentation, upscaling, denoising, face detection and blur, scene detection, content-aware cropping, and AI music and sound effect generation. GPU-accelerated compositing runs through WGPU compute shaders, and hardware encoding supports NVENC, QSV, AMF, and VideoToolbox with automatic detection and software fallback. Distributed rendering uses Ray or Dask backends with frame-level checkpointing.
 
 ## Examples
 
-Eleven production-ready scripts ship with the repo, each targeting a real-world use case:
+Twelve production-ready scripts ship with the repo, each self-contained with generated assets:
 
-| # | Script | Niche | What It Demonstrates |
-|---|--------|-------|----------------------|
-| 01 | `real_estate_tour.py` | Property listings | ImageClip slideshow, Typewriter text, sparkle particles, 7-track composition |
-| 02 | `tech_review_intro.py` | YouTube intros | CountUp stats, radial/conic gradients, fire particles |
-| 03 | `fitness_social_ad.py` | Instagram/TikTok | Vertical 1080x1920, CountDown timer, confetti, LetterByLetter |
-| 04 | `restaurant_menu_promo.py` | Menu promotions | WordByWord reveals, stars particles, ShapeClip polygons |
-| 05 | `educational_explainer.py` | E-learning | LetterByLetter titles, CountUp counters, diagram shapes |
-| 06 | `video_editing_showcase.py` | Post-production | split/join/speed/reverse, ChromaKey, grid/pip/split_screen, proxy workflow |
-| 07 | `motion_graphics_toolkit.py` | Motion graphics | Nested comps, masks, expressions, wiggle, path animation, adjustment layers |
-| 08 | `data_dashboard.py` | Data visualization | Animated charts, number counters, progress bars, device mockups, lower thirds |
-| 09 | `audio_color_science.py` | Broadcast post-production | 5.1 surround mixing, audio viz, captions, TTS, ACES grading, video scopes, EDL export |
-| 10 | `ai_powered_editing.py` | AI-assisted post-production | RemoveBackground, Upscale, Denoise, SceneDetector, FaceDetector, AutoColor, MusicGeneration, SoundFX |
-| 11 | `performance_and_scale.py` | Render optimization | GPU compositing, hardware encoding, distributed rendering, profiling, benchmarking, bottleneck detection |
-
-```bash
-python examples/download_assets.py     # grab stock images (~5 MB)
-python examples/01_real_estate_tour.py  # render
-```
-
----
-
-## Code Quality & Checks
-
-PyMotion enforces strict quality gates on every change. All checks must pass before any commit is merged.
-
-| Check | Tool | Status | What It Enforces |
-|-------|------|--------|------------------|
-| **Type Safety** | `mypy --strict` | passing | Full static type coverage — no `Any` leaks, strict return types, generic protocols |
-| **Formatting** | `ruff format` | clean | Consistent code style across all 76 modules — zero manual formatting |
-| **Linting** | `ruff check` | clean | 800+ rules — import sorting, unused variables, security patterns, complexity limits |
-| **Tests** | `pytest` | 2185 passed | Unit, integration, snapshot, and performance tests — 89% line coverage |
-| **Security** | `pip-audit` | passing | Zero known vulnerabilities in the dependency tree |
-| **Coverage** | `pytest-cov` | 89% | Enforced minimum — PRs that drop coverage below 85% are rejected |
-
-### Running Locally
+| # | Script | What it demonstrates |
+|---|--------|---------------------|
+| 01 | `01_core_composition.py` | Composition, tracks, color/gradient/image/shape clips, keyframes, easings, effects, presets, config, profiling |
+| 02 | `02_typography.py` | TextClip, Typewriter, WordByWord, LetterByLetter, Scramble, KineticText, CountUp, CountDown, GlitchText, SplitReveal |
+| 03 | `03_video_editing.py` | Split, join, subclip, repeat, freeze frame, speed, reverse, concatenate, transitions, PiP, grid, stack, proxy |
+| 04 | `04_keying_compositing.py` | ChromaKey, LumaKey, ColorKey, DifferenceKey, adjustment layers, track mattes, color grading, scopes |
+| 05 | `05_3d_rendering.py` | Scene3D, Camera, PBR materials, lights, HDRI, SSAO, bloom, depth of field, ACES, tone mapping |
+| 06 | `06_particles_vfx.py` | ParticleSystem, Emitter, 6 presets, 15 transitions, distortion/light effects, film grain, motion blur |
+| 07 | `07_audio_mixing.py` | AudioMixer, buses, EQ, compressor, reverb, beat detection, waveform/spectrum/spectrogram clips |
+| 08 | `08_captions_tts.py` | AutoCaptions, SubtitleClip, SRT/VTT/ASS parsing, TTSClip, caption styles |
+| 09 | `09_motion_graphics.py` | LowerThird, LogoReveal, CallToAction, SocialHandle, Countdown, charts, mockups, transitions |
+| 10 | `10_advanced_compositing.py` | NullObject, BezierMask, gradient masks, TextMask, expressions, wiggle, StrokeClip, path morph |
+| 11 | `11_ai_features.py` | RemoveBackground, Upscale, Denoise, FaceDetector, SceneDetector, AutoColor, MusicGeneration |
+| 12 | `12_batch_template.py` | Template ABC, field validation, batch rendering |
 
 ```bash
-make lint      # ruff format + ruff check + mypy --strict (all three must pass)
-make test      # pytest with coverage (85% minimum gate)
-make clean     # remove caches and build artifacts
+python examples/download_assets.py
+python examples/01_core_composition.py
 ```
 
-Or individually:
+## Presets
 
-```bash
-ruff format pymotion/ tests/                  # auto-format
-ruff check pymotion/ tests/                   # lint
-mypy --strict pymotion/                       # type check
-pytest -v                                     # full suite (2185 tests)
-pytest tests/unit/ -v                         # unit tests only
-pytest --cov=pymotion --cov-report=html       # coverage report
-```
+| Preset | Codec | Format | Quality | Use case |
+|--------|-------|--------|---------|----------|
+| `h264_1080p` | libx264 | mp4 | CRF 18 | General purpose 1080p |
+| `h264_1080p_hq` | libx264 | mp4 | CRF 10 | Archival quality 1080p |
+| `h264_fast` | libx264 | mp4 | CRF 22 | Fast draft rendering |
+| `h264_4k` | libx264 | mp4 | CRF 18 | 4K delivery |
+| `h265_1080p` | libx265 | mp4 | CRF 16 | Smaller file size 1080p |
+| `h265_4k` | libx265 | mp4 | CRF 16 | 4K with HEVC |
+| `youtube_1080p` | libx264 | mp4 | CRF 10 | YouTube upload (high bitrate) |
+| `youtube_4k` | libx265 | mp4 | CRF 14 | YouTube 4K upload |
+| `instagram_reel` | libx264 | mp4 | 8 Mbps | Instagram vertical (1080x1920) |
+| `tiktok` | libx264 | mp4 | 8 Mbps | TikTok vertical (1080x1920) |
+| `webm_1080p` | VP9 | webm | CRF 31 | Web embedding |
+| `av1_1080p` | AV1 | webm | CRF 28 | Next-gen web delivery |
+| `prores_4444` | ProRes 4444 | mov | Lossless | Post-production with alpha |
+| `prores_hq` | ProRes HQ | mov | Near-lossless | Post-production |
+| `dnxhd_1080p` | DNxHD | mov | 185 Mbps | Broadcast editing |
+| `gif_1080p` | GIF | gif | Palette | Animated previews |
+| `frame_sequence_png` | PNG | image2 | Lossless | Frame-by-frame export |
+| `h264_nvenc` | H.264 (NVIDIA) | mp4 | VBR | GPU-accelerated (NVIDIA) |
+| `h265_nvenc` | H.265 (NVIDIA) | mp4 | VBR | GPU-accelerated HEVC (NVIDIA) |
+| `h264_qsv` | H.264 (Intel) | mp4 | Quality 18 | GPU-accelerated (Intel) |
+| `h264_amf` | H.264 (AMD) | mp4 | VBR | GPU-accelerated (AMD) |
+| `h264_videotoolbox` | H.264 (Apple) | mp4 | Quality 65 | GPU-accelerated (macOS) |
 
----
+Hardware presets are auto-detected. If the hardware encoder is unavailable, PyMotion falls back to the equivalent software preset.
 
-## Project Structure
+## System requirements
 
-```
-pymotion/                    83 modules, ~30,000 lines
-├── animation/               Keyframe tracks, 30+ easings, spring, bezier, interpolation
-├── audio/                   5.1 surround mixer, bus routing, DSP effects, convolution reverb, beat detection
-├── clip/                    ColorClip, ImageClip, ShapeClip, TextClip, VideoClip, Scene3DClip, charts, mockups, audio viz
-├── captions.py              Subtitle import/export, AutoCaptions (Whisper), caption styles
-├── color_science.py         ACES pipeline, HDR presets, ColorMatch, HSLSecondary, video scopes
-├── composition.py           Composition, Track, CompositionClip, AdjustmentLayer, EDL/OTIO export
-├── masking.py               Bezier, gradient, track matte, text masks + boolean ops
-├── expressions.py           Expression system — wiggle, loop_in, loop_out
-├── path_animation.py        SVG path following, StrokeClip, path morphing
-├── tts.py                   Text-to-speech (system, OpenAI, ElevenLabs)
-├── ai.py                    AI helpers — scene detection, face analysis, voice/music generation
-├── effects/                 Visual, color, distortion, light, AI effect processors
-├── export/                  FFmpeg encoder, 19 output presets (incl. NVENC, QSV, AMF)
-├── particle/                Vectorized particle system, 9 preset generators
-├── render/                  Cairo 2D, ModernGL 3D, compositor, GPU compositor, distributed, profiling
-├── security/                Path traversal, color, asset magic-byte, text sanitization validators
-├── template/                Template ABC with field validation for batch rendering
-├── text/                    FreeType/HarfBuzz renderer, 9 animated text presets
-├── transition/              39 transition implementations
-├── utils/                   Color (OKLCH), Vec2/Vec3, logging (structlog)
-└── cli/                     Click-based CLI (render, preview, benchmark, doctor, ...)
+| Requirement | Details |
+|-------------|---------|
+| Python | 3.12, 3.13, or 3.14 |
+| FFmpeg | Any recent version (tested with 6.x and 7.x) |
+| Cairo | Required for 2D rendering (libcairo2 / cairo) |
+| pkg-config | Required to locate Cairo headers |
+| OpenCV | Optional, needed for motion tracking, stabilization, and optical flow |
+| ModernGL | Optional, needed for 3D rendering (installed via pip) |
+| WGPU | Optional, needed for GPU compositing (install `[gpu-compute]` extra) |
+| AI models | Optional, needed for AI features (install `[ai]` extra) |
 
-tests/                       2185 tests, ~19,000 lines
-├── unit/                    Fast isolated tests (mocked I/O, no rendering)
-├── integration/             End-to-end render tests (FFmpeg required)
-├── snapshot/                Frame-level regression tests
-└── performance/             Throughput benchmarks
-
-docs/                        62 pages
-├── guides/                  33 practical tutorials (code-first, copy-paste ready)
-└── api/                     29 auto-generated API reference pages (mkdocstrings)
-
-examples/                    11 production-ready scripts targeting real-world niches
-```
-
-**Internal frame format:** BGRA `uint8` NumPy arrays `(H, W, 4)` — matches Cairo ARGB32 on little-endian. The compositor uses bounding-box sparse blending with `uint16` fixed-point fast paths for opaque layers and alpha-info caching for transparency detection.
-
----
-
-## Performance
-
-Benchmarked on a typical 7-layer 1080p composition:
-
-| Metric | Value |
-|--------|-------|
-| Frame render throughput | ~75 fps (13 ms/frame) |
-| 12s video end-to-end | ~7s wall time (2.5x realtime) |
-| Static layer caching | Single render, reused across frames |
-| Particle simulation | Vectorized NumPy — no per-particle Python loops |
-| FFmpeg encoding | Multi-threaded, contiguous frame pipe, zero-copy |
-| GPU compositing | WGPU compute shader, 8 blend modes, VRAM-pooled buffers |
-| Hardware encoding | NVENC/QSV/AMF with auto-detection and software fallback |
-| Distributed rendering | Ray/Dask backends with frame-level checkpoint resume |
-| Incremental rendering | Skip unchanged frames via state hash caching |
-| Memory-mapped buffers | `mmap` for 4K+ intermediates — avoid full-frame RAM loads |
-
-### Profiling tools
-
-```python
-from pymotion import benchmark, detect_bottlenecks, memory_report, frame_diff
-
-result = benchmark(comp, n_frames=100)       # throughput measurement
-bottlenecks = detect_bottlenecks(comp)        # find slowest clips/effects
-report = memory_report(comp)                  # peak RAM per stage
-diff = frame_diff(frame_a, frame_b)           # pixel-level comparison + PSNR
-```
-
----
-
-## CLI
-
-```bash
-pymotion render scene.py -o out.mp4 -p h264_1080p   # render a composition
-pymotion export-frame scene.py -f 30 -o thumb.png    # export single frame
-pymotion benchmark scene.py -n 100                    # measure frame throughput
-pymotion doctor                                       # verify system dependencies
-pymotion validate scene.py                            # check composition integrity
-pymotion new my-project                               # scaffold a new project
-```
-
----
-
-## Development
-
-```bash
-git clone https://github.com/Ohswedd/pymotion.git
-cd pymotion
-pip install -e ".[dev]"
-```
-
----
-
-## Docker
-
-```bash
-docker build -t pymotion .
-docker run --rm -v $(pwd)/output:/app/output pymotion render scene.py -o output/video.mp4
-```
-
----
-
-## System Dependencies
-
-| Dependency | Purpose | Bundled? |
-|-----------|---------|----------|
-| FFmpeg | Video/audio encoding | No — install separately |
-| Cairo | 2D vector rendering | No — install separately |
-| FreeType | Font rasterization | Yes (via `freetype-py`) |
-| HarfBuzz | Text shaping | Yes (via `uharfbuzz`) |
-| ModernGL | 3D PBR rendering | Yes (via pip) |
+No GPU is required for CPU-path rendering. All GPU features detect hardware availability at runtime and fall back to CPU.
 
 Run `pymotion doctor` to verify your environment.
 
----
-
-## Release History
-
-| Version | Date | Highlights |
-|---------|------|------------|
-| **v2.5.0** | 2026-03-11 | Performance & Scale — GPU compositing (WGPU), hardware encoding (NVENC/QSV/AMF), distributed rendering (Ray/Dask), profiling tools, render optimizations |
-| **v2.0.0** | 2026-03-11 | AI-Powered Features — background removal, upscale, denoise, scene detection, face blur, AI music/SFX generation |
-| **v1.5.0** | 2026-03-11 | Professional Audio & Color Science — 5.1 surround, ACES, HDR, scopes, captions, TTS, EDL/OTIO |
-| **v1.4.0** | 2026-03-10 | Motion Graphics & Data Visualization — charts, mockups, motion graphics overlays |
-| **v1.3.0** | 2026-03-10 | Advanced Compositing — pre-comps, adjustment layers, masking, expressions, path animation |
-| **v1.2.0** | 2026-03-10 | Video Editing — split/join/speed, chroma key, PiP, stabilization, proxy |
-| **v1.0.0** | 2026-03-10 | Initial release — core rendering, animation, effects, transitions, particles, 3D |
-
----
-
 ## License
 
-PyMotion is released under the [PyMotion Source Available License 1.0](LICENSE).
-
-**What you can do:**
-- Use PyMotion in any project, including commercial products
-- Fork the repo and modify the code for your own use
-- Contribute back via pull requests
-
-**What you cannot do:**
-- Redistribute, rebrand, or republish PyMotion as a standalone library
-- Sell, sublicense, or commercially exploit the library itself
-- Publish modified versions to any package registry
-
-Read the full [LICENSE](LICENSE) for details.
+PyMotion is released under the [PyMotion Source Available License 1.0](LICENSE). You can use it in any project, including commercial products. You cannot redistribute, rebrand, or republish the library itself. Read the full [LICENSE](LICENSE) for details.

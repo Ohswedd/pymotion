@@ -197,8 +197,16 @@ def main() -> None:
         # Framework depth attachment bug — use color overlay instead
         print(f"   3D render fallback (expected): {type(e).__name__}")
         overlay = pm.ColorClip(color="#e94560")
-        overlay.set_duration(TOTAL).set_opacity(0.3)
+        overlay.set_duration(TOTAL).set_opacity(0.7)
         scene_track.clips.append(overlay)
+        # Add a label so the fallback is visually informative
+        fallback_label = pm.TextClip(
+            text="3D Preview\n(GPU required)",
+            font_size=48,
+            color="#ffffff",
+        )
+        fallback_label.set_duration(TOTAL).set_position(960, 540).set_opacity(0.9)
+        scene_track.clips.append(fallback_label)
     comp.tracks.append(scene_track)
 
     # Color grading layer

@@ -201,6 +201,19 @@ def main() -> None:
     bg_track.clips.append(bg)
     comp.tracks.append(bg_track)
 
+    # Section labels — visible throughout each section so audio-only frames
+    # never appear as plain black.
+    label_track = pm.Track(name="labels")
+    for lbl, start in [
+        ("Waveform", 0),
+        ("Spectrum", 200),
+        ("Spectrogram", 400),
+    ]:
+        label = pm.TextClip(text=lbl, font_size=36, color="#555566")
+        label.set_duration(200).at(start).set_position(960, 1020).set_opacity(0.6)
+        label_track.clips.append(label)
+    comp.tracks.append(label_track)
+
     # Section 1: WaveformClip (first 200 frames)
     wf_track = pm.Track(name="waveform")
     wf = pm.WaveformClip(
