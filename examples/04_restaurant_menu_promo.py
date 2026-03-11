@@ -151,7 +151,10 @@ panel1_bg.set_duration(150).at(150).set_opacity(0.85)
 dish1_track.add(panel1_bg)
 
 panel1_border = ShapeClip.rect(
-    x=1050, y=180, w=750, h=450,
+    x=1050,
+    y=180,
+    w=750,
+    h=450,
     fill="#00000000",
     stroke="#C8963E",
     stroke_width=1,
@@ -211,7 +214,10 @@ panel2_bg.set_duration(150).at(300).set_opacity(0.85)
 dish2_track.add(panel2_bg)
 
 panel2_border = ShapeClip.rect(
-    x=100, y=180, w=750, h=450,
+    x=100,
+    y=180,
+    w=750,
+    h=450,
     fill="#00000000",
     stroke="#C8963E",
     stroke_width=1,

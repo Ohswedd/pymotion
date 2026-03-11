@@ -126,8 +126,12 @@ for i, (num, label, completed) in enumerate(steps):
 
     if i < len(steps) - 1:
         conn_line = ShapeClip.line(
-            x1=80, y1=y_pos + 31, x2=80, y2=y_pos + 64,
-            color="#444444", width=1,
+            x1=80,
+            y1=y_pos + 31,
+            x2=80,
+            y2=y_pos + 64,
+            color="#444444",
+            width=1,
         )
         conn_line.set_duration(DURATION)
         sidebar.add(conn_line)
@@ -179,7 +183,10 @@ for i, obj_text in enumerate(objectives):
     obj_start = 30 + i * 20
 
     checkbox = ShapeClip.rect(
-        x=420, y=y, w=22, h=22,
+        x=420,
+        y=y,
+        w=22,
+        h=22,
         fill="#FFFFFF",
         stroke="#0984E3",
         stroke_width=2,
@@ -189,15 +196,23 @@ for i, obj_text in enumerate(objectives):
 
     # Checkmarks appear after a short delay
     check = ShapeClip.line(
-        x1=425, y1=y + 11, x2=431, y2=y + 17,
-        color="#0984E3", width=2,
+        x1=425,
+        y1=y + 11,
+        x2=431,
+        y2=y + 17,
+        color="#0984E3",
+        width=2,
     )
     check.set_duration(180 - obj_start - 15).at(obj_start + 15)
     sec1.add(check)
 
     check2 = ShapeClip.line(
-        x1=431, y1=y + 17, x2=440, y2=y + 5,
-        color="#0984E3", width=2,
+        x1=431,
+        y1=y + 17,
+        x2=440,
+        y2=y + 5,
+        color="#0984E3",
+        width=2,
     )
     check2.set_duration(180 - obj_start - 15).at(obj_start + 15)
     sec1.add(check2)
@@ -229,9 +244,7 @@ code_lines = [
 for j, (code, color) in enumerate(code_lines):
     if code:
         code_text = TextClip(code, font="Arial", size=18.0, color=color)
-        code_text.set_duration(150 - j * 10).at(30 + j * 10).set_position(
-            1130.0, 195.0 + j * 35
-        )
+        code_text.set_duration(150 - j * 10).at(30 + j * 10).set_position(1130.0, 195.0 + j * 35)
         sec1.add(code_text)
 
 for j in range(6):
@@ -263,7 +276,10 @@ sec2.add(sec2_title)
 
 # Diagram elements — all visible for the full section
 input_box = ShapeClip.rect(
-    x=480, y=300, w=200, h=120,
+    x=480,
+    y=300,
+    w=200,
+    h=120,
     fill="#DFE6E9",
     stroke="#0984E3",
     stroke_width=2,
@@ -314,7 +330,10 @@ arrow2_head.set_duration(180).at(180)
 sec2.add(arrow2_head)
 
 output_box = ShapeClip.rect(
-    x=1240, y=300, w=200, h=120,
+    x=1240,
+    y=300,
+    w=200,
+    h=120,
     fill="#DFE6E9",
     stroke="#00B894",
     stroke_width=2,

@@ -207,7 +207,10 @@ dark_panel.set_duration(140).at(280).set_opacity(0.6)
 phase3.add(dark_panel)
 
 panel_border = ShapeClip.rect(
-    x=400, y=250, w=1120, h=500,
+    x=400,
+    y=250,
+    w=1120,
+    h=500,
     fill="#00000000",
     stroke="#4FC3F7",
     stroke_width=1,

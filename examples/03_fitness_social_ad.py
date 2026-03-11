@@ -195,9 +195,7 @@ satisfaction = CountUp(
 satisfaction.set_duration(130).at(120)
 sec2.add(satisfaction)
 
-satisfaction_label = TextClip(
-    "Member Satisfaction", font="Arial", size=24.0, color="#AADDFF"
-)
+satisfaction_label = TextClip("Member Satisfaction", font="Arial", size=24.0, color="#AADDFF")
 satisfaction_label.set_duration(130).at(120).set_position(100.0, 1100.0)
 sec2.add(satisfaction_label)
 
@@ -249,7 +247,10 @@ offer_line.set_duration(110).at(250).set_opacity(0.5)
 sec3.add(offer_line)
 
 btn_bg = ShapeClip.rect(
-    x=250, y=860, w=580, h=80,
+    x=250,
+    y=860,
+    w=580,
+    h=80,
     fill="#FF4500",
     stroke="#FFFFFF",
     stroke_width=3,
