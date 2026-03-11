@@ -230,6 +230,26 @@ from pymotion.render.color_pipeline import (
 from pymotion.render.distributed import RenderCheckpoint, render_frames_dask, render_frames_ray
 from pymotion.render.gpu_compositor import GPUBufferPool, GPUCompositor, get_gpu_compositor
 from pymotion.render.gpu_effects import GPUEffectPipeline, get_gpu_effect_pipeline, is_gpu_effect
+from pymotion.render.optimizations import (
+    IncrementalRenderer,
+    MappedFrameBuffer,
+    StaticLayerCache,
+    render_audio_parallel,
+    try_simd_blend,
+)
+from pymotion.render.profiling import (
+    Bottleneck,
+    ClipTiming,
+    FrameDiff,
+    FrameProfile,
+    MemoryReport,
+    RenderProfile,
+    benchmark,
+    detect_bottlenecks,
+    frame_diff,
+    memory_report,
+    profile_composition,
+)
 from pymotion.template.base import Template, TemplateValidationError
 from pymotion.text.animated import (
     CountDown,
@@ -605,6 +625,12 @@ __all__ = [
     "RenderCheckpoint",
     "render_frames_dask",
     "render_frames_ray",
+    # Render Optimizations
+    "IncrementalRenderer",
+    "MappedFrameBuffer",
+    "StaticLayerCache",
+    "render_audio_parallel",
+    "try_simd_blend",
     # GPU Compositing & Effects
     "GPUBufferPool",
     "GPUCompositor",
@@ -627,6 +653,18 @@ __all__ = [
     "WaveformScopeClip",
     "aces_to_srgb",
     "srgb_to_aces",
+    # Profiling & Diagnostics
+    "Bottleneck",
+    "ClipTiming",
+    "FrameDiff",
+    "FrameProfile",
+    "MemoryReport",
+    "RenderProfile",
+    "benchmark",
+    "detect_bottlenecks",
+    "frame_diff",
+    "memory_report",
+    "profile_composition",
     # CountUp (text)
     "CountUp",
 ]
