@@ -24,6 +24,7 @@ import structlog
 
 from pymotion import (
     AdjustmentLayer,
+    AudioClip,
     BleachBypass,
     BlendMode,
     Color,
@@ -32,6 +33,7 @@ from pymotion import (
     Contrast,
     FilmGrain,
     GradientClip,
+    ImageClip,
     ShapeClip,
     SplitReveal,
     SplitToning,
@@ -44,6 +46,8 @@ from pymotion.text.animated import GlitchText
 from pymotion.utils.math import Vec2
 
 logger = structlog.get_logger(__name__)
+
+ASSETS = Path(__file__).parent / "assets"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -148,6 +152,21 @@ def build_composition() -> Composition:
     bg_track.add(_act_background("#0a0514", "#1a0a28", 480, 1440, "radial"))
     # Closing — black
     bg_track.add(_act_background("#000000", "#050505", 240, 1920))
+
+    # Optional cinematic landscape backgrounds per act
+    _act_images = [
+        (168, 552, "cine_landscape_1.jpg", 0.15),  # Act I
+        (720, 720, "cine_landscape_2.jpg", 0.20),  # Act II
+        (1440, 480, "cine_landscape_3.jpg", 0.25),  # Act III
+        (1920, 240, "cine_landscape_4.jpg", 0.15),  # Closing
+    ]
+    for start_f, dur, filename, opacity in _act_images:
+        img_path = ASSETS / filename
+        if img_path.exists():
+            landscape = ImageClip(str(img_path), fit_mode="cover")
+            landscape.set_duration(dur).at(start_f).set_opacity(opacity)
+            bg_track.add(landscape)
+            logger.info("asset_loaded", file=filename, act_start=start_f)
 
     comp.add_track(bg_track)
 
@@ -331,6 +350,13 @@ def build_composition() -> Composition:
     adj.set_duration(DURATION_FRAMES).at(0)
     grade_track.add(adj)
     comp.add_track(grade_track)
+
+    # Attach cinematic soundtrack if available
+    _music_path = ASSETS / "music_cinematic.wav"
+    if _music_path.exists():
+        music = AudioClip(str(_music_path), volume=0.7)
+        comp.audio_clips = [music]
+        logger.info("audio_attached", source="music_cinematic.wav")
 
     return comp
 

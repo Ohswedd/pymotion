@@ -5,7 +5,9 @@ NumberCounter for key statistics, ProgressBar for metrics, Typewriter
 narration text, TransitionTitle section headers, grid layout for dashboard
 views, professional LowerThird overlays, and clean/minimal design theme.
 
-All visuals are self-contained — no external asset files required.
+Optionally uses stock photo / audio assets from ``examples/assets/``
+(run ``python examples/download_assets.py`` first).  Falls back to
+fully synthetic content when assets are not present.
 """
 
 from __future__ import annotations
@@ -16,9 +18,13 @@ import structlog
 
 from pymotion import (
     AdjustmentLayer,
+    AudioClip,
+    AudioClipData,
+    AudioMixer,
     BarChartClip,
     Composition,
     GradientClip,
+    ImageClip,
     LineChartClip,
     LowerThird,
     NumberCounter,
@@ -35,6 +41,9 @@ from pymotion.utils.color import Color
 from pymotion.utils.math import Vec2
 
 logger = structlog.get_logger(__name__)
+
+# ── Assets (optional — run download_assets.py first) ─────────────────
+ASSETS = Path(__file__).parent / "assets"
 
 # ── Constants ─────────────────────────────────────────────────────────
 WIDTH, HEIGHT = 1920, 1080
@@ -73,6 +82,13 @@ def _build_composition() -> Composition:
 
     # ── Track 1: Subtle background panels ─────────────────────────────
     bg_track = Track(name="backgrounds")
+
+    # Subtle stock photo behind intro (optional)
+    if (ASSETS / "data_bg.jpg").exists():
+        intro_photo = ImageClip(str(ASSETS / "data_bg.jpg"), fit_mode="cover")
+        intro_photo.set_duration(450).at(0).set_opacity(0.15)
+        bg_track.add(intro_photo)
+        logger.info("asset_loaded", file="data_bg.jpg", section="intro")
 
     # Light gradient backdrop for intro
     intro_bg = GradientClip(
@@ -352,6 +368,15 @@ def _build_composition() -> Composition:
 
     comp.add_track(lt_track)
 
+    # ── Conclusion background image (optional) ────────────────────────
+    if (ASSETS / "data_conclusion.jpg").exists():
+        concl_img = ImageClip(str(ASSETS / "data_conclusion.jpg"), fit_mode="cover")
+        concl_img.set_duration(900).at(4500).set_opacity(0.2)
+        concl_photo_track = Track(name="conclusion_photo")
+        concl_photo_track.add(concl_img)
+        comp.add_track(concl_photo_track)
+        logger.info("asset_loaded", file="data_conclusion.jpg", section="conclusion")
+
     # ── Track 9: Conclusion text ──────────────────────────────────────
     conclusion_track = Track(name="conclusion")
 
@@ -396,6 +421,19 @@ def main() -> None:
 
     logger.info("building_composition", width=WIDTH, height=HEIGHT, fps=FPS)
     comp = _build_composition()
+
+    # ── Background music (optional) ────────────────────────────────────
+    music_path = ASSETS / "music_documentary.wav"
+    if music_path.exists():
+        try:
+            music = AudioClip(str(music_path), volume=0.3)
+            music.fade_in(1.5).fade_out(3.0)
+            mixer = AudioMixer(sample_rate=48000)
+            mixer.add(AudioClipData(samples=music.get_samples(), start_sample=0), track="music")
+            mixer.render()
+            logger.info("audio_prepared", file="music_documentary.wav")
+        except Exception:
+            logger.warning("audio_skipped", reason="failed to load music_documentary.wav")
 
     logger.info("rendering", output=str(output_path))
     comp.render(str(output_path), preset="h264_1080p")

@@ -5,7 +5,9 @@ panels, animated cursor using expressions and ShapeClip, highlight boxes with
 semi-transparent ShapeClip overlays, Typewriter for instructions, ProgressBar
 as a step indicator, DesktopMockup, and expression-driven animation.
 
-All visuals are self-contained — no external asset files required.
+Optionally uses stock photo / audio assets from ``examples/assets/``
+(run ``python examples/download_assets.py`` first).  Falls back to
+fully synthetic content when assets are not present.
 """
 
 from __future__ import annotations
@@ -16,11 +18,15 @@ import structlog
 
 from pymotion import (
     AdjustmentLayer,
+    AudioClip,
+    AudioClipData,
+    AudioMixer,
     BrowserMockup,
     ColorClip,
     Composition,
     DesktopMockup,
     GradientClip,
+    ImageClip,
     ProgressBar,
     ShapeClip,
     TextClip,
@@ -34,6 +40,9 @@ from pymotion.utils.color import Color
 from pymotion.utils.math import Vec2
 
 logger = structlog.get_logger(__name__)
+
+# ── Assets (optional — run download_assets.py first) ─────────────────
+ASSETS = Path(__file__).parent / "assets"
 
 # ── Constants ─────────────────────────────────────────────────────────
 WIDTH, HEIGHT = 1920, 1080
@@ -155,7 +164,13 @@ def _build_composition() -> Composition:
     mockup_track = Track(name="mockups")
 
     # Step 1: Browser showing documentation
-    doc_content = ColorClip(color="#1A1A2E")
+    # Use stock screenshot as content if available, else solid color
+    doc_content: ColorClip | ImageClip
+    if (ASSETS / "tutorial_screen_1.jpg").exists():
+        doc_content = ImageClip(str(ASSETS / "tutorial_screen_1.jpg"), fit_mode="cover")
+        logger.info("asset_loaded", file="tutorial_screen_1.jpg", section="browser_mockup")
+    else:
+        doc_content = ColorClip(color="#1A1A2E")
     doc_content.set_duration(600).at(100)
 
     browser = BrowserMockup(
@@ -169,7 +184,12 @@ def _build_composition() -> Composition:
     mockup_track.add(browser)
 
     # Step 4: Desktop mockup showing render settings
-    render_content = ColorClip(color="#0F172A")
+    render_content: ColorClip | ImageClip
+    if (ASSETS / "tutorial_screen_2.jpg").exists():
+        render_content = ImageClip(str(ASSETS / "tutorial_screen_2.jpg"), fit_mode="cover")
+        logger.info("asset_loaded", file="tutorial_screen_2.jpg", section="desktop_mockup")
+    else:
+        render_content = ColorClip(color="#0F172A")
     render_content.set_duration(600).at(2260)
 
     desktop = DesktopMockup(
@@ -445,6 +465,19 @@ def main() -> None:
 
     logger.info("building_composition", width=WIDTH, height=HEIGHT, fps=FPS)
     comp = _build_composition()
+
+    # ── Background music (optional) ────────────────────────────────────
+    music_path = ASSETS / "music_lofi.wav"
+    if music_path.exists():
+        try:
+            music = AudioClip(str(music_path), volume=0.25)
+            music.fade_in(1.0).fade_out(2.0)
+            mixer = AudioMixer(sample_rate=48000)
+            mixer.add(AudioClipData(samples=music.get_samples(), start_sample=0), track="music")
+            mixer.render()
+            logger.info("audio_prepared", file="music_lofi.wav")
+        except Exception:
+            logger.warning("audio_skipped", reason="failed to load music_lofi.wav")
 
     logger.info("rendering", output=str(output_path))
     comp.render(str(output_path), preset="h264_1080p")

@@ -26,9 +26,11 @@ from pathlib import Path
 import structlog
 
 from pymotion import (
+    AudioClip,
     Color,
     Composition,
     GradientClip,
+    ImageClip,
     ShapeClip,
     TextClip,
     Track,
@@ -38,6 +40,8 @@ from pymotion.text.animated import CountUp
 from pymotion.utils.math import Vec2
 
 logger = structlog.get_logger(__name__)
+
+ASSETS = Path(__file__).parent / "assets"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -70,6 +74,7 @@ class ProductData:
     features: list[str] = field(default_factory=list)
     accent_color: str = "#FF006E"
     tagline: str = "Shop Now"
+    image_file: str = ""  # Filename in assets/ (e.g. "product_headphones.jpg")
 
 
 # ---------------------------------------------------------------------------
@@ -154,14 +159,32 @@ def render_product_video(product: ProductData, output_path: Path) -> Path:
     name_clip.set_expression("opacity", _fade_expr(VIDEO_DURATION_FRAMES - 30, 15, 15))
     text_track.add(name_clip)
 
-    # ── Product placeholder box ─────────────────────────────────────────
+    # ── Product image / placeholder box ─────────────────────────────────
     product_track = Track(name="product")
     box_w, box_h = 400, 400
-    box = ShapeClip.rectangle(box_w, box_h, fill_color="#E8E8F0")
-    box.set_duration(VIDEO_DURATION_FRAMES - 60).at(30)
-    box.set_position((WIDTH - box_w) / 2.0, 160.0)
-    box.set_expression("opacity", _fade_expr(VIDEO_DURATION_FRAMES - 60, 15, 15))
-    product_track.add(box)
+
+    # Use real product image if available; otherwise fall back to grey box
+    _img_path = ASSETS / product.image_file if product.image_file else None
+    if _img_path is not None and _img_path.exists():
+        prod_img = ImageClip(str(_img_path), fit_mode="contain")
+        prod_img.set_duration(VIDEO_DURATION_FRAMES - 60).at(30)
+        prod_img.set_position((WIDTH - box_w) / 2.0, 160.0)
+        prod_img.set_expression("opacity", _fade_expr(VIDEO_DURATION_FRAMES - 60, 15, 15))
+        product_track.add(prod_img)
+        logger.info("product_image_loaded", product=product.name, file=product.image_file)
+    else:
+        box = ShapeClip.rectangle(box_w, box_h, fill_color="#E8E8F0")
+        box.set_duration(VIDEO_DURATION_FRAMES - 60).at(30)
+        box.set_position((WIDTH - box_w) / 2.0, 160.0)
+        box.set_expression("opacity", _fade_expr(VIDEO_DURATION_FRAMES - 60, 15, 15))
+        product_track.add(box)
+
+        # "Image" placeholder text inside box
+        placeholder = TextClip(text="PRODUCT", font_size=24, color="#AAAAAA")
+        placeholder.set_duration(VIDEO_DURATION_FRAMES - 60).at(30)
+        placeholder.set_position((WIDTH - 100) / 2.0, 340.0)
+        placeholder.set_expression("opacity", _fade_expr(VIDEO_DURATION_FRAMES - 60, 20, 15))
+        product_track.add(placeholder)
 
     # Inner accent border
     border = ShapeClip.rectangle(
@@ -176,12 +199,6 @@ def render_product_video(product: ProductData, output_path: Path) -> Path:
     border.set_expression("opacity", _fade_expr(VIDEO_DURATION_FRAMES - 60, 20, 15))
     product_track.add(border)
 
-    # "Image" placeholder text inside box
-    placeholder = TextClip(text="PRODUCT", font_size=24, color="#AAAAAA")
-    placeholder.set_duration(VIDEO_DURATION_FRAMES - 60).at(30)
-    placeholder.set_position((WIDTH - 100) / 2.0, 340.0)
-    placeholder.set_expression("opacity", _fade_expr(VIDEO_DURATION_FRAMES - 60, 20, 15))
-    product_track.add(placeholder)
     comp.add_track(product_track)
 
     # ── Price (CountUp animation) ───────────────────────────────────────
@@ -248,6 +265,13 @@ def render_product_video(product: ProductData, output_path: Path) -> Path:
 
     comp.add_track(text_track)
 
+    # ── Background music ────────────────────────────────────────────────
+    _music_path = ASSETS / "music_ecommerce.wav"
+    if _music_path.exists():
+        music = AudioClip(str(_music_path), volume=0.4)
+        comp.audio_clips = [music]
+        logger.info("audio_attached", product=product.name, source="music_ecommerce.wav")
+
     # ── Render ──────────────────────────────────────────────────────────
     logger.info(
         "rendering_product",
@@ -275,6 +299,7 @@ PRODUCTS: list[ProductData] = [
         ],
         accent_color="#6C63FF",
         tagline="Hear Everything. Miss Nothing.",
+        image_file="product_headphones.jpg",
     ),
     ProductData(
         name="Nova Smartwatch",
@@ -287,6 +312,7 @@ PRODUCTS: list[ProductData] = [
         ],
         accent_color="#FF6B6B",
         tagline="Your Health. Your Wrist.",
+        image_file="product_watch.jpg",
     ),
     ProductData(
         name="Prism Speaker",
@@ -299,6 +325,7 @@ PRODUCTS: list[ProductData] = [
         ],
         accent_color="#00B4D8",
         tagline="Sound Without Boundaries.",
+        image_file="product_speaker.jpg",
     ),
     ProductData(
         name="Flux Keyboard",
@@ -311,6 +338,7 @@ PRODUCTS: list[ProductData] = [
         ],
         accent_color="#2DC653",
         tagline="Type. Create. Dominate.",
+        image_file="product_keyboard.jpg",
     ),
 ]
 

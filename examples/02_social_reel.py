@@ -5,7 +5,9 @@ bold text overlays with KineticText, CountDown intro, ProgressBar animation,
 SocialHandle overlay, confetti particle burst, CallToAction component,
 GradientClip backgrounds, quick section cuts, and energetic color palette.
 
-All visuals are self-contained — no external asset files required.
+Optionally uses stock photo / audio assets from ``examples/assets/``
+(run ``python examples/download_assets.py`` first).  Falls back to
+fully synthetic content when assets are not present.
 """
 
 from __future__ import annotations
@@ -16,12 +18,16 @@ import structlog
 
 from pymotion import (
     AdjustmentLayer,
+    AudioClip,
+    AudioClipData,
+    AudioMixer,
     BlendMode,
     CallToAction,
     Composition,
     CountDown,
     Countdown,
     GradientClip,
+    ImageClip,
     KineticText,
     ProgressBar,
     ShapeClip,
@@ -36,6 +42,9 @@ from pymotion.utils.color import Color
 from pymotion.utils.math import Vec2
 
 logger = structlog.get_logger(__name__)
+
+# ── Assets (optional — run download_assets.py first) ─────────────────
+ASSETS = Path(__file__).parent / "assets"
 
 # ── Constants ─────────────────────────────────────────────────────────
 WIDTH, HEIGHT = 1080, 1920
@@ -89,6 +98,21 @@ def _build_composition() -> Composition:
         )
         grad.set_duration(frame_end - frame_start).at(frame_start)
         bg_track.add(grad)
+
+    # Optional stock photo overlays behind section gradients
+    photo_track = Track(name="photos")
+    _photo_map = [
+        ("reel_hero.jpg", 0, 360),
+        ("reel_problem.jpg", 360, 720),
+        ("reel_solution.jpg", 1080, 720),
+    ]
+    for img_name, img_start, img_dur in _photo_map:
+        if (ASSETS / img_name).exists():
+            img = ImageClip(str(ASSETS / img_name), fit_mode="cover")
+            img.set_duration(img_dur).at(img_start).set_opacity(0.3)
+            photo_track.add(img)
+            logger.info("asset_loaded", file=img_name)
+    comp.add_track(photo_track)
 
     comp.add_track(bg_track)
 
@@ -312,6 +336,19 @@ def main() -> None:
 
     logger.info("building_composition", width=WIDTH, height=HEIGHT, fps=FPS)
     comp = _build_composition()
+
+    # ── Background music (optional) ────────────────────────────────────
+    music_path = ASSETS / "music_upbeat.wav"
+    if music_path.exists():
+        try:
+            music = AudioClip(str(music_path), volume=0.5)
+            music.fade_in(0.5).fade_out(1.5)
+            mixer = AudioMixer(sample_rate=48000)
+            mixer.add(AudioClipData(samples=music.get_samples(), start_sample=0), track="music")
+            mixer.render()
+            logger.info("audio_prepared", file="music_upbeat.wav")
+        except Exception:
+            logger.warning("audio_skipped", reason="failed to load music_upbeat.wav")
 
     logger.info("rendering", output=str(output_path))
     comp.render(str(output_path), preset="h264_1080p")

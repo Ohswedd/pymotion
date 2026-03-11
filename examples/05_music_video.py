@@ -25,6 +25,7 @@ import structlog
 
 from pymotion import (
     AdjustmentLayer,
+    AudioClip,
     AudioReactiveEffect,
     BlendMode,
     Bloom,
@@ -34,6 +35,7 @@ from pymotion import (
     Composition,
     Contrast,
     GradientClip,
+    ImageClip,
     NeonGlow,
     ShapeClip,
     SpectrumClip,
@@ -47,6 +49,8 @@ from pymotion import (
 )
 
 logger = structlog.get_logger(__name__)
+
+ASSETS = Path(__file__).parent / "assets"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -112,6 +116,14 @@ def _generate_audio(duration_sec: int, sample_rate: int) -> np.ndarray:
 
 def build_composition() -> Composition:
     """Assemble the music-video composition."""
+    # Prefer real music asset; fall back to synthetic audio for visualizers
+    _music_path = ASSETS / "music_electronic.wav"
+    if _music_path.exists():
+        _music_clip = AudioClip(str(_music_path), volume=0.8)
+        logger.info("music_asset_loaded", file="music_electronic.wav")
+    else:
+        _music_clip = None
+
     audio = _generate_audio(DURATION_SEC, SAMPLE_RATE)
     logger.info("audio_generated", samples=len(audio))
 
@@ -138,6 +150,21 @@ def build_composition() -> Composition:
         lambda ctx: 0.7 + 0.3 * math.sin(ctx.time * 0.2),
     )
     bg_track.add(gradient)
+
+    # Optional stock photo backgrounds for each section
+    _section_bgs = [
+        (0, "mv_bg_1.jpg", 0.2),
+        (1800, "mv_bg_2.jpg", 0.25),
+        (3600, "mv_bg_3.jpg", 0.3),
+    ]
+    for start_frame, filename, opacity in _section_bgs:
+        img_path = ASSETS / filename
+        if img_path.exists():
+            bg_img = ImageClip(str(img_path), fit_mode="cover")
+            bg_img.set_duration(1800).at(start_frame).set_opacity(opacity)
+            bg_track.add(bg_img)
+            logger.info("asset_loaded", file=filename, start=start_frame)
+
     comp.add_track(bg_track)
 
     # -- Track 2: waveform visualisation --------------------------------------
@@ -279,6 +306,11 @@ def build_composition() -> Composition:
     adj.set_duration(DURATION_FRAMES).at(0)
     grade_track.add(adj)
     comp.add_track(grade_track)
+
+    # Attach real music audio when available (replaces synthetic sine waves)
+    if _music_clip is not None:
+        comp.audio_clips = [_music_clip]
+        logger.info("audio_attached", source="music_electronic.wav")
 
     return comp
 

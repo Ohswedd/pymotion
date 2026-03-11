@@ -5,7 +5,9 @@ LetterByLetter), particle overlays (sparkles, confetti), effects (Vignette,
 Bloom), gradient backgrounds, multi-track z-ordering, CrossDissolve
 transitions, LowerThird callouts, LogoReveal, and TransitionTitle.
 
-All visuals are self-contained — no external asset files required.
+Optionally uses stock photo / audio assets from ``examples/assets/``
+(run ``python examples/download_assets.py`` first).  Falls back to
+fully synthetic content when assets are not present.
 """
 
 from __future__ import annotations
@@ -16,12 +18,16 @@ import structlog
 
 from pymotion import (
     AdjustmentLayer,
+    AudioClip,
+    AudioClipData,
+    AudioMixer,
     BlendMode,
     Bloom,
     CallToAction,
     Composition,
     CountUp,
     GradientClip,
+    ImageClip,
     LetterByLetter,
     LogoReveal,
     LowerThird,
@@ -39,6 +45,9 @@ from pymotion.utils.color import Color
 from pymotion.utils.math import Vec2
 
 logger = structlog.get_logger(__name__)
+
+# ── Assets (optional — run download_assets.py first) ─────────────────
+ASSETS = Path(__file__).parent / "assets"
 
 # ── Constants ─────────────────────────────────────────────────────────
 WIDTH, HEIGHT = 3840, 2160
@@ -66,6 +75,13 @@ def _build_composition() -> Composition:
 
     # ── Track 1: Background gradients ─────────────────────────────────
     bg_track = Track(name="backgrounds")
+
+    # Hero background image (falls back to gradient if asset not downloaded)
+    if (ASSETS / "product_hero.jpg").exists():
+        hero_bg = ImageClip(str(ASSETS / "product_hero.jpg"), fit_mode="cover")
+        hero_bg.set_duration(900).at(0).set_opacity(0.25)
+        bg_track.add(hero_bg)
+        logger.info("asset_loaded", file="product_hero.jpg", section="hero")
 
     # Opening gradient — deep purple to dark blue
     opening_grad = GradientClip(
@@ -174,11 +190,11 @@ def _build_composition() -> Composition:
     text_track.add(section1_title)
 
     features = [
-        ("GPU-Accelerated Rendering", 820),
-        ("Node-Based Compositor", 940),
-        ("Real-Time Preview", 1060),
+        ("GPU-Accelerated Rendering", 820, "product_feature_1.jpg"),
+        ("Node-Based Compositor", 940, "product_feature_2.jpg"),
+        ("Real-Time Preview", 1060, "product_feature_3.jpg"),
     ]
-    for feat_text, start_frame in features:
+    for feat_text, start_frame, _feat_img in features:
         feat = WordByWord(
             text=feat_text,
             font_size=64.0,
@@ -188,6 +204,17 @@ def _build_composition() -> Composition:
         )
         feat.set_duration(100).at(start_frame)
         text_track.add(feat)
+
+    # Feature images alongside text (optional)
+    feat_img_track = Track(name="feature_images")
+    for _feat_text, start_frame, feat_img in features:
+        if (ASSETS / feat_img).exists():
+            fimg = ImageClip(str(ASSETS / feat_img), fit_mode="contain")
+            fimg.set_duration(100).at(start_frame).set_position(2400.0, 600.0)
+            fimg.set_opacity(0.85)
+            feat_img_track.add(fimg)
+            logger.info("asset_loaded", file=feat_img, section="features")
+    comp.add_track(feat_img_track)
 
     # ── Section 2: Statistics with CountUp (frames 1300-1900) ─────────
     section2_title = TransitionTitle(
@@ -339,6 +366,23 @@ def main() -> None:
 
     logger.info("building_composition", width=WIDTH, height=HEIGHT, fps=FPS)
     comp = _build_composition()
+
+    # ── Background music (optional) ────────────────────────────────────
+    music_path = ASSETS / "music_corporate.wav"
+    if music_path.exists():
+        try:
+            music = AudioClip(str(music_path), volume=0.4)
+            music.fade_in(1.0).fade_out(2.0)
+            mixer = AudioMixer(sample_rate=48000)
+            clip_data = AudioClipData(
+                samples=music.get_samples(),
+                start_sample=0,
+            )
+            mixer.add(clip_data, track="music")
+            mixer.render()
+            logger.info("audio_prepared", file="music_corporate.wav")
+        except Exception:
+            logger.warning("audio_skipped", reason="failed to load music_corporate.wav")
 
     logger.info("rendering", output=str(output_path))
     comp.render(str(output_path), preset="h264_1080p")

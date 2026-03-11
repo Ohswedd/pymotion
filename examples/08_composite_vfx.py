@@ -26,6 +26,7 @@ import structlog
 
 from pymotion import (
     AdjustmentLayer,
+    AudioClip,
     BezierMask,
     BezierPoint,
     BlendMode,
@@ -35,6 +36,7 @@ from pymotion import (
     Composition,
     Contrast,
     GradientClip,
+    ImageClip,
     LinearGradientMask,
     NullObject,
     Saturation,
@@ -48,6 +50,8 @@ from pymotion import (
 from pymotion.utils.math import Vec2
 
 logger = structlog.get_logger(__name__)
+
+ASSETS = Path(__file__).parent / "assets"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -89,6 +93,15 @@ def build_composition() -> Composition:
     )
     base_bg.set_duration(DURATION_FRAMES).at(0)
     base_track.add(base_bg)
+
+    # Optional VFX plate background at low opacity
+    _plate_path = ASSETS / "vfx_plate.jpg"
+    if _plate_path.exists():
+        plate = ImageClip(str(_plate_path), fit_mode="cover")
+        plate.set_duration(DURATION_FRAMES).at(0).set_opacity(0.15)
+        base_track.add(plate)
+        logger.info("asset_loaded", file="vfx_plate.jpg", role="background_plate")
+
     comp.add_track(base_track)
 
     # ════════════════════════════════════════════════════════════════════
@@ -320,6 +333,18 @@ def build_composition() -> Composition:
     comp.add_track(title_track)
 
     # ════════════════════════════════════════════════════════════════════
+    # Optional texture overlay
+    # ════════════════════════════════════════════════════════════════════
+    _texture_path = ASSETS / "vfx_texture.jpg"
+    if _texture_path.exists():
+        texture_track = Track(name="texture", blend_mode=BlendMode.SCREEN)
+        texture = ImageClip(str(_texture_path), fit_mode="cover")
+        texture.set_duration(DURATION_FRAMES).at(0).set_opacity(0.08)
+        texture_track.add(texture)
+        comp.add_track(texture_track)
+        logger.info("asset_loaded", file="vfx_texture.jpg", role="overlay_texture")
+
+    # ════════════════════════════════════════════════════════════════════
     # Track 10 — AdjustmentLayer (global colour correction)
     # ════════════════════════════════════════════════════════════════════
     adj_track = Track(name="adjustment")
@@ -334,6 +359,13 @@ def build_composition() -> Composition:
     adj.set_duration(DURATION_FRAMES).at(0)
     adj_track.add(adj)
     comp.add_track(adj_track)
+
+    # Attach background music if available
+    _music_path = ASSETS / "music_tech.wav"
+    if _music_path.exists():
+        music = AudioClip(str(_music_path), volume=0.5)
+        comp.audio_clips = [music]
+        logger.info("audio_attached", source="music_tech.wav")
 
     return comp
 
