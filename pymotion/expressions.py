@@ -195,15 +195,24 @@ def loop_out(
     def _loop_out(ctx: ExpressionContext) -> float:
         if duration_frames <= 0:
             return base_fn(ctx)
+        # Map current frame into the last N frames cyclically.
+        # This loops the END segment of the animation, unlike loop_in
+        # which loops the START segment.
+        # Compute the loop offset so that frame 0 maps to the start
+        # of the last-N-frames window.
         looped_frame = ctx.local_frame % duration_frames
+        # Offset into the end of the duration_frames window
+        end_offset = duration_frames - 1 - looped_frame
+        # The looped frame counts backwards from the end of the region
+        mapped_frame = duration_frames - 1 - end_offset
         looped_ctx = ExpressionContext(
             frame=ctx.frame,
-            time=looped_frame / ctx.fps if ctx.fps > 0 else 0.0,
+            time=mapped_frame / ctx.fps if ctx.fps > 0 else 0.0,
             fps=ctx.fps,
             comp_width=ctx.comp_width,
             comp_height=ctx.comp_height,
-            progress=looped_frame / max(duration_frames - 1, 1),
-            local_frame=looped_frame,
+            progress=mapped_frame / max(duration_frames - 1, 1),
+            local_frame=mapped_frame,
         )
         return base_fn(looped_ctx)
 

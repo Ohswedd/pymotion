@@ -90,6 +90,8 @@ class ParticleSystem:
         self._sizes = np.zeros(self._capacity, dtype=np.float32)
         self._emitter_idx = np.zeros(self._capacity, dtype=np.int32)
         self._rng = np.random.default_rng(42)
+        # Fractional accumulator per emitter for sub-frame spawn rates
+        self._spawn_accum: list[float] = []
 
     def add_emitter(self, emitter: Emitter) -> None:
         """Add an emitter to the system.
@@ -133,9 +135,15 @@ class ParticleSystem:
 
     def _spawn(self) -> None:
         """Spawn new particles from all emitters."""
+        # Ensure accumulator list matches emitter count
+        while len(self._spawn_accum) < len(self._emitters):
+            self._spawn_accum.append(0.0)
+
         for ei, emitter in enumerate(self._emitters):
             # Fractional accumulation for sub-frame rates
-            n_new = int(emitter.rate)
+            self._spawn_accum[ei] += emitter.rate
+            n_new = int(self._spawn_accum[ei])
+            self._spawn_accum[ei] -= n_new
             if n_new <= 0:
                 continue
 
@@ -301,13 +309,56 @@ class ParticleSystem:
             v_py = py[visible]
             v_bgra = bgra_u8[visible]
 
-            # Direct scatter write — most particles are 1-3px, just write center pixel
-            if emitter.blend_mode == BlendMode.ADD:
-                # Use uint16 accumulator for additive to avoid overflow
-                accum = frame[v_py, v_px].astype(np.uint16) + v_bgra.astype(np.uint16)
-                frame[v_py, v_px] = np.minimum(accum, 255).astype(np.uint8)
-            else:
-                frame[v_py, v_px] = v_bgra
+            # Render particles using their size
+            sizes_vis = self._sizes[:n][mask][visible]
+            vel_vis = self._vel[:n][mask][visible]
+
+            for i in range(len(v_px)):
+                px_i, py_i = int(v_px[i]), int(v_py[i])
+                sz = max(1, int(sizes_vis[i]))
+                bgra_val = v_bgra[i]
+
+                if sz <= 1:
+                    # Single pixel — check for rain-style motion blur
+                    vx, vy = vel_vis[i, 0], vel_vis[i, 1]
+                    speed_sq = vx * vx + vy * vy
+                    if speed_sq > 36.0:  # speed > 6px/frame → draw streak
+                        speed = math.sqrt(speed_sq)
+                        length = min(int(speed * 0.8), 12)
+                        dx = vx / speed
+                        dy = vy / speed
+                        for s in range(length):
+                            sx = int(px_i - dx * s)
+                            sy = int(py_i - dy * s)
+                            if 0 <= sx < self._width and 0 <= sy < self._height:
+                                fade = 1.0 - s / length
+                                faded = (bgra_val.astype(np.float32) * fade).astype(np.uint8)
+                                if emitter.blend_mode == BlendMode.ADD:
+                                    acc = frame[sy, sx].astype(np.uint16) + faded.astype(np.uint16)
+                                    frame[sy, sx] = np.minimum(acc, 255).astype(np.uint8)
+                                else:
+                                    frame[sy, sx] = faded
+                    else:
+                        if emitter.blend_mode == BlendMode.ADD:
+                            acc = frame[py_i, px_i].astype(np.uint16) + bgra_val.astype(np.uint16)
+                            frame[py_i, px_i] = np.minimum(acc, 255).astype(np.uint8)
+                        else:
+                            frame[py_i, px_i] = bgra_val
+                else:
+                    # Multi-pixel particle
+                    half = sz // 2
+                    y0 = max(0, py_i - half)
+                    y1 = min(self._height, py_i + half + 1)
+                    x0 = max(0, px_i - half)
+                    x1 = min(self._width, px_i + half + 1)
+                    if y1 > y0 and x1 > x0:
+                        if emitter.blend_mode == BlendMode.ADD:
+                            region = frame[y0:y1, x0:x1].astype(np.uint16) + bgra_val.astype(
+                                np.uint16
+                            )
+                            frame[y0:y1, x0:x1] = np.minimum(region, 255).astype(np.uint8)
+                        else:
+                            frame[y0:y1, x0:x1] = bgra_val
 
         return frame
 
@@ -325,6 +376,7 @@ class ParticleSystem:
         """Reset all particles and state."""
         self._count = 0
         self._age[:] = 0.0
+        self._spawn_accum = [0.0] * len(self._emitters)
 
     def to_clip(self, duration: int) -> ParticleClip:
         """Convert this particle system to a renderable clip.

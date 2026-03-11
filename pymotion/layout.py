@@ -6,7 +6,9 @@ Each returns a Composition with clips positioned and scaled.
 
 from __future__ import annotations
 
-from pymotion.clip.base import Clip
+import numpy as np
+
+from pymotion.clip.base import Clip, RenderContext
 from pymotion.composition import Composition
 from pymotion.utils.color import ColorInput
 from pymotion.utils.layout import _resolve_position
@@ -25,6 +27,43 @@ def _clip_max_duration(*clips: Clip) -> int:
         Maximum duration in frames.
     """
     return max(c.duration for c in clips) if clips else 0
+
+
+class _ShadowClip(Clip):
+    """Internal clip that renders a soft drop shadow rectangle."""
+
+    def __init__(self, width: int, height: int, blur: int = 8, opacity: float = 0.5) -> None:
+        super().__init__()
+        self._shadow_w = width
+        self._shadow_h = height
+        self._blur = blur
+        self._shadow_opacity = opacity
+
+    def render_frame(self, ctx: RenderContext) -> np.ndarray:
+        """Render a blurred black rectangle as a drop shadow."""
+        frame = np.zeros((ctx.resolution.height, ctx.resolution.width, 4), dtype=np.uint8)
+        # Draw solid shadow rectangle
+        alpha = int(self._shadow_opacity * 255)
+        # Create a slightly padded shadow area
+        sw = min(self._shadow_w, ctx.resolution.width)
+        sh = min(self._shadow_h, ctx.resolution.height)
+        frame[:sh, :sw, 3] = alpha
+        # Simple box blur by averaging with surrounding pixels
+        if self._blur > 0:
+            kernel = self._blur
+            cumsum = np.cumsum(np.cumsum(frame[:, :, 3].astype(np.float32), axis=0), axis=1)
+            h, w = frame.shape[:2]
+            padded = np.zeros((h + 2 * kernel, w + 2 * kernel), dtype=np.float32)
+            padded[kernel : kernel + h, kernel : kernel + w] = cumsum
+            area = (2 * kernel + 1) ** 2
+            blurred = (
+                padded[2 * kernel :, 2 * kernel :]
+                - padded[:h, 2 * kernel :]
+                - padded[2 * kernel :, :w]
+                + padded[:h, :w]
+            ) / area
+            frame[:, :, 3] = np.clip(blurred[:h, :w], 0, 255).astype(np.uint8)
+        return frame
 
 
 def pip(
@@ -49,7 +88,8 @@ def pip(
             uses half the main width and proportional height.
         border: Border width in pixels around the overlay (drawn as
             white). None for no border.
-        shadow: Whether to add a drop shadow. Currently reserved.
+        shadow: Whether to add a drop shadow beneath the overlay.
+            Renders a soft Gaussian-style shadow offset by 4px.
 
     Returns:
         A Composition with the main and overlay clips arranged.
@@ -84,13 +124,26 @@ def pip(
     main_copy.start = 0
     main_copy.end = duration
 
+    # Add drop shadow behind the overlay if requested
+    if shadow:
+        shadow_offset = 4
+        shadow_clip = _ShadowClip(ow, oh, blur=8, opacity=0.4)
+        shadow_clip.set_duration(min(overlay.duration, duration))
+        shadow_clip.start = 0
+        shadow_clip.end = min(overlay.duration, duration)
+        shadow_clip.set_position(float(x + shadow_offset), float(y + shadow_offset))
+        shadow_clip.set_scale(ow / main_w, oh / main_h)
+        comp.add(main_copy, shadow_clip)
+    else:
+        comp.add(main_copy)
+
     overlay_copy = overlay
     overlay_copy.start = 0
     overlay_copy.end = min(overlay.duration, duration)
     overlay_copy.set_position(float(x), float(y))
     overlay_copy.set_scale(ow / main_w, oh / main_h)
 
-    comp.add(main_copy, overlay_copy)
+    comp.add(overlay_copy)
 
     logger.debug(
         "pip_layout",

@@ -632,6 +632,9 @@ class GlyphRenderer:
             left: int = face.glyph.bitmap_left
             top: int = face.glyph.bitmap_top
 
+            if bitmap.width <= 0 or bitmap.rows <= 0:
+                if ord(ch) > 127:
+                    logger.debug("glyph_empty", char=ch, codepoint=hex(ord(ch)))
             if bitmap.width > 0 and bitmap.rows > 0:
                 # Convert bitmap buffer to numpy array
                 buf = np.array(bitmap.buffer, dtype=np.uint8).reshape(bitmap.rows, bitmap.width)

@@ -161,7 +161,10 @@ class DipToColor(Transition):
 
 @dataclass
 class CrossDissolve(Transition):
-    """Cross-dissolve transition — linear blend from A to B.
+    """Cross-dissolve transition — smooth S-curve blend from A to B.
+
+    Unlike :class:`Fade` which uses a linear blend, CrossDissolve applies
+    a smoothstep ease curve for a more cinematic dissolve.
 
     Args:
         duration: Transition duration in frames.
@@ -183,7 +186,9 @@ class CrossDissolve(Transition):
         Returns:
             Blended BGRA frame.
         """
-        return _blend(clip_a, clip_b, progress)
+        # Smoothstep S-curve for a more cinematic dissolve
+        t = progress * progress * (3.0 - 2.0 * progress)
+        return _blend(clip_a, clip_b, t)
 
 
 @dataclass
@@ -752,20 +757,25 @@ class IrisIn(Transition):
     """
 
     def render_frame(self, clip_a: np.ndarray, clip_b: np.ndarray, progress: float) -> np.ndarray:
-        """Render iris-in transition."""
+        """Render iris-in transition with feathered edge."""
         h, w = clip_a.shape[:2]
         cy, cx = h / 2.0, w / 2.0
         max_radius = np.sqrt(cx * cx + cy * cy)
         radius = progress * max_radius
+        feather = max(4.0, max_radius * 0.03)  # Soft edge
 
-        y_coords = np.arange(h).reshape(h, 1) - cy
-        x_coords = np.arange(w).reshape(1, w) - cx
+        y_coords = np.arange(h, dtype=np.float32).reshape(h, 1) - cy
+        x_coords = np.arange(w, dtype=np.float32).reshape(1, w) - cx
         dist = np.sqrt(y_coords * y_coords + x_coords * x_coords)
 
-        mask = (
-            (dist < radius).reshape(h, w, 1) if progress < 1.0 else np.ones((h, w, 1), dtype=bool)
-        )
-        return np.where(mask, clip_b, clip_a)
+        if progress >= 1.0:
+            return clip_b.copy()
+        # Smooth feathered alpha
+        alpha = np.clip((radius - dist) / max(feather, 0.01), 0.0, 1.0)
+        alpha_3d = alpha.reshape(h, w, 1)
+        result = clip_a.astype(np.float32) * (1.0 - alpha_3d) + clip_b.astype(np.float32) * alpha_3d
+        out: np.ndarray = np.clip(result, 0, 255).astype(np.uint8)
+        return out
 
 
 @dataclass
@@ -849,6 +859,13 @@ class Glitch(Transition):
             shift = rng.integers(-intensity, max(1, intensity + 1))
             if shift != 0:
                 result[y : y + slice_h] = np.roll(base[y : y + slice_h], shift, axis=1)
+
+        # Color channel separation — shift R and B channels in opposite directions
+        channel_shift = max(1, int(progress * (1 - progress) * 4 * w * 0.03))
+        if channel_shift > 0:
+            # Shift blue channel (index 0) left, red channel (index 2) right
+            result[:, :, 0] = np.roll(result[:, :, 0], -channel_shift, axis=1)
+            result[:, :, 2] = np.roll(result[:, :, 2], channel_shift, axis=1)
 
         return result
 
