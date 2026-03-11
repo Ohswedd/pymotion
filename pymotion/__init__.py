@@ -227,6 +227,7 @@ from pymotion.render.color_pipeline import (
     tone_map_filmic,
     tone_map_reinhard,
 )
+from pymotion.render.distributed import RenderCheckpoint, render_frames_dask, render_frames_ray
 from pymotion.render.gpu_compositor import GPUBufferPool, GPUCompositor, get_gpu_compositor
 from pymotion.render.gpu_effects import GPUEffectPipeline, get_gpu_effect_pipeline, is_gpu_effect
 from pymotion.template.base import Template, TemplateValidationError
@@ -600,6 +601,10 @@ __all__ = [
     "get_config",
     "set_config",
     "reset_config",
+    # Distributed Rendering
+    "RenderCheckpoint",
+    "render_frames_dask",
+    "render_frames_ray",
     # GPU Compositing & Effects
     "GPUBufferPool",
     "GPUCompositor",

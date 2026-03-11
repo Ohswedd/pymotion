@@ -325,6 +325,10 @@ class Composition:
         preset: str = "h264_1080p",
         start: int = 0,
         end: int | None = None,
+        *,
+        backend: str = "local",
+        checkpoint_path: str | Path | None = None,
+        profile: bool = False,
     ) -> Path:
         """Render the composition to a video file.
 
@@ -333,6 +337,11 @@ class Composition:
             preset: Name of the output preset to use.
             start: Start frame (default: 0).
             end: End frame (default: composition duration).
+            backend: Rendering backend — ``"local"`` (default), ``"ray"``,
+                or ``"dask"``.
+            checkpoint_path: Optional path for resume checkpoint file.
+                Only used with ``"ray"`` and ``"dask"`` backends.
+            profile: If True, emit per-frame timing info to the log.
 
         Returns:
             Path to the rendered output file.
@@ -347,14 +356,31 @@ class Composition:
             "render_start",
             output=str(output_path),
             preset=preset,
+            backend=backend,
             frames=end - start,
             resolution=f"{self.resolution.width}x{self.resolution.height}",
             fps=self.fps,
         )
 
+        cp = Path(checkpoint_path) if checkpoint_path else None
+
+        if backend == "ray":
+            from pymotion.render.distributed import render_frames_ray
+
+            frame_iter = render_frames_ray(self, start, end, checkpoint_path=cp)
+        elif backend == "dask":
+            from pymotion.render.distributed import render_frames_dask
+
+            frame_iter = render_frames_dask(self, start, end, checkpoint_path=cp)
+        else:
+            frame_iter = self._frame_iterator(start, end)
+
+        if profile:
+            frame_iter = self._profiled_iterator(frame_iter)
+
         encoder = FFmpegEncoder()
         result = encoder.encode(
-            frame_iter=self._frame_iterator(start, end),
+            frame_iter=frame_iter,
             audio=None,
             output=output_path,
             preset=preset_config,
@@ -365,6 +391,24 @@ class Composition:
 
         logger.info("render_complete", output=str(result))
         return result
+
+    def _profiled_iterator(self, frame_iter: Iterator[np.ndarray]) -> Iterator[np.ndarray]:
+        """Wrap a frame iterator with per-frame timing.
+
+        Args:
+            frame_iter: Source frame iterator.
+
+        Yields:
+            Frames from the source, with timing logged.
+        """
+        import time
+
+        for i, frame in enumerate(frame_iter):
+            t0 = time.perf_counter()
+            yield frame
+            dt = time.perf_counter() - t0
+            if i % 10 == 0:
+                logger.debug("frame_profile", frame=i, encode_ms=round(dt * 1000, 1))
 
     def export_frame(self, frame: int, output: str | Path) -> Path:
         """Export a single frame as a PNG image.
