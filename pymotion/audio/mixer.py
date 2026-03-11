@@ -121,6 +121,9 @@ class AudioMixer:
     _buses: dict[str, AudioBus] = field(default_factory=dict, repr=False)
     _duration_samples: int = 0
     _target_lufs: float | None = field(default=None, repr=False)
+    _sidechains: list[tuple[str, str, float, float, float, float]] = field(
+        default_factory=list, repr=False
+    )
 
     def add(
         self,
@@ -547,6 +550,97 @@ class AudioMixer:
         self._target_lufs = target_lufs
         logger.debug("normalization_set", target_lufs=target_lufs)
 
+    def sidechain(
+        self,
+        sidechain_track: str,
+        target_track: str,
+        threshold_db: float = -20.0,
+        ratio: float = 4.0,
+        attack_ms: float = 10.0,
+        release_ms: float = 100.0,
+    ) -> None:
+        """Set up sidechain compression — reduce target track volume based on sidechain track level.
+
+        When the sidechain track exceeds the threshold, the target track's
+        volume is reduced by the specified ratio. Common use: duck music
+        under dialogue.
+
+        Args:
+            sidechain_track: Name of the track whose level triggers compression.
+            target_track: Name of the track to compress.
+            threshold_db: Level in dB above which compression activates.
+            ratio: Compression ratio (e.g. 4.0 means 4:1).
+            attack_ms: Time in ms for compressor to engage.
+            release_ms: Time in ms for compressor to disengage.
+
+        Raises:
+            ValueError: If either track name is unknown.
+        """
+        if sidechain_track not in self._tracks:
+            msg = f"Unknown sidechain track '{sidechain_track}'. Add it first with add()."
+            raise ValueError(msg)
+        if target_track not in self._tracks:
+            msg = f"Unknown target track '{target_track}'. Add it first with add()."
+            raise ValueError(msg)
+        self._sidechains.append(
+            (sidechain_track, target_track, threshold_db, ratio, attack_ms, release_ms)
+        )
+        logger.debug(
+            "sidechain_set",
+            sidechain=sidechain_track,
+            target=target_track,
+            threshold_db=threshold_db,
+            ratio=ratio,
+        )
+
+    def _apply_sidechain(
+        self,
+        target_buf: np.ndarray,
+        sidechain_buf: np.ndarray,
+        threshold_db: float,
+        ratio: float,
+        attack_ms: float,
+        release_ms: float,
+    ) -> np.ndarray:
+        """Apply sidechain compression to target buffer.
+
+        Args:
+            target_buf: Audio to compress, shape (n_samples, channels).
+            sidechain_buf: Sidechain source, shape (n_samples, channels).
+            threshold_db: Threshold in dB.
+            ratio: Compression ratio.
+            attack_ms: Attack time in ms.
+            release_ms: Release time in ms.
+
+        Returns:
+            Compressed target buffer.
+        """
+        # Compute envelope of sidechain signal (RMS per sample with smoothing)
+        sc_mono = np.mean(np.abs(sidechain_buf), axis=1)
+        # Convert to dB
+        sc_db = 20.0 * np.log10(np.maximum(sc_mono, 1e-10))
+
+        # Compute gain reduction
+        over = np.maximum(sc_db - threshold_db, 0.0)
+        gain_reduction_db = over * (1.0 - 1.0 / max(ratio, 1.001))
+        gain_linear = 10.0 ** (-gain_reduction_db / 20.0)
+
+        # Apply attack/release smoothing
+        attack_coeff = np.exp(-1.0 / max(1.0, attack_ms * self.sample_rate / 1000.0))
+        release_coeff = np.exp(-1.0 / max(1.0, release_ms * self.sample_rate / 1000.0))
+
+        smoothed = np.ones_like(gain_linear)
+        for i in range(1, len(smoothed)):
+            if gain_linear[i] < smoothed[i - 1]:
+                smoothed[i] = attack_coeff * smoothed[i - 1] + (1.0 - attack_coeff) * gain_linear[i]
+            else:
+                smoothed[i] = (
+                    release_coeff * smoothed[i - 1] + (1.0 - release_coeff) * gain_linear[i]
+                )
+
+        out: np.ndarray = target_buf * smoothed[:, np.newaxis]
+        return out
+
     @staticmethod
     def _measure_lufs(samples: np.ndarray, sample_rate: int) -> float:
         """Measure integrated LUFS of audio using ITU-R BS.1770 simplified.
@@ -687,10 +781,35 @@ class AudioMixer:
         for bus in self._buses.values():
             bused_tracks.update(bus.tracks)
 
+        # Pre-render tracks for sidechain processing
+        rendered_tracks: dict[str, np.ndarray] = {}
+        sidechain_targets: set[str] = set()
+        for sc_track, tgt_track, *_ in self._sidechains:
+            sidechain_targets.add(tgt_track)
+            if sc_track not in rendered_tracks and sc_track in self._tracks:
+                rendered_tracks[sc_track] = self._render_track(self._tracks[sc_track])
+            if tgt_track not in rendered_tracks and tgt_track in self._tracks:
+                rendered_tracks[tgt_track] = self._render_track(self._tracks[tgt_track])
+
+        # Apply sidechain compression
+        for sc_track, tgt_track, thresh, ratio, attack, release in self._sidechains:
+            if sc_track in rendered_tracks and tgt_track in rendered_tracks:
+                rendered_tracks[tgt_track] = self._apply_sidechain(
+                    rendered_tracks[tgt_track],
+                    rendered_tracks[sc_track],
+                    thresh,
+                    ratio,
+                    attack,
+                    release,
+                )
+
         # Render tracks not on any bus directly into master
         for name, track_state in self._tracks.items():
             if name not in bused_tracks:
-                mix += self._render_track(track_state)
+                if name in rendered_tracks:
+                    mix += rendered_tracks[name]
+                else:
+                    mix += self._render_track(track_state)
 
         # Render bus submixes
         for bus in self._buses.values():

@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import os
 import shutil
+import struct
 import subprocess
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -18,6 +21,43 @@ from pymotion.export.presets import OutputPreset
 from pymotion.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _write_wav(
+    f: Any,
+    audio: np.ndarray,
+    sample_rate: int,
+    channels: int,
+) -> None:
+    """Write interleaved int32 audio to a WAV file.
+
+    Args:
+        f: Open file handle to write to.
+        audio: Interleaved int32 audio samples.
+        sample_rate: Sample rate in Hz.
+        channels: Number of channels.
+    """
+    # Convert int32 to int16 for WAV compatibility
+    audio_16 = (audio.astype(np.float64) / 2147483647.0 * 32767.0).astype(np.int16)
+    data = audio_16.tobytes()
+    n_samples = len(audio_16)
+    bytes_per_sample = 2  # int16
+    data_size = n_samples * bytes_per_sample
+    # WAV header
+    f.write(b"RIFF")
+    f.write(struct.pack("<I", 36 + data_size))
+    f.write(b"WAVE")
+    f.write(b"fmt ")
+    f.write(struct.pack("<I", 16))  # chunk size
+    f.write(struct.pack("<H", 1))  # PCM
+    f.write(struct.pack("<H", channels))
+    f.write(struct.pack("<I", sample_rate))
+    f.write(struct.pack("<I", sample_rate * channels * bytes_per_sample))
+    f.write(struct.pack("<H", channels * bytes_per_sample))
+    f.write(struct.pack("<H", bytes_per_sample * 8))
+    f.write(b"data")
+    f.write(struct.pack("<I", data_size))
+    f.write(data)
 
 
 def _find_ffmpeg() -> str:
@@ -154,17 +194,21 @@ class FFmpegEncoder:
         width: int,
         height: int,
         fps: int,
+        audio_sample_rate: int = 48000,
+        audio_channels: int = 2,
     ) -> Path:
-        """Encode frames to a video file.
+        """Encode frames to a video file, optionally with audio.
 
         Args:
             frame_iter: Iterator yielding BGRA numpy arrays.
-            audio: Audio data (None for no audio in Phase 0.1).
+            audio: Interleaved int32 audio data, or None for no audio.
             output: Output file path.
             preset: Output preset configuration.
             width: Frame width.
             height: Frame height.
             fps: Frames per second.
+            audio_sample_rate: Audio sample rate in Hz.
+            audio_channels: Number of audio channels (2=stereo, 6=5.1).
 
         Returns:
             Path to the output file.
@@ -176,6 +220,15 @@ class FFmpegEncoder:
 
         # Use available CPU threads for encoding (cap at 8)
         threads = str(min(os.cpu_count() or 2, 8))
+
+        # Write audio to a temp WAV file if provided
+        audio_wav_path: str | None = None
+        audio_tmpfile: Any = None
+        if audio is not None and len(audio) > 0:
+            audio_tmpfile = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            audio_wav_path = audio_tmpfile.name
+            _write_wav(audio_tmpfile, audio, audio_sample_rate, audio_channels)
+            audio_tmpfile.close()
 
         cmd = [
             self._ffmpeg_path,
@@ -193,17 +246,26 @@ class FFmpegEncoder:
             str(fps),
             "-i",
             "pipe:0",
-            # High-quality chroma scaling for text/graphics
-            "-sws_flags",
-            "lanczos+accurate_rnd+full_chroma_int",
-            # Output codec
-            "-c:v",
-            preset.codec,
-            "-pix_fmt",
-            preset.pixel_format,
-            "-threads",
-            threads,
         ]
+
+        # Add audio input if available
+        if audio_wav_path is not None:
+            cmd.extend(["-i", audio_wav_path])
+
+        cmd.extend(
+            [
+                # High-quality chroma scaling for text/graphics
+                "-sws_flags",
+                "lanczos+accurate_rnd+full_chroma_int",
+                # Output codec
+                "-c:v",
+                preset.codec,
+                "-pix_fmt",
+                preset.pixel_format,
+                "-threads",
+                threads,
+            ]
+        )
 
         # Add CRF or bitrate
         if preset.crf is not None:
@@ -213,6 +275,10 @@ class FFmpegEncoder:
 
         # Add extra flags
         cmd.extend(preset.extra_flags)
+
+        # Add audio encoding flags
+        if audio_wav_path is not None:
+            cmd.extend(["-c:a", "aac", "-b:a", "192k", "-ac", str(audio_channels)])
 
         # Output file
         cmd.append(output_str)
@@ -246,6 +312,13 @@ class FFmpegEncoder:
         process.wait()
         _stdout = process.stdout.read() if process.stdout else b""
         stderr = process.stderr.read() if process.stderr else b""
+
+        # Clean up temp audio file
+        if audio_wav_path is not None:
+            try:
+                os.unlink(audio_wav_path)
+            except OSError:
+                pass
 
         if process.returncode != 0:
             error_msg = stderr.decode("utf-8", errors="replace")

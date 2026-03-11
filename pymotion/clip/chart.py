@@ -354,7 +354,53 @@ class BarChartClip(Clip):
 
         buf = surface.get_data()
         frame = np.ndarray(shape=(h, w, 4), dtype=np.uint8, buffer=bytes(buf)).copy()
+
+        # Neon glow post-process: blur bright pixels and add back
+        if self.theme == "neon":
+            frame = _apply_neon_glow(frame)
+
         return frame
+
+
+def _apply_neon_glow(frame: np.ndarray) -> np.ndarray:
+    """Apply a neon glow post-process to a frame.
+
+    Extracts bright pixels, blurs them, and blends additively to
+    create a glow effect around neon-colored elements.
+
+    Args:
+        frame: BGRA frame to process.
+
+    Returns:
+        Frame with glow applied.
+    """
+    h, w = frame.shape[:2]
+    # Extract bright pixels (above threshold on any RGB channel)
+    rgb = frame[:, :, :3].astype(np.float32)
+    brightness = np.max(rgb, axis=2)
+    bright_mask = brightness > 100.0
+
+    # Create glow layer from bright pixels only
+    glow = np.zeros_like(rgb)
+    glow[bright_mask] = rgb[bright_mask]
+
+    # Simple box blur (two passes for smoother result)
+    for _ in range(2):
+        # Horizontal blur
+        kernel_size = max(3, min(15, w // 60))
+        padded = np.pad(glow, ((0, 0), (kernel_size, kernel_size), (0, 0)), mode="edge")
+        cumsum = np.cumsum(padded, axis=1)
+        glow = (cumsum[:, 2 * kernel_size :, :] - cumsum[:, :w, :]) / (2 * kernel_size)
+        # Vertical blur
+        padded = np.pad(glow, ((kernel_size, kernel_size), (0, 0), (0, 0)), mode="edge")
+        cumsum = np.cumsum(padded, axis=0)
+        glow = (cumsum[2 * kernel_size :, :, :] - cumsum[:h, :, :]) / (2 * kernel_size)
+
+    # Additive blend glow onto original
+    result = frame[:, :, :3].astype(np.float32) + glow * 0.6
+    out = frame.copy()
+    out[:, :, :3] = np.clip(result, 0, 255).astype(np.uint8)
+    return out
 
 
 def _draw_chart_frame(
@@ -408,6 +454,7 @@ def _surface_to_frame(
     surface: cairo.ImageSurface,
     h: int,
     w: int,
+    theme: str | None = None,
 ) -> np.ndarray:
     """Convert a Cairo surface to a BGRA numpy array.
 
@@ -415,12 +462,16 @@ def _surface_to_frame(
         surface: The Cairo image surface.
         h: Frame height.
         w: Frame width.
+        theme: Chart theme name. If ``"neon"``, applies glow post-process.
 
     Returns:
         BGRA numpy array of shape (h, w, 4), dtype uint8.
     """
     buf = surface.get_data()
-    return np.ndarray(shape=(h, w, 4), dtype=np.uint8, buffer=bytes(buf)).copy()
+    frame = np.ndarray(shape=(h, w, 4), dtype=np.uint8, buffer=bytes(buf)).copy()
+    if theme == "neon":
+        frame = _apply_neon_glow(frame)
+    return frame
 
 
 def _draw_axes_and_grid(
