@@ -25,6 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pymotion as pm
+from pymotion.design.tokens import ACCENT, NEUTRAL, get_theme
 
 ASSETS = Path(__file__).parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
@@ -43,7 +44,7 @@ def main() -> None:
     print(f"Preset: {preset.name}, codec={preset.codec}")
 
     # ── Demonstrate core types ────────────────────────────────────────────
-    c1 = pm.Color.parse("#3366CC")
+    c1 = ACCENT.a500
     c2 = pm.Color(1.0, 0.4, 0.2, 1.0)
     v2 = pm.Vec2(960, 540)
     v3 = pm.Vec3(0.0, 1.0, 0.0)
@@ -85,9 +86,10 @@ def main() -> None:
 
     # Track 1: Background gradient with blur
     bg_track = pm.Track(name="background")
+    theme = get_theme()
     bg = pm.GradientClip(
-        color_start="#1a1a2e",
-        color_end="#16213e",
+        color_start=theme.background,
+        color_end=theme.surface,
         direction=45.0,
         gradient_type="linear",
     )
@@ -98,8 +100,8 @@ def main() -> None:
     # Track 2: Radial gradient accent
     accent_track = pm.Track(name="accent")
     radial = pm.GradientClip(
-        color_start="#e94560",
-        color_end="#0f3460",
+        color_start=ACCENT.a500,
+        color_end=NEUTRAL.n900,
         gradient_type="radial",
         center_x=0.3,
         center_y=0.4,
@@ -118,8 +120,8 @@ def main() -> None:
         y=200,
         w=400,
         h=300,
-        fill="#2a2a5a",
-        stroke="#e94560",
+        fill=NEUTRAL.n800,
+        stroke=ACCENT.a500,
         stroke_width=3.0,
     )
     rect.set_duration(900).set_opacity(0.7).set_rotation(5.0)
@@ -131,8 +133,8 @@ def main() -> None:
         cx=1600,
         cy=300,
         r=120,
-        fill="#e94560",
-        stroke="#ffffff",
+        fill=ACCENT.a500,
+        stroke=NEUTRAL.n50,
         stroke_width=2.0,
     )
     circle.set_duration(900).set_opacity(0.6)
@@ -142,7 +144,7 @@ def main() -> None:
     # Polygon (triangle)
     tri = pm.ShapeClip.polygon(
         points=[(1700, 800), (1850, 950), (1550, 950)],
-        fill="#0f3460",
+        fill=NEUTRAL.n900,
     )
     tri.set_duration(900).set_opacity(0.5)
     shapes_track.clips.append(tri)
@@ -153,7 +155,7 @@ def main() -> None:
         y1=700,
         x2=700,
         y2=700,
-        color="#e94560",
+        color=ACCENT.a500,
         width=3.0,
     )
     line.set_duration(900)
@@ -176,14 +178,14 @@ def main() -> None:
 
     # Track 6: Solid color strip (demonstrates ColorClip)
     strip_track = pm.Track(name="strip")
-    strip = pm.ColorClip(color="#e94560")
+    strip = pm.ColorClip(color=ACCENT.a500)
     strip.set_duration(900).set_position(960, 1050).set_scale(1920, 60)
     strip.set_opacity(0.8)
     strip_track.clips.append(strip)
 
     # Track 7: Vignette effect overlay
     vignette_track = pm.Track(name="vignette")
-    vig_bg = pm.ColorClip(color="#000000")
+    vig_bg = pm.ColorClip(color=NEUTRAL.n950)
     vig_bg.set_duration(900)
     vig_bg.add_effect(pm.Vignette(strength=0.7, radius=0.75, feather=0.4))
     vig_bg.set_opacity(0.5)

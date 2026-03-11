@@ -23,6 +23,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pymotion as pm
+from pymotion.design.tokens import ACCENT, CHART_COLORS, NEUTRAL, STATUS, get_theme
 
 ASSETS = Path(__file__).parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
@@ -37,7 +38,8 @@ def main() -> None:
 
     # ── Background gradient ──────────────────────────────────────────────
     bg_track = pm.Track(name="bg")
-    bg = pm.GradientClip(color_start="#0a0a1a", color_end="#1a1a2e", direction=135.0)
+    theme = get_theme()
+    bg = pm.GradientClip(color_start=theme.background, color_end=theme.surface, direction=135.0)
     bg.set_duration(TOTAL)
     bg_track.clips.append(bg)
     comp.tracks.append(bg_track)
@@ -52,9 +54,9 @@ def main() -> None:
         angle=(240.0, 300.0),
         size=(3.0, 8.0),
         color_over_life=[
-            pm.Color(1.0, 0.6, 0.2),
-            pm.Color(1.0, 0.2, 0.0),
-            pm.Color(0.3, 0.0, 0.0),
+            CHART_COLORS[6],  # orange
+            STATUS.error,  # red
+            NEUTRAL.n900,  # fade to dark
         ],
         opacity_over_life=[1.0, 0.8, 0.0],
         gravity=pm.Vec2(0.0, -0.05),
@@ -150,9 +152,9 @@ def main() -> None:
     img9 = pm.ImageClip(str(ASSETS / "product_a.jpg"))
     img9.set_duration(SEC).at(offset)
     img9.add_effect(pm.GodRays(position=pm.Vec2(0.3, 0.1), intensity=0.6, decay=0.93, samples=40))
-    img9.add_effect(pm.NeonGlow(color="#00FFFF", radius=10.0, strength=0.8, threshold=40.0))
+    img9.add_effect(pm.NeonGlow(color=ACCENT.a500, radius=10.0, strength=0.8, threshold=40.0))
     img9.add_effect(
-        pm.LightLeak(color="#FF6633", position=pm.Vec2(0.8, 0.2), intensity=0.5, size=0.5)
+        pm.LightLeak(color=CHART_COLORS[6], position=pm.Vec2(0.8, 0.2), intensity=0.5, size=0.5)
     )
     sec9.clips.append(img9)
     comp.tracks.append(sec9)

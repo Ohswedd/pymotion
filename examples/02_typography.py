@@ -20,15 +20,17 @@ from __future__ import annotations
 from pathlib import Path
 
 import pymotion as pm
+from pymotion.design.tokens import ACCENT, CHART_COLORS, NEUTRAL, STATUS, get_theme
 
 ASSETS = Path(__file__).parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-WHITE = pm.Color(1.0, 1.0, 1.0, 1.0)
-CYAN = pm.Color(0.2, 0.8, 1.0, 1.0)
-CORAL = pm.Color(1.0, 0.4, 0.3, 1.0)
-GOLD = pm.Color(1.0, 0.85, 0.2, 1.0)
+theme = get_theme()
+WHITE = NEUTRAL.n50
+CYAN = ACCENT.a300
+CORAL = CHART_COLORS[1]  # pink
+GOLD = STATUS.warning
 
 SECTION_DUR = 150  # 5s per section at 30fps
 TOTAL_DUR = SECTION_DUR * 9  # 9 sections = 45s
@@ -51,8 +53,8 @@ def main() -> None:
     # ── Background ────────────────────────────────────────────────────────
     bg_track = pm.Track(name="bg")
     bg = pm.GradientClip(
-        color_start="#0a0a1a",
-        color_end="#1a0a2e",
+        color_start=theme.background,
+        color_end=theme.surface,
         direction=135.0,
     )
     bg.set_duration(TOTAL_DUR)
@@ -68,7 +70,7 @@ def main() -> None:
         "Typography",
         font=inter_bold,
         size=72.0,
-        color="#FFFFFF",
+        color=theme.text,
         letter_spacing=4.0,
         line_height=1.4,
         align="center",
@@ -80,7 +82,7 @@ def main() -> None:
         "A showcase of type styles and text animation presets",
         font=inter_regular,
         size=28.0,
-        color="#AAAACC",
+        color=theme.muted,
         align="center",
         max_width=800,
     )
@@ -93,7 +95,7 @@ def main() -> None:
         font=inter_bold,
         size=64.0,
         color="#00000000",
-        stroke_color="#e94560",
+        stroke_color=ACCENT.a500,
         stroke_width=3.0,
         align="center",
     )
@@ -105,7 +107,7 @@ def main() -> None:
         "SHADOW",
         font=inter_bold,
         size=64.0,
-        color="#FFFFFF",
+        color=theme.text,
         shadow=pm.Shadow(
             color=pm.Color(0.0, 0.0, 0.0, 0.7),
             offset_x=4.0,

@@ -618,7 +618,7 @@ class KineticText(Clip):
                 break
 
             progress = min(1.0, (ctx.local_frame - word_start) / max(self.frames_per_word, 1))
-            ease = spring_ui(progress)
+            ease = min(1.0, spring_ui(progress))
 
             word_x = int(x_offset + (1.0 - ease) * ctx.resolution.width * 0.3)
             word_frame = _render_text_simple(

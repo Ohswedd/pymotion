@@ -19,6 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pymotion as pm
+from pymotion.design.tokens import ACCENT, CHART_COLORS, FONT_PRIMARY, get_theme
 
 ASSETS = Path(__file__).parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
@@ -33,7 +34,8 @@ def main() -> None:
 
     # ── Background ───────────────────────────────────────────────────────
     bg_track = pm.Track(name="bg")
-    bg = pm.GradientClip(color_start="#0a0a1a", color_end="#1a0a2e", direction=135.0)
+    theme = get_theme()
+    bg = pm.GradientClip(color_start=theme.background, color_end=theme.surface, direction=135.0)
     bg.set_duration(TOTAL)
     bg_track.clips.append(bg)
     comp.tracks.append(bg_track)
@@ -154,7 +156,7 @@ def main() -> None:
     img4.set_duration(SEC).at(offset)
     text_mask = pm.TextMask(
         text="PYMOTION",
-        font="sans-serif",
+        font=FONT_PRIMARY,
         size=200.0,
         feather=5.0,
         invert=False,
@@ -173,14 +175,14 @@ def main() -> None:
         path=svg_path,
         trim_start=0.0,
         trim_end=1.0,
-        stroke_color="#00FFAA",
+        stroke_color=ACCENT.a300,
         stroke_width=4.0,
     )
     stroke.set_duration(SEC).at(offset)
     sec5.clips.append(stroke)
 
     # follow_path on a small shape
-    dot = pm.ShapeClip.circle(cx=0, cy=0, r=15, fill="#FF6600")
+    dot = pm.ShapeClip.circle(cx=0, cy=0, r=15, fill=CHART_COLORS[6])
     dot.set_duration(SEC).at(offset)
     pm.follow_path(dot, svg_path, duration=SEC, align=True)
     sec5.clips.append(dot)
@@ -198,7 +200,7 @@ def main() -> None:
 
     morph_stroke = pm.StrokeClip(
         path=morphed,
-        stroke_color="#FF00FF",
+        stroke_color=CHART_COLORS[5],
         stroke_width=3.0,
     )
     morph_stroke.set_duration(SEC).at(offset)

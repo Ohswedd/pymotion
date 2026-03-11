@@ -22,6 +22,8 @@ from pathlib import Path
 import numpy as np
 
 import pymotion as pm
+from pymotion.design.motion import FAST, NORMAL, SLOW
+from pymotion.design.tokens import ACCENT, NEUTRAL, get_theme
 
 ASSETS = Path(__file__).parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
@@ -36,7 +38,8 @@ def main() -> None:
 
     # ── Background ───────────────────────────────────────────────────────
     bg_track = pm.Track(name="bg")
-    bg = pm.GradientClip(color_start="#0f172a", color_end="#1e293b", direction=135.0)
+    theme = get_theme()
+    bg = pm.GradientClip(color_start=theme.background, color_end=theme.surface, direction=135.0)
     bg.set_duration(TOTAL)
     bg_track.clips.append(bg)
     comp.tracks.append(bg_track)
@@ -48,8 +51,8 @@ def main() -> None:
         text="QUARTERLY REPORT",
         style="slide_up",
         title_duration=SEC,
-        animate_in=15,
-        animate_out=15,
+        animate_in=NORMAL,
+        animate_out=NORMAL,
         font_size=64.0,
     )
     tt.set_duration(SEC).at(offset)
@@ -64,8 +67,8 @@ def main() -> None:
         name="Jane Smith",
         title="Chief Data Officer",
         style="modern",
-        animate_in=15,
-        animate_out=10,
+        animate_in=NORMAL,
+        animate_out=FAST,
         margin_bottom=80.0,
     )
     lt.set_duration(SEC).at(offset)
@@ -79,7 +82,7 @@ def main() -> None:
     bar = pm.BarChartClip(
         data=[45.0, 72.0, 58.0, 91.0, 36.0],
         labels=["Q1", "Q2", "Q3", "Q4", "Q5"],
-        animate_duration=30,
+        animate_duration=SLOW,
         theme="corporate",
         title="Revenue by Quarter",
         bar_gap=0.3,
@@ -96,10 +99,10 @@ def main() -> None:
     line = pm.LineChartClip(
         data=[10.0, 25.0, 18.0, 42.0, 55.0, 48.0, 63.0],
         labels=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        animate_duration=30,
+        animate_duration=SLOW,
         theme="neon",
         title="Daily Active Users",
-        line_width=3.0,
+        line_width=2.0,
         show_dots=True,
         show_fill=True,
     )
@@ -114,11 +117,10 @@ def main() -> None:
     pie = pm.PieChartClip(
         data=[35.0, 25.0, 20.0, 15.0, 5.0],
         labels=["Product", "Services", "Support", "R&D", "Other"],
-        animate_duration=30,
+        animate_duration=SLOW,
         theme="gradient",
         title="Revenue Split",
         show_labels=True,
-        inner_radius=0.4,
     )
     pie.set_duration(SEC).at(offset)
     sec5.clips.append(pie)
@@ -131,9 +133,8 @@ def main() -> None:
     area = pm.AreaChartClip(
         data=[15.0, 30.0, 22.0, 45.0, 38.0, 52.0],
         labels=["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-        animate_duration=25,
+        animate_duration=SLOW,
         title="Growth Trend",
-        fill_opacity=0.4,
     )
     area.set_duration(SEC).at(offset)
     sec6.clips.append(area)
@@ -146,7 +147,7 @@ def main() -> None:
     radar = pm.RadarChartClip(
         data=[80.0, 65.0, 90.0, 45.0, 70.0],
         axes=["Speed", "Quality", "Cost", "Support", "UX"],
-        animate_duration=30,
+        animate_duration=SLOW,
         title="Product Scores",
         fill_opacity=0.3,
     )
@@ -161,9 +162,9 @@ def main() -> None:
     scatter = pm.ScatterPlotClip(
         x=[10, 20, 30, 45, 55, 65, 80, 90],
         y=[15, 35, 28, 50, 42, 68, 75, 85],
-        animate_duration=25,
+        animate_duration=SLOW,
         title="Correlation",
-        point_size=6.0,
+        point_size=4.0,
     )
     scatter.set_duration(SEC).at(offset)
     sec8.clips.append(scatter)
@@ -178,7 +179,7 @@ def main() -> None:
         end_value=1_000_000.0,
         count_duration=SEC,
         size=72.0,
-        color=pm.Color(0.2, 0.8, 1.0, 1.0),
+        color=ACCENT.a300,
     )
     counter.set_duration(SEC).at(offset).set_position(960, 400)
     sec9.clips.append(counter)
@@ -187,9 +188,8 @@ def main() -> None:
         value=0.75,
         bar_width=600.0,
         bar_height=30.0,
-        fill_color=pm.Color.parse("#2563EB"),
-        bg_color=pm.Color.parse("#334155"),
-        radius=8.0,
+        fill_color=ACCENT.a500,
+        bg_color=NEUTRAL.n800,
     )
     progress.set_duration(SEC).at(offset).set_position(960, 600)
     sec9.clips.append(progress)
@@ -203,7 +203,7 @@ def main() -> None:
         text="Data is the new oil.",
         attribution="Clive Humby",
         style="elegant",
-        animate_in=20,
+        animate_in=NORMAL,
     )
     quote.set_duration(SEC).at(offset)
     sec10.clips.append(quote)
@@ -212,7 +212,7 @@ def main() -> None:
         text="Learn More",
         sub_text="Visit our website",
         style="visit",
-        animate_in=15,
+        animate_in=NORMAL,
     )
     cta.set_duration(SEC).at(offset).set_position(960, 900)
     sec10.clips.append(cta)
@@ -221,7 +221,7 @@ def main() -> None:
         platform="youtube",
         handle="@PyMotion",
         style="default",
-        animate_in=15,
+        animate_in=NORMAL,
     )
     social.set_duration(SEC).at(offset).set_position(960, 980)
     sec10.clips.append(social)
@@ -234,16 +234,16 @@ def main() -> None:
     divider = pm.Divider(
         style="gradient",
         direction="horizontal",
-        div_duration=20,
-        thickness=3.0,
+        div_duration=NORMAL,
+        thickness=1.0,
     )
     divider.set_duration(SEC).at(offset).set_position(960, 540)
     sec11.clips.append(divider)
 
     watermark = pm.Watermark(
         image_or_text="PyMotion",
-        position="bottom-right",
-        watermark_opacity=0.3,
+        position="top-right",
+        watermark_opacity=0.15,
         font_size=18.0,
         margin=20.0,
     )
@@ -262,7 +262,7 @@ def main() -> None:
     logo_reveal = pm.LogoReveal(
         image=str(ASSETS / "logo.png"),
         style="fade",
-        reveal_duration=30,
+        reveal_duration=SLOW,
         logo_size=(200.0, 200.0),
     )
     logo_reveal.set_duration(SEC).at(offset).set_position(960, 750)
@@ -291,7 +291,7 @@ def main() -> None:
     phone = pm.PhoneMockup(
         content_clip=phone_content,
         model="dynamic_island",
-        bezel_color=pm.Color.parse("#1F2937"),
+        bezel_color=NEUTRAL.n900,
     )
     phone.set_duration(SEC).at(offset).set_position(1200, 540)
     sec12.clips.append(phone)
