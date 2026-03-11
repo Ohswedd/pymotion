@@ -513,7 +513,7 @@ class ZoomOut(Transition):
 
 
 def _resize_nearest(src: np.ndarray, target_w: int, target_h: int) -> np.ndarray:
-    """Resize an image using nearest-neighbor interpolation.
+    """Resize an image using bilinear interpolation.
 
     Args:
         src: Source BGRA image.
@@ -527,9 +527,29 @@ def _resize_nearest(src: np.ndarray, target_w: int, target_h: int) -> np.ndarray
     if sh == 0 or sw == 0:
         return np.zeros((target_h, target_w, 4), dtype=np.uint8)
 
-    y_indices = np.clip((np.arange(target_h) * sh / target_h).astype(np.intp), 0, sh - 1)
-    x_indices = np.clip((np.arange(target_w) * sw / target_w).astype(np.intp), 0, sw - 1)
-    return src[np.ix_(y_indices, x_indices)]
+    # Bilinear interpolation for smooth scaling
+    y_src = np.linspace(0, sh - 1, target_h, dtype=np.float32)
+    x_src = np.linspace(0, sw - 1, target_w, dtype=np.float32)
+
+    y0 = np.floor(y_src).astype(np.intp)
+    x0 = np.floor(x_src).astype(np.intp)
+    y1 = np.minimum(y0 + 1, sh - 1)
+    x1 = np.minimum(x0 + 1, sw - 1)
+
+    wy = (y_src - y0).reshape(target_h, 1, 1)
+    wx = (x_src - x0).reshape(1, target_w, 1)
+
+    top = (
+        src[np.ix_(y0, x0)].astype(np.float32) * (1.0 - wx)
+        + src[np.ix_(y0, x1)].astype(np.float32) * wx
+    )
+    bot = (
+        src[np.ix_(y1, x0)].astype(np.float32) * (1.0 - wx)
+        + src[np.ix_(y1, x1)].astype(np.float32) * wx
+    )
+    result = top * (1.0 - wy) + bot * wy
+    out: np.ndarray = np.clip(result, 0, 255).astype(np.uint8)
+    return out
 
 
 @dataclass
@@ -770,8 +790,9 @@ class IrisIn(Transition):
 
         if progress >= 1.0:
             return clip_b.copy()
-        # Smooth feathered alpha
-        alpha = np.clip((radius - dist) / max(feather, 0.01), 0.0, 1.0)
+        # Smooth feathered alpha with smoothstep curve
+        t = np.clip((radius - dist) / max(feather, 0.01), 0.0, 1.0)
+        alpha = t * t * (3.0 - 2.0 * t)  # smoothstep
         alpha_3d = alpha.reshape(h, w, 1)
         result = clip_a.astype(np.float32) * (1.0 - alpha_3d) + clip_b.astype(np.float32) * alpha_3d
         out: np.ndarray = np.clip(result, 0, 255).astype(np.uint8)
@@ -803,8 +824,13 @@ class IrisOut(Transition):
             return clip_a.copy()
         if progress >= 1.0:
             return clip_b.copy()
-        mask = (dist < radius).reshape(h, w, 1)
-        return np.where(mask, clip_a, clip_b)
+        feather = max(4.0, max_radius * 0.03)
+        t = np.clip((radius - dist) / max(feather, 0.01), 0.0, 1.0)
+        alpha = t * t * (3.0 - 2.0 * t)  # smoothstep
+        alpha_3d = alpha.reshape(h, w, 1)
+        result = clip_a.astype(np.float32) * alpha_3d + clip_b.astype(np.float32) * (1.0 - alpha_3d)
+        out: np.ndarray = np.clip(result, 0, 255).astype(np.uint8)
+        return out
 
 
 @dataclass

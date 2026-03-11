@@ -127,8 +127,9 @@ class Vignette(Effect):
         xx, yy = np.meshgrid(x, y)
         dist = np.sqrt(xx**2 + yy**2)
 
-        # Create vignette mask
-        vignette = 1.0 - np.clip((dist - self.radius) / max(self.feather, 0.001), 0.0, 1.0)
+        # Create vignette mask with smooth falloff (smoothstep)
+        t = np.clip((dist - self.radius) / max(self.feather, 0.001), 0.0, 1.0)
+        vignette = 1.0 - t * t * (3.0 - 2.0 * t)  # smoothstep
         vignette = 1.0 - self.strength * (1.0 - vignette)
 
         result = frame.astype(np.float32)
@@ -327,14 +328,32 @@ class Bloom(Effect):
         luminance = 0.299 * result[:, :, 2] + 0.587 * result[:, :, 1] + 0.114 * result[:, :, 0]
         mask = (luminance > self.threshold).astype(np.float32)
 
-        bloom_accum = np.zeros_like(result[:, :, :3])
-        for i in range(self.iterations):
-            sigma = self.radius * (i + 1)
-            for c in range(3):
-                bright = result[:, :, c] * mask
-                bloom_accum[:, :, c] += gaussian_filter(bright, sigma=sigma)
+        # Extract bright pixels
+        bright = np.zeros_like(result[:, :, :3])
+        for c in range(3):
+            bright[:, :, c] = result[:, :, c] * mask
 
-        bloom_accum /= self.iterations
+        # Downsample pyramid bloom — blur at successively lower resolutions
+        h, w = bright.shape[:2]
+        bloom_accum = np.zeros_like(bright)
+        current = bright.copy()
+        for _i in range(self.iterations):
+            # Downsample by 2x
+            dh, dw = max(1, current.shape[0] // 2), max(1, current.shape[1] // 2)
+            if dh < 4 or dw < 4:
+                break
+            downsampled = current[::2, ::2][:dh, :dw]
+            # Blur at reduced resolution (much faster, softer result)
+            for c in range(3):
+                downsampled[:, :, c] = gaussian_filter(downsampled[:, :, c], sigma=self.radius)
+            # Upsample back to original size
+            y_idx = np.clip((np.arange(h) * dh / h).astype(np.intp), 0, dh - 1)
+            x_idx = np.clip((np.arange(w) * dw / w).astype(np.intp), 0, dw - 1)
+            upsampled = downsampled[np.ix_(y_idx, x_idx)]
+            bloom_accum += upsampled
+            current = downsampled
+
+        bloom_accum /= max(self.iterations, 1)
         result[:, :, :3] += bloom_accum * self.strength
         return np.clip(result, 0, 255).astype(np.uint8)
 

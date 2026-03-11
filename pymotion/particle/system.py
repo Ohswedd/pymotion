@@ -392,18 +392,29 @@ class ParticleSystem:
                                         else:
                                             frame[sy, sx] = bgra_val
                     else:
-                        y0 = max(0, py_i - half)
-                        y1 = min(self._height, py_i + half + 1)
-                        x0 = max(0, px_i - half)
-                        x1 = min(self._width, px_i + half + 1)
+                        # Circular particle with anti-aliased edges
+                        y0 = max(0, py_i - half - 1)
+                        y1 = min(self._height, py_i + half + 2)
+                        x0 = max(0, px_i - half - 1)
+                        x1 = min(self._width, px_i + half + 2)
                         if y1 > y0 and x1 > x0:
+                            # Build distance-based circular mask
+                            ry = np.arange(y0, y1, dtype=np.float32) - py_i
+                            rx = np.arange(x0, x1, dtype=np.float32) - px_i
+                            dx_grid, dy_grid = np.meshgrid(rx, ry)
+                            dist_sq = dx_grid * dx_grid + dy_grid * dy_grid
+                            r = sz / 2.0
+                            # Anti-aliased edge: 1.0 inside, smooth falloff at edge
+                            aa_alpha = np.clip(r - np.sqrt(dist_sq) + 0.5, 0.0, 1.0)
                             if emitter.blend_mode == BlendMode.ADD:
-                                region = frame[y0:y1, x0:x1].astype(np.uint16) + bgra_val.astype(
-                                    np.uint16
-                                )
+                                contrib = bgra_val.astype(np.float32) * aa_alpha[:, :, np.newaxis]
+                                region = frame[y0:y1, x0:x1].astype(np.float32) + contrib
                                 frame[y0:y1, x0:x1] = np.minimum(region, 255).astype(np.uint8)
                             else:
-                                frame[y0:y1, x0:x1] = bgra_val
+                                contrib = bgra_val.astype(np.float32) * aa_alpha[:, :, np.newaxis]
+                                bg = frame[y0:y1, x0:x1].astype(np.float32)
+                                blended = bg * (1.0 - aa_alpha[:, :, np.newaxis]) + contrib
+                                frame[y0:y1, x0:x1] = np.clip(blended, 0, 255).astype(np.uint8)
 
         return frame
 
