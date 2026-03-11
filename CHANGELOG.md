@@ -2,6 +2,28 @@
 
 All notable changes to PyMotion are documented here.
 
+## [3.2.0] — 2026-03-11
+
+### Added
+- **Examples** — 12 production-quality examples (EX01-EX12) exercising all 312 public API symbols
+  - EX01: Core composition & 2D rendering
+  - EX02: Text & typography
+  - EX03: Video editing & clip operations
+  - EX04: Keying & compositing (+ CircularWipe, IrisIn, IrisOut)
+  - EX05: 3D rendering (+ ACES pipeline, HDR presets)
+  - EX06: Particles & VFX (+ 15 transitions)
+  - EX07: Audio mixing & visualization
+  - EX08: Captions & TTS
+  - EX09: Motion graphics & charts (+ slide/wipe transitions)
+  - EX10: Advanced compositing (masks, expressions, paths)
+  - EX11: AI features (24 classes)
+  - EX12: Batch template (Template ABC)
+- **Assets** — Self-contained product-themed assets replacing old stock images
+
+### Changed
+- All examples use `h264_fast` preset with hardware-accelerated encoding
+- Transitions distributed across examples for full coverage
+
 ## [3.0.0] — 2026-03-11
 
 ### Fixed
