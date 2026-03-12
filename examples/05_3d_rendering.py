@@ -196,16 +196,17 @@ def main() -> None:
     except Exception as e:
         # Framework depth attachment bug — use color overlay instead
         print(f"   3D render fallback (expected): {type(e).__name__}")
-        overlay = pm.ColorClip(color="#e94560")
-        overlay.set_duration(TOTAL).set_opacity(0.7)
+        # CHANGED: neutral dark bg instead of red overlay — principle 5, restraint in color
+        overlay = pm.ColorClip(color="#18181B")
+        overlay.set_duration(TOTAL)
         scene_track.clips.append(overlay)
-        # Add a label so the fallback is visually informative
+        # INCREASED text size 48→72px and high contrast — principle 6, type does the work
         fallback_label = pm.TextClip(
             text="3D Preview\n(GPU required)",
-            font_size=48,
-            color="#ffffff",
+            size=72,
+            color="#F4F4F5",
         )
-        fallback_label.set_duration(TOTAL).set_position(960, 540).set_opacity(0.9)
+        fallback_label.set_duration(TOTAL).set_position(960, 486).set_opacity(0.9)
         scene_track.clips.append(fallback_label)
     comp.tracks.append(scene_track)
 
