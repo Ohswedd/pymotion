@@ -1,7 +1,7 @@
 """EX03 — Clip Editing Operations.
 
 Use-case: A before/after edit reel demonstrating every clip manipulation
-operation in PyMotion.
+operation in PyMotion. Each segment is labeled with the operation name.
 
 Features exercised:
   VideoClip, clip.subclip, clip.split, clip.join, clip.repeat,
@@ -18,7 +18,6 @@ Features exercised:
   TimeRemappedClip
 
 Output: 1920x1080, 30fps, 60s, preset h264_fast -> outputs/03_editing.mp4
-Estimated render time: ~120s
 """
 
 from __future__ import annotations
@@ -26,6 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pymotion as pm
+from pymotion.design.tokens import NEUTRAL, get_theme
 
 ASSETS = Path(__file__).parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
@@ -38,11 +38,9 @@ def main() -> None:
     video_path = str(ASSETS / "sample_footage.mp4")
     src = pm.VideoClip(video_path)
     src.set_duration(300)  # 10s at 30fps
+    theme = get_theme()
 
-    audit_dir = Path(__file__).parent.parent / "audit"
-    audit_dir.mkdir(exist_ok=True)
-
-    # ── Exercise all clip operations ──────────────────────────────────────
+    # ── Exercise all clip operations (print verification) ─────────────────
     sub = src.subclip(30, 180)
     print(f"1. SubClip: {type(sub).__name__}, dur={sub.duration}")
 
@@ -128,84 +126,59 @@ def main() -> None:
         f"{pm.CoverUp.__name__}, {pm.CoverDown.__name__}"
     )
 
-    # ── Build video output: reel of operations ────────────────────────────
-    # Use a fresh VideoClip — stabilize/tracker pollute the source frame cache
+    # ── Build labeled video reel ──────────────────────────────────────────
     vid = pm.VideoClip(video_path)
     vid.set_duration(300)
 
+    # Define segments with operation labels
+    segment_defs = [
+        ("Original", vid.subclip(0, SEG)),
+        ("Speed 2x", vid.speed(2.0)),
+        ("Reverse", vid.reverse()),
+        ("Slow Motion 0.5x", vid.speed(0.5)),
+        ("Freeze Frame", vid.freeze_frame(frame=60, duration=30)),
+        ("Speed Ramp", vid.speed_ramp(keyframes=[(0, 0.3), (75, 1.0), (150, 2.0)])),
+        ("Repeat 3x", vid.subclip(0, 50).repeat(3)),
+        ("Time Remap", vid.time_remap(remap_curve)),
+        ("SubClip", vid.subclip(50, 200)),
+        ("Optical Flow", vid.speed(0.5, interpolation="optical_flow")),
+        ("Original", vid.subclip(100, 250)),
+        ("SubClip", vid.subclip(0, 150)),
+    ]
+
     segments = []
-
-    # Original
-    s = vid.subclip(0, SEG)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # 2x speed
-    s = vid.speed(2.0)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Reverse
-    s = vid.reverse()
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # 0.5x slow motion
-    s = vid.speed(0.5)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Freeze frame
-    s = vid.freeze_frame(frame=60, duration=30)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Speed ramp
-    s = vid.speed_ramp(keyframes=[(0, 0.3), (75, 1.0), (150, 2.0)])
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Repeat (3x)
-    s = vid.subclip(0, 50).repeat(3)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Time remap
-    s = vid.time_remap(remap_curve)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Subclip
-    s = vid.subclip(50, 200)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Optical flow slow-mo
-    s = vid.speed(0.5, interpolation="optical_flow")
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Original (outro)
-    s = vid.subclip(100, 250)
-    s.set_duration(SEG)
-    segments.append(s)
-
-    # Another subclip
-    s = vid.subclip(0, 150)
-    s.set_duration(SEG)
-    segments.append(s)
+    for _label, seg in segment_defs:
+        seg.set_duration(SEG)
+        segments.append(seg)
 
     full = pm.concatenate(segments, transition=pm.CrossDissolve(), transition_duration=10)
     comp = pm.Composition(width=1920, height=1080, fps=30, duration=1800)
     comp.add(full)
 
-    # ── Audit frames ─────────────────────────────────────────────────────
-    for fn in [0, 150, 450, 900, 1350]:
-        try:
-            comp.export_frame(frame=fn, output=audit_dir / f"ex03_f{fn}.png")
-        except (ValueError, RuntimeError) as e:
-            print(f"  Audit f{fn} skipped: {e}")
-    print("Audit frames exported")
+    # ── Add operation labels to each segment ──────────────────────────────
+    # ADDED labels: principle 2, hierarchy through size — large operation name
+    label_track = pm.Track(name="labels")
+    for i, (label_text, _seg) in enumerate(segment_defs):
+        # Operation name — large, top-left safe zone
+        op_label = pm.TextClip(
+            text=label_text,
+            size=40,
+            color=theme.text,
+        )
+        seg_start = i * SEG
+        op_label.set_duration(SEG - 20).at(seg_start + 10).set_position(120, 120)
+        op_label.set_opacity(0.85)
+        label_track.clips.append(op_label)
+        # Small secondary label
+        sec_label = pm.TextClip(
+            text=f"Scene {i + 1} / {len(segment_defs)}",
+            size=14,
+            color=NEUTRAL.n500,
+        )
+        sec_label.set_duration(SEG - 20).at(seg_start + 10).set_position(120, 170)
+        sec_label.set_opacity(0.5)
+        label_track.clips.append(sec_label)
+    comp.tracks.append(label_track)
 
     # ── Render ────────────────────────────────────────────────────────────
     output_path = OUTPUT_DIR / "03_editing.mp4"
