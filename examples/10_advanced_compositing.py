@@ -29,6 +29,13 @@ SEC = 100  # ~3.3s per section
 TOTAL = SEC * 6  # 6 sections = 20s
 
 
+def _add_label(track: pm.Track, text: str, offset: int, dur: int, theme: object) -> None:
+    """Add a feature label to the bottom-right corner."""
+    lbl = pm.TextClip(text=text, size=14, color=theme.muted)  # type: ignore[union-attr]
+    lbl.set_duration(dur).at(offset).set_position(1800, 1040).set_opacity(0.4)
+    track.clips.append(lbl)
+
+
 def main() -> None:
     comp = pm.Composition(width=1920, height=1080, fps=30, duration=TOTAL)
 
@@ -81,6 +88,7 @@ def main() -> None:
     img1.set_expression("position.x", pm.wiggle(freq=1.0, amp=30.0, seed=1))
     sec1.clips.append(null)
     sec1.clips.append(img1)
+    _add_label(sec1, "NullObject + wiggle", offset, SEC, theme)
     comp.tracks.append(sec1)
 
     # ── Section 2: BezierMask ────────────────────────────────────────────
@@ -115,6 +123,7 @@ def main() -> None:
     )
     img2.add_mask(bezier, op=pm.MaskOp.ADD)
     sec2.clips.append(img2)
+    _add_label(sec2, "BezierMask", offset, SEC, theme)
     comp.tracks.append(sec2)
     # Demonstrate MaskGroup data structure
     group = pm.MaskGroup(mask=bezier, op=pm.MaskOp.ADD)
@@ -145,6 +154,7 @@ def main() -> None:
     )
     img3b.add_mask(radial_mask, op=pm.MaskOp.SUBTRACT)
     sec3.clips.append(img3b)
+    _add_label(sec3, "GradientMask", offset, SEC, theme)
     comp.tracks.append(sec3)
     print(f"6. LinearGradientMask: feather={linear_mask.feather}")
     print(f"   RadialGradientMask: r={radial_mask.radius}, invert={radial_mask.invert}")
@@ -163,6 +173,7 @@ def main() -> None:
     )
     img4.add_mask(text_mask, op=pm.MaskOp.INTERSECT)
     sec4.clips.append(img4)
+    _add_label(sec4, "TextMask", offset, SEC, theme)
     comp.tracks.append(sec4)
     print(f"7. TextMask: text={text_mask.text}, size={text_mask.size}")
     print(f"   MaskOp values: {[e.value for e in pm.MaskOp]}")
@@ -186,6 +197,7 @@ def main() -> None:
     dot.set_duration(SEC).at(offset)
     pm.follow_path(dot, svg_path, duration=SEC, align=True)
     sec5.clips.append(dot)
+    _add_label(sec5, "StrokeClip + follow_path", offset, SEC, theme)
     comp.tracks.append(sec5)
     print(f"8. StrokeClip: width={stroke.stroke_width}")
     print(f"   follow_path: align=True, dur={SEC}")
@@ -205,6 +217,7 @@ def main() -> None:
     )
     morph_stroke.set_duration(SEC).at(offset)
     sec6.clips.append(morph_stroke)
+    _add_label(sec6, "morph_paths", offset, SEC, theme)
     comp.tracks.append(sec6)
 
     # ── Audit frames ─────────────────────────────────────────────────────
