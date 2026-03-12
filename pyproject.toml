@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pymotion-studio"
-version = "3.6.0"
+version = "3.7.0"
 description = "A Python-native, code-first video generation framework"
 readme = "README.md"
 license = {text = "PyMotion Source Available License 1.0"}

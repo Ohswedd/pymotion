@@ -13,10 +13,14 @@ import cairo
 import numpy as np
 
 from pymotion.clip.base import Clip, RenderContext
+from pymotion.design.renderer import (
+    draw_pill,
+    draw_rounded_rect,
+    draw_shadow_surface,
+    set_text_rendering,
+)
 from pymotion.design.tokens import (
     NEUTRAL,
-    RADIUS_LG,
-    SHADOW_XL,
 )
 from pymotion.utils.color import Color
 
@@ -181,6 +185,19 @@ class BrowserMockup(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a browser mockup frame.
 
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Z-order (bottom to top):
+        #   1. Shadow: blurred rect, radius 24*scale, offset (0, 12*scale), rgba(0,0,0,0.4)
+        #   2. Container: rounded rect, radius 12*scale
+        #   3. Chrome bar: 40*scale high, neutral_900, border_bottom neutral_700
+        #      Traffic lights: 12*scale diameter, 8*scale gap, macOS colors
+        #      URL bar: centered, 280*scale wide, 24*scale high, neutral_800
+        #        Lock icon + "yourwebsite.com" in JetBrains Mono 11*scale
+        #   4. Content area: neutral_950 bg, content clip composited
+        # ─────────────────────────────────────────────────────
+
         Args:
             ctx: The render context for this frame.
 
@@ -189,66 +206,99 @@ class BrowserMockup(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+        scale = h / 1080
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+        set_text_rendering(cr)
 
-        theme_key = self.mockup_theme if self.mockup_theme in _BROWSER_THEMES else "light"
-        t = _BROWSER_THEMES[theme_key]
-
-        # Animation
-        scale, opacity = self._compute_animation(ctx)
-        if scale < 0.01:
+        anim_scale, opacity = self._compute_animation(ctx)
+        if anim_scale < 0.01:
             return _surface_to_frame(surface, h, w)
 
         cr.save()
-        cr.translate(w / 2, h / 2)
-        cr.scale(scale, scale)
-        cr.translate(-w / 2, -h / 2)
+        cr.translate(w / 2.0, h / 2.0)
+        cr.scale(anim_scale, anim_scale)
+        cr.translate(-w / 2.0, -h / 2.0)
 
-        margin = 40.0
+        margin = 40.0 * scale
         bx, by = margin, margin
-        bw, bh = w - margin * 2, h - margin * 2
-        chrome_h = 60.0
-        r = self.corner_radius
+        bw = w - margin * 2
+        bh = h - margin * 2
+        chrome_h = 40.0 * scale
+        r = 12.0 * scale
 
-        # Window background
-        _rounded_rect(cr, bx, by, bw, bh, r)
-        cr.set_source_rgba(t["chrome"].r, t["chrome"].g, t["chrome"].b, opacity)
+        n900 = NEUTRAL.n900
+        n800 = NEUTRAL.n800
+        n700 = NEUTRAL.n700
+        n500 = NEUTRAL.n500
+        n950 = NEUTRAL.n950
+
+        # LAYER 1: Shadow
+        shadow_color = Color(0.0, 0.0, 0.0, 0.40 * opacity)
+        draw_shadow_surface(cr, bx, by, bw, bh, r, 24.0 * scale, 12.0 * scale, shadow_color)
+
+        # LAYER 2: Container background
+        draw_rounded_rect(cr, bx, by, bw, bh, r)
+        cr.set_source_rgba(n900.r, n900.g, n900.b, opacity)
         cr.fill()
 
+        # LAYER 3: Chrome bar
         # Traffic lights
+        dot_r = 6.0 * scale
         for i, color_hex in enumerate(["#FF5F57", "#FEBC2E", "#28C840"]):
             c = Color.parse(color_hex)
-            cx_dot = bx + 20 + i * 22
-            cy_dot = by + chrome_h / 2
+            cx_dot = bx + 16.0 * scale + i * (dot_r * 2 + 8.0 * scale)
+            cy_dot = by + chrome_h / 2.0
             cr.set_source_rgba(c.r, c.g, c.b, opacity)
-            cr.arc(cx_dot, cy_dot, 7, 0, 2 * math.pi)
+            cr.arc(cx_dot, cy_dot, dot_r, 0, 2 * math.pi)
             cr.fill()
 
-        # URL bar
-        url_x = bx + 90
-        url_y = by + chrome_h / 2 - 14
-        url_w = bw - 130
-        url_h = 28.0
-        _rounded_rect(cr, url_x, url_y, url_w, url_h, 6)
-        cr.set_source_rgba(t["url_bg"].r, t["url_bg"].g, t["url_bg"].b, opacity)
+        # URL bar (centered)
+        url_w = 280.0 * scale
+        url_h = 24.0 * scale
+        url_x = bx + (bw - url_w) / 2.0
+        url_y = by + (chrome_h - url_h) / 2.0
+        draw_rounded_rect(cr, url_x, url_y, url_w, url_h, 6.0 * scale)
+        cr.set_source_rgba(n800.r, n800.g, n800.b, opacity)
         cr.fill()
 
-        # URL text
-        cr.set_source_rgba(t["text"].r, t["text"].g, t["text"].b, opacity * 0.7)
-        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-        cr.set_font_size(12)
-        cr.move_to(url_x + 10, url_y + 18)
-        cr.show_text(self.url_text)
+        # Lock icon (simple padlock shape)
+        lock_x = url_x + 8.0 * scale
+        lock_cy = url_y + url_h / 2.0
+        lock_size = 8.0 * scale
+        cr.set_source_rgba(n500.r, n500.g, n500.b, opacity)
+        # Lock body (small rect)
+        cr.rectangle(lock_x, lock_cy - lock_size * 0.15, lock_size * 0.7, lock_size * 0.55)
+        cr.fill()
+        # Lock shackle (arc above body)
+        cr.set_line_width(1.5 * scale)
+        cr.arc(lock_x + lock_size * 0.35, lock_cy - lock_size * 0.15, lock_size * 0.25, math.pi, 0)
+        cr.stroke()
 
-        # Content area
+        # URL text
+        url_text = "yourwebsite.com"
+        cr.select_font_face("monospace", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+        cr.set_font_size(11.0 * scale)
+        cr.set_source_rgba(n500.r, n500.g, n500.b, opacity)
+        cr.move_to(lock_x + lock_size + 4.0 * scale, url_y + url_h / 2.0 + 4.0 * scale)
+        cr.show_text(url_text)
+
+        # Chrome border bottom
+        cr.set_source_rgba(n700.r, n700.g, n700.b, opacity)
+        cr.set_line_width(1.0 * scale)
+        cr.move_to(bx, by + chrome_h)
+        cr.line_to(bx + bw, by + chrome_h)
+        cr.stroke()
+
+        # LAYER 4: Content area
         content_y = by + chrome_h
         content_h = bh - chrome_h
+        # Fill with neutral_950 behind content
+        cr.set_source_rgba(n950.r, n950.g, n950.b, opacity)
+        cr.rectangle(bx, content_y, bw, content_h)
+        cr.fill()
         _composite_content(cr, self.content_clip, ctx, bx, content_y, bw, content_h)
-
-        # Bottom rounded corners (clip)
-        cr.set_source_rgba(0, 0, 0, 0)
 
         cr.restore()
 
@@ -306,6 +356,20 @@ class PhoneMockup(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a phone mockup frame.
 
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Z-order:
+        #   1. Shadow: shadow_xl beneath device body
+        #   2. Device body: neutral_900, border neutral_700 1.5*scale
+        #      border_radius: comp_height*0.055
+        #   3. Screen area: inset 4*scale, neutral_950 bg
+        #   4. Status bar: 28*scale, "9:41" left, icons right
+        #   5. Content clip: between status bar and home indicator
+        #   6. Home indicator: 120*scale wide, 5*scale tall, neutral_500
+        #   7. Notch/dynamic island if model requires
+        # ─────────────────────────────────────────────────────
+
         Args:
             ctx: The render context for this frame.
 
@@ -314,68 +378,126 @@ class PhoneMockup(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+        scale = h / 1080
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+        set_text_rendering(cr)
 
-        scale, opacity = self._compute_animation(ctx)
-        if scale < 0.01:
+        anim_scale, opacity = self._compute_animation(ctx)
+        if anim_scale < 0.01:
             return _surface_to_frame(surface, h, w)
 
         cr.save()
-        cr.translate(w / 2, h / 2)
-        cr.scale(scale, scale)
-        cr.translate(-w / 2, -h / 2)
+        cr.translate(w / 2.0, h / 2.0)
+        cr.scale(anim_scale, anim_scale)
+        cr.translate(-w / 2.0, -h / 2.0)
 
-        # Phone dimensions (9:19.5 aspect ratio, centered)
+        # Compute phone size (9:19.5 aspect, fit within frame)
         phone_w = min(w * 0.4, h * 0.4 * (9.0 / 19.5))
         phone_h = phone_w * (19.5 / 9.0)
-        px = (w - phone_w) / 2
-        py = (h - phone_h) / 2
-        corner_r = h * 0.06
-        inset = 6.0
+        px = (w - phone_w) / 2.0
+        py = (h - phone_h) / 2.0
+        corner_r = h * 0.055
+        inset = 4.0 * scale
 
-        # Bezel body
+        n900 = NEUTRAL.n900
+        n700 = NEUTRAL.n700
+        n950 = NEUTRAL.n950
+        n500 = NEUTRAL.n500
+        n100 = NEUTRAL.n100
+        n400 = NEUTRAL.n400
         bc = self.bezel_color
+
+        # LAYER 1: Shadow
+        shadow_color = Color(0.0, 0.0, 0.0, 0.45 * opacity)
+        draw_shadow_surface(
+            cr,
+            px,
+            py,
+            phone_w,
+            phone_h,
+            corner_r,
+            40.0 * scale,
+            20.0 * scale,
+            shadow_color,
+        )
+
+        # LAYER 2: Device body
         _rounded_rect(cr, px, py, phone_w, phone_h, corner_r)
         cr.set_source_rgba(bc.r, bc.g, bc.b, opacity)
         cr.fill()
 
-        # Border stroke
-        border_c = NEUTRAL.n700
+        # Border
         _rounded_rect(cr, px, py, phone_w, phone_h, corner_r)
-        cr.set_source_rgba(border_c.r, border_c.g, border_c.b, opacity)
-        cr.set_line_width(1.5)
+        cr.set_source_rgba(n700.r, n700.g, n700.b, opacity)
+        cr.set_line_width(1.5 * scale)
         cr.stroke()
 
-        # Screen area (inset by 6px from bezel edge)
+        # LAYER 3: Screen area
         sx = px + inset
         sy = py + inset
         sw = phone_w - inset * 2
-        sh = phone_h - inset * 2
-        screen_r = max(1, corner_r - inset)
+        sh_screen = phone_h - inset * 2
+        screen_r = max(1.0, corner_r - inset)
 
-        _rounded_rect(cr, sx, sy, sw, sh, screen_r)
+        _rounded_rect(cr, sx, sy, sw, sh_screen, screen_r)
+        cr.set_source_rgba(n950.r, n950.g, n950.b, opacity)
+        cr.fill()
+
+        # LAYER 4: Status bar
+        status_h = 28.0 * scale
+        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cr.set_font_size(11.0 * scale)
+        cr.set_source_rgba(n100.r, n100.g, n100.b, opacity)
+        cr.move_to(sx + 20.0 * scale, sy + status_h / 2.0 + 4.0 * scale)
+        cr.show_text("9:41")
+
+        # Right side: simple battery/signal icons as shapes
+        icon_x = sx + sw - 20.0 * scale
+        icon_cy = sy + status_h / 2.0
+        cr.set_source_rgba(n400.r, n400.g, n400.b, opacity)
+        # Battery (small rect)
+        bat_w = 18.0 * scale
+        bat_h = 9.0 * scale
+        cr.rectangle(icon_x - bat_w, icon_cy - bat_h / 2.0, bat_w, bat_h)
+        cr.stroke()
+        cr.rectangle(icon_x, icon_cy - 2.0 * scale, 2.0 * scale, 4.0 * scale)
+        cr.fill()
+
+        # LAYER 5: Content clip
+        content_y = sy + status_h
+        content_h = sh_screen - status_h - 40.0 * scale  # leave room for home indicator
+        _rounded_rect(cr, sx, content_y, sw, content_h, 0)
         cr.clip()
-        _composite_content(cr, self.content_clip, ctx, sx, sy, sw, sh)
+        _composite_content(cr, self.content_clip, ctx, sx, content_y, sw, content_h)
         cr.reset_clip()
 
-        # Notch or dynamic island
+        # LAYER 6: Home indicator
+        hi_w = 120.0 * scale
+        hi_h = 5.0 * scale
+        hi_x = sx + (sw - hi_w) / 2.0
+        hi_y = sy + sh_screen - 20.0 * scale
+        draw_pill(cr, hi_x, hi_y, hi_w, hi_h, None)
+        cr.set_source_rgba(n500.r, n500.g, n500.b, opacity)
+        cr.fill()
+
+        # LAYER 7: Notch/Dynamic Island
         if self.model == "notch":
-            notch_w = phone_w * 0.45
-            notch_h = phone_h * 0.035
-            notch_x = px + (phone_w - notch_w) / 2
+            notch_w = 120.0 * scale
+            notch_h = 28.0 * scale
+            notch_x = px + (phone_w - notch_w) / 2.0
             notch_y = py
-            _rounded_rect(cr, notch_x, notch_y, notch_w, notch_h, notch_h / 2)
-            cr.set_source_rgba(bc.r, bc.g, bc.b, opacity)
+            draw_pill(cr, notch_x, notch_y, notch_w, notch_h, None)
+            cr.set_source_rgba(n950.r, n950.g, n950.b, opacity)
             cr.fill()
         elif self.model == "dynamic_island":
-            di_w = phone_w * 0.3
-            di_h = phone_h * 0.02
-            di_x = px + (phone_w - di_w) / 2
-            di_y = py + inset + phone_h * 0.01
-            _rounded_rect(cr, di_x, di_y, di_w, di_h, di_h / 2)
-            cr.set_source_rgba(0, 0, 0, opacity)
+            di_w = 120.0 * scale
+            di_h = 36.0 * scale
+            di_x = px + (phone_w - di_w) / 2.0
+            di_y = sy + 6.0 * scale
+            draw_pill(cr, di_x, di_y, di_w, di_h, None)
+            cr.set_source_rgba(n900.r, n900.g, n900.b, opacity)
             cr.fill()
 
         cr.restore()
@@ -453,6 +575,21 @@ class DesktopMockup(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a desktop mockup frame.
 
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Z-order (bottom to top):
+        #   1. Shadow: shadow_xl via draw_shadow_surface (macos/windows only)
+        #   2. Container: rounded rect, radius 12*scale, neutral_900
+        #   3. Title bar: 36*scale high, neutral_900, border_bottom neutral_700
+        #      macOS: traffic lights 6*scale radius, 22*scale spacing
+        #      windows: minimize/maximize/close boxes on right
+        #      minimal: no controls
+        #      Centered window title: Inter 13*scale, neutral_100
+        #   4. Content area: neutral_950 bg, content clip composited
+        # All pixel values scaled by comp_height / 1080
+        # ─────────────────────────────────────────────────────
+
         Args:
             ctx: The render context for this frame.
 
@@ -461,89 +598,87 @@ class DesktopMockup(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+        scale = h / 1080
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+        set_text_rendering(cr)
 
         theme_key = self.os_theme if self.os_theme in _DESKTOP_THEMES else "macos"
         t = _DESKTOP_THEMES[theme_key]
 
-        scale, opacity = self._compute_animation(ctx)
-        if scale < 0.01:
+        anim_scale, opacity = self._compute_animation(ctx)
+        if anim_scale < 0.01:
             return _surface_to_frame(surface, h, w)
 
         cr.save()
-        cr.translate(w / 2, h / 2)
-        cr.scale(scale, scale)
-        cr.translate(-w / 2, -h / 2)
+        cr.translate(w / 2.0, h / 2.0)
+        cr.scale(anim_scale, anim_scale)
+        cr.translate(-w / 2.0, -h / 2.0)
 
-        margin = 60.0
+        margin = 60.0 * scale
         bx, by = margin, margin
-        bw, bh = w - margin * 2, h - margin * 2
-        titlebar_h = 36.0
-        r = RADIUS_LG
+        bw = w - margin * 2
+        bh = h - margin * 2
+        titlebar_h = 36.0 * scale
+        r = 12.0 * scale
 
-        # Shadow (shadow_xl: blur=40, offset_y=20)
+        n900 = NEUTRAL.n900
+        n950 = NEUTRAL.n950
+
+        # LAYER 1: Shadow
         if t["shadow"]:
-            shadow = SHADOW_XL
-            cr.set_source_rgba(0, 0, 0, shadow.color_a * opacity)
-            _rounded_rect(
-                cr,
-                bx + shadow.offset_x,
-                by + shadow.offset_y,
-                bw,
-                bh,
-                r,
-            )
-            cr.fill()
+            shadow_color = Color(0.0, 0.0, 0.0, 0.45 * opacity)
+            draw_shadow_surface(cr, bx, by, bw, bh, r, 40.0 * scale, 20.0 * scale, shadow_color)
 
-        # Window frame
-        _rounded_rect(cr, bx, by, bw, bh, r)
-        titlebar_color: Color = t["titlebar"]  # type: ignore[assignment]
-        cr.set_source_rgba(titlebar_color.r, titlebar_color.g, titlebar_color.b, opacity)
+        # LAYER 2: Container background
+        draw_rounded_rect(cr, bx, by, bw, bh, r)
+        cr.set_source_rgba(n900.r, n900.g, n900.b, opacity)
         cr.fill()
 
-        # Title bar
+        # LAYER 3: Title bar controls
+        dot_r = 6.0 * scale
         if self.os_theme == "macos":
-            # Traffic lights
             for i, color_hex in enumerate(["#FF5F57", "#FEBC2E", "#28C840"]):
                 c = Color.parse(color_hex)
-                cx_dot = bx + 16 + i * 22
-                cy_dot = by + titlebar_h / 2
+                cx_dot = bx + 16.0 * scale + i * 22.0 * scale
+                cy_dot = by + titlebar_h / 2.0
                 cr.set_source_rgba(c.r, c.g, c.b, opacity)
-                cr.arc(cx_dot, cy_dot, 6, 0, 2 * math.pi)
+                cr.arc(cx_dot, cy_dot, dot_r, 0, 2 * math.pi)
                 cr.fill()
         elif self.os_theme == "windows":
-            # Minimize, maximize, close boxes on right
-            btn_size = 12
+            btn_size = 12.0 * scale
             for i, color_hex in enumerate(["#888888", "#888888", "#FF5F57"]):
                 c = Color.parse(color_hex)
-                cx_btn = bx + bw - 20 - i * 30
-                cy_btn = by + titlebar_h / 2 - btn_size / 2
+                cx_btn = bx + bw - 20.0 * scale - i * 30.0 * scale
+                cy_btn = by + titlebar_h / 2.0 - btn_size / 2.0
                 cr.set_source_rgba(c.r, c.g, c.b, opacity)
                 cr.rectangle(cx_btn, cy_btn, btn_size, btn_size)
                 cr.fill()
 
-        # Window title
+        # Window title (centered)
         text_color: Color = t["text"]  # type: ignore[assignment]
         cr.set_source_rgba(text_color.r, text_color.g, text_color.b, opacity)
         cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-        cr.set_font_size(13)
+        cr.set_font_size(13.0 * scale)
         ext = cr.text_extents(self.window_title)
-        cr.move_to(bx + bw / 2 - ext.width / 2, by + titlebar_h / 2 + ext.height / 2)
+        cr.move_to(bx + bw / 2.0 - ext.width / 2.0, by + titlebar_h / 2.0 + ext.height / 2.0)
         cr.show_text(self.window_title)
 
         # Border line under titlebar
         border_color: Color = t["border"]  # type: ignore[assignment]
         cr.set_source_rgba(border_color.r, border_color.g, border_color.b, opacity)
-        cr.set_line_width(1)
+        cr.set_line_width(1.0 * scale)
         cr.move_to(bx, by + titlebar_h)
         cr.line_to(bx + bw, by + titlebar_h)
         cr.stroke()
 
-        # Content area
+        # LAYER 4: Content area
         content_y = by + titlebar_h
         content_h = bh - titlebar_h
+        cr.set_source_rgba(n950.r, n950.g, n950.b, opacity)
+        cr.rectangle(bx, content_y, bw, content_h)
+        cr.fill()
         _composite_content(cr, self.content_clip, ctx, bx, content_y, bw, content_h)
 
         cr.restore()

@@ -15,23 +15,18 @@ import numpy as np
 
 from pymotion.clip.base import Clip, RenderContext
 from pymotion.design.motion import ease_in_out_quart, ease_in_quart, ease_out_quart
-from pymotion.design.renderer import draw_rounded_rect
+from pymotion.design.renderer import (
+    draw_pill,
+    draw_rounded_rect,
+    draw_shadow_surface,
+    set_text_rendering,
+)
 from pymotion.design.tokens import (
-    BODY,
-    BODY_SM,
-    DISPLAY_LG,
-    DISPLAY_SM,
-    HEADING,
-    LABEL,
+    NEUTRAL,
     RADIUS_FULL,
-    RADIUS_MD,
-    SPACE_1,
-    SPACE_2,
-    SPACE_3,
     get_theme,
     safe_h,
     safe_v,
-    scale_size,
 )
 from pymotion.utils.color import Color
 
@@ -160,62 +155,106 @@ class LowerThird(Clip):
     ) -> None:
         """Render the modern/default lower third using design tokens.
 
-        # DESIGN INTENT: Modern broadcast chyron — pill-shaped name chip
-        #   beside a thin vertical accent bar and a title line.
-        # REFERENCE: Bloomberg TV lower thirds, Apple keynote speaker IDs.
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions (scale all values by comp_height/1080)
+        # Background: none (transparent overlay)
+        # Z-order (bottom to top):
+        #   1. Accent bar: 3*scale wide, full component height, #6366F1
+        #   2. Name chip: pill shape, neutral_800 bg, 8*scale gap from bar
+        #      Name text: Inter SemiBold 13*scale, ALL CAPS, 0.08em tracking
+        #      Color: neutral_100 (#F4F4F5)
+        #   3. Title text: Inter Regular 13*scale, neutral_400, below chip
+        # Text baseline: vertically centered in chip (name), top-aligned (title)
+        # Contrast mechanism: neutral_800 chip on any dark bg; accent bar provides color
+        # Position: safe_h from left, safe_v from bottom
+        # ─────────────────────────────────────────────────────
         """
+        set_text_rendering(cr)
         t = get_theme()
+        scale = h / 1080
 
-        # Scaled sizes from token system
-        name_size = scale_size(LABEL.size, h)
-        title_size = scale_size(BODY.size, h)
-        pad_x = scale_size(SPACE_2, h)
-        pad_y = scale_size(SPACE_1, h)
-        accent_w = 3.0 * (h / 1080)
-        gap = 6.0 * (h / 1080)
+        # Token-scaled sizes
+        name_size = 13.0 * scale
+        title_size = 13.0 * scale
+        pad_h = 16.0 * scale  # horizontal padding inside chip
+        pad_v = 8.0 * scale  # vertical padding inside chip
+        accent_w = 3.0 * scale
+        bar_gap = 8.0 * scale  # gap between accent bar and chip
+        chip_title_gap = 6.0 * scale  # gap between chip bottom and title
         sh = safe_h(w)
         sv = safe_v(h)
 
-        # Measure text
+        # Measure name text (ALL CAPS with letter spacing)
         cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(name_size)
-        name_ext = cr.text_extents(self.name.upper())
-        cr.set_font_size(title_size)
-        _ = cr.text_extents(self.title)
+        name_upper = self.name.upper()
+        name_ext = cr.text_extents(name_upper)
+        # Approximate 0.08em letter spacing
+        letter_spacing = name_size * 0.08
+        name_text_w = name_ext.width + letter_spacing * max(0, len(name_upper) - 1)
 
-        # Chip dimensions
-        chip_w = accent_w + pad_x + name_ext.width + pad_x
-        chip_h = pad_y * 2 + name_size
-
-        # Position: safe zone from left/bottom
-        bx = sh + (1.0 - progress) * -24 * (w / 1920)
-        chip_y = h - sv - chip_h - title_size - gap
-
-        # Chip background (pill shape)
-        draw_rounded_rect(cr, bx, chip_y, chip_w, chip_h, RADIUS_FULL)
-        cr.set_source_rgba(t.surface.r, t.surface.g, t.surface.b, 0.95 * progress)
-        cr.fill()
-
-        # Accent bar on left edge of chip
-        cr.set_source_rgba(t.accent.r, t.accent.g, t.accent.b, progress)
-        draw_rounded_rect(cr, bx, chip_y, accent_w, chip_h, accent_w / 2)
-        cr.fill()
-
-        # Name text (ALL CAPS, label style)
-        cr.set_source_rgba(t.text.r, t.text.g, t.text.b, progress)
-        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        cr.set_font_size(name_size)
-        cr.move_to(bx + accent_w + pad_x, chip_y + pad_y + name_size * 0.85)
-        cr.show_text(self.name.upper())
-
-        # Title line below chip
-        title_y = chip_y + chip_h + gap
-        title_progress = _clamp01((progress - 0.4) / 0.6) if progress < 1.0 else 1.0
-        cr.set_source_rgba(t.muted.r, t.muted.g, t.muted.b, title_progress)
+        # Measure title text
         cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
         cr.set_font_size(title_size)
-        cr.move_to(bx + accent_w + pad_x, title_y + title_size * 0.85)
-        cr.show_text(self.title)
+        title_ext = cr.text_extents(self.title)
+
+        # Chip dimensions
+        chip_w = name_text_w + 2.0 * pad_h
+        chip_h = name_size + 2.0 * pad_v
+
+        # Total height: accent bar spans chip + gap + title
+        title_h = title_ext.height if self.title else 0.0
+        total_h = chip_h + chip_title_gap + title_h
+
+        # Bounding box position
+        bx = sh
+        by = h - sv - total_h
+
+        # Animation: slide in from left
+        x_offset = (1.0 - progress) * (-24.0 * scale)
+        bx += x_offset
+
+        # LAYER 1: Accent bar (full component height)
+        cr.set_source_rgba(t.accent.r, t.accent.g, t.accent.b, progress)
+        cr.rectangle(bx, by, accent_w, total_h)
+        cr.fill()
+
+        # LAYER 2: Name chip (pill shape)
+        chip_x = bx + accent_w + bar_gap
+        chip_y = by
+        # Use neutral_800 (#27272A) for chip bg — distinct from both n950 and n900
+        n800 = NEUTRAL.n800
+        draw_pill(cr, chip_x, chip_y, chip_w, chip_h, None)
+        cr.set_source_rgba(n800.r, n800.g, n800.b, 0.95 * progress)
+        cr.fill()
+
+        # Name text inside chip (ALL CAPS, letter-spaced)
+        n100 = NEUTRAL.n100
+        cr.set_source_rgba(n100.r, n100.g, n100.b, progress)
+        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cr.set_font_size(name_size)
+        # Vertically center text in chip
+        text_y = chip_y + chip_h / 2.0 + name_ext.height / 2.0
+        # Draw with letter spacing
+        cx = chip_x + pad_h
+        for i, ch in enumerate(name_upper):
+            cr.move_to(cx, text_y)
+            cr.show_text(ch)
+            char_ext = cr.text_extents(ch)
+            cx += char_ext.x_advance + (letter_spacing if i < len(name_upper) - 1 else 0)
+
+        # LAYER 3: Title text below chip
+        if self.title:
+            title_progress = _clamp01((progress - 0.3) / 0.7) if progress < 1.0 else 1.0
+            n400 = NEUTRAL.n400
+            cr.set_source_rgba(n400.r, n400.g, n400.b, title_progress)
+            cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+            cr.set_font_size(title_size)
+            title_y = chip_y + chip_h + chip_title_gap + title_ext.height
+            # Align title X with name text left edge
+            cr.move_to(chip_x + pad_h, title_y)
+            cr.show_text(self.title)
 
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a lower third frame with slide animation.
@@ -349,6 +388,18 @@ class LogoReveal(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a logo reveal frame.
 
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Z-order:
+        #   1. Logo area: rounded rect (radius 16*scale), centered,
+        #      scaled logo_size by (comp_height / 1080)
+        #   2. Reveal animation: style-dependent (fade, grow, slice, etc.)
+        #      All animations use ease_out_quart
+        # Design tokens: rounded corners, scaled dimensions, set_text_rendering
+        # All pixel values scaled by comp_height / 1080
+        # ─────────────────────────────────────────────────────
+
         Args:
             ctx: The render context for this frame.
 
@@ -357,6 +408,7 @@ class LogoReveal(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+        scale = h / 1080
 
         if self.style not in _LOGO_REVEAL_STYLES:
             valid = ", ".join(sorted(_LOGO_REVEAL_STYLES))
@@ -365,6 +417,7 @@ class LogoReveal(Clip):
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+        set_text_rendering(cr)
 
         # Animation progress — use design-system easing
         if self.reveal_duration > 0 and ctx.local_frame < self.reveal_duration:
@@ -377,34 +430,35 @@ class LogoReveal(Clip):
             if self._static_cache.shape[:2] == (h, w):
                 return self._static_cache.copy()
 
-        lw, lh = self.logo_size
-        lx = (w - lw) / 2
-        ly = (h - lh) / 2
+        # Scale logo size with resolution
+        lw = self.logo_size[0] * scale
+        lh = self.logo_size[1] * scale
+        lx = (w - lw) / 2.0
+        ly = (h - lh) / 2.0
         c = self.logo_color
+        corner_r = 16.0 * scale
 
         if self.style == "fade":
-            # DESIGN INTENT: Clean fade with subtle scale for presence
             s_val = 0.95 + 0.05 * t
             cr.save()
-            cr.translate(w / 2, h / 2)
+            cr.translate(w / 2.0, h / 2.0)
             cr.scale(s_val, s_val)
-            cr.translate(-w / 2, -h / 2)
+            cr.translate(-w / 2.0, -h / 2.0)
             cr.set_source_rgba(c.r, c.g, c.b, c.a * t)
-            cr.rectangle(lx, ly, lw, lh)
+            draw_rounded_rect(cr, lx, ly, lw, lh, corner_r)
             cr.fill()
             cr.restore()
         elif self.style == "grow":
             s = max(t, 1e-6)
             cr.save()
-            cr.translate(w / 2, h / 2)
+            cr.translate(w / 2.0, h / 2.0)
             cr.scale(s, s)
-            cr.translate(-w / 2, -h / 2)
+            cr.translate(-w / 2.0, -h / 2.0)
             cr.set_source_rgba(c.r, c.g, c.b, c.a)
-            cr.rectangle(lx, ly, lw, lh)
+            draw_rounded_rect(cr, lx, ly, lw, lh, corner_r)
             cr.fill()
             cr.restore()
         elif self.style == "slice":
-            # Horizontal slices reveal
             n_slices = 8
             for i in range(n_slices):
                 slice_t = _clamp01((t - i / n_slices / 2) * 2)
@@ -415,22 +469,19 @@ class LogoReveal(Clip):
                 cr.rectangle(lx, sy, sw, slice_h)
                 cr.fill()
         elif self.style == "glitch":
-            # Glitchy reveal with offset slices
             n_slices = 12
             for i in range(n_slices):
                 slice_h = lh / n_slices
                 sy = ly + i * slice_h
-                offset = math.sin(i * 3.7 + ctx.local_frame * 0.5) * 20 * (1.0 - t)
+                offset = math.sin(i * 3.7 + ctx.local_frame * 0.5) * 20.0 * scale * (1.0 - t)
                 cr.set_source_rgba(c.r, c.g, c.b, c.a * min(1.0, t * 1.5))
                 cr.rectangle(lx + offset, sy, lw, slice_h)
                 cr.fill()
         elif self.style == "draw":
-            # Border draws around the logo
             perimeter = 2 * (lw + lh)
             drawn = perimeter * t
             cr.set_source_rgba(c.r, c.g, c.b, c.a)
-            cr.set_line_width(3.0)
-            # Top edge
+            cr.set_line_width(3.0 * scale)
             seg = min(drawn, lw)
             cr.move_to(lx, ly)
             cr.line_to(lx + seg, ly)
@@ -447,14 +498,12 @@ class LogoReveal(Clip):
                 seg = min(drawn, lh)
                 cr.line_to(lx, ly + lh - seg)
             cr.stroke()
-            # Fill with lower opacity
             if t > 0.5:
                 fill_t = (t - 0.5) * 2
                 cr.set_source_rgba(c.r, c.g, c.b, c.a * fill_t * 0.8)
-                cr.rectangle(lx, ly, lw, lh)
+                draw_rounded_rect(cr, lx, ly, lw, lh, corner_r)
                 cr.fill()
         elif self.style == "shatter":
-            # Pieces assemble from scattered positions
             nx, ny = 4, 4
             pw = lw / nx
             ph = lh / ny
@@ -462,7 +511,7 @@ class LogoReveal(Clip):
                 for iy in range(ny):
                     px = lx + ix * pw
                     py_base = ly + iy * ph
-                    scatter = (1.0 - t) * 150
+                    scatter = (1.0 - t) * 150.0 * scale
                     angle = (ix * 7 + iy * 13) * 0.5
                     ox = math.cos(angle) * scatter
                     oy = math.sin(angle) * scatter
@@ -521,6 +570,19 @@ class CallToAction(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a call-to-action frame.
 
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Background: none (transparent overlay)
+        # Z-order (bottom to top):
+        #   1. Glow: same pill blurred, accent at 19% opacity
+        #   2. Pill bg: accent #6366F1, full radius
+        #   3. Main text: Inter SemiBold 22*scale, white, centered in pill
+        #   4. Sub text: Inter Regular 13*scale, neutral_400, below pill
+        # Position: horizontal center, bottom safe zone
+        # Contrast: bright accent pill on dark bg
+        # ─────────────────────────────────────────────────────
+
         Args:
             ctx: The render context for this frame.
 
@@ -532,67 +594,85 @@ class CallToAction(Clip):
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+        set_text_rendering(cr)
 
-        # DESIGN INTENT: Pill button with accent fill, like a UI CTA component.
-        # REFERENCE: Linear app tooltips, Vercel dashboard prompts.
-
-        # Animation with design-system easing
         if self.animate_in > 0 and ctx.local_frame < self.animate_in:
             t = ease_out_quart(ctx.local_frame / self.animate_in)
         else:
             t = 1.0
 
-        # Return cached static frame when not animating
         if t == 1.0 and self._static_cache is not None:
             if self._static_cache.shape[:2] == (h, w):
                 return self._static_cache.copy()
 
         theme = get_theme()
-        text_size = scale_size(HEADING.size, h)
-        sub_size = scale_size(BODY.size, h)
-        pad_x = scale_size(SPACE_2 * 2, h)
-        pad_y = scale_size(SPACE_2, h)
+        scale = h / 1080
+
+        text_size = 22.0 * scale
+        sub_size = 13.0 * scale
+        pad_h = 32.0 * scale
+        pad_v = 16.0 * scale
         sv = safe_v(h)
 
+        # Measure main text
         cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(text_size)
         text_ext = cr.text_extents(self.text)
 
-        box_w = text_ext.width + pad_x * 2
-        box_h = text_size + pad_y * 2
-        if self.sub_text:
-            box_h += sub_size + 4 * (h / 1080)
-
-        bx = (w - box_w) / 2
-        by = h - sv - box_h  # Bottom-aligned in safe zone
+        pill_w = text_ext.width + 2.0 * pad_h
+        pill_h = text_size + 2.0 * pad_v
+        pill_x = (w - pill_w) / 2.0
+        pill_y = h - sv - pill_h
 
         # Scale animation (0.92→1.0)
         cr.save()
-        cr.translate(w / 2, by + box_h / 2)
         s_val = 0.92 + 0.08 * t
+        cr.translate(w / 2.0, pill_y + pill_h / 2.0)
         cr.scale(s_val, s_val)
-        cr.translate(-w / 2, -(by + box_h / 2))
+        cr.translate(-w / 2.0, -(pill_y + pill_h / 2.0))
 
-        # Pill background with accent color
-        draw_rounded_rect(cr, bx, by, box_w, box_h, RADIUS_FULL)
+        # LAYER 1: Glow (accent at 19% opacity, blurred)
+        glow_color = Color(theme.accent.r, theme.accent.g, theme.accent.b, 0.19 * t)
+        draw_shadow_surface(
+            cr,
+            pill_x,
+            pill_y,
+            pill_w,
+            pill_h,
+            RADIUS_FULL,
+            24.0 * scale,
+            0.0,
+            glow_color,
+        )
+
+        # LAYER 2: Pill background
+        draw_pill(cr, pill_x, pill_y, pill_w, pill_h, None)
         cr.set_source_rgba(theme.accent.r, theme.accent.g, theme.accent.b, t)
         cr.fill()
 
-        # White text on accent
+        # LAYER 3: Main text (centered in pill)
         cr.set_source_rgba(1.0, 1.0, 1.0, t)
         cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(text_size)
-        cr.move_to(bx + pad_x, by + pad_y + text_size * 0.8)
+        text_x = pill_x + (pill_w - text_ext.width) / 2.0
+        text_y = pill_y + pill_h / 2.0 + text_ext.height / 2.0
+        cr.move_to(text_x, text_y)
         cr.show_text(self.text)
 
-        if self.sub_text:
-            cr.set_source_rgba(1.0, 1.0, 1.0, 0.7 * t)
-            cr.set_font_size(sub_size)
-            cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-            cr.move_to(bx + pad_x, by + pad_y + text_size + sub_size)
-            cr.show_text(self.sub_text)
-
         cr.restore()
+
+        # LAYER 4: Sub text below pill (outside scale transform)
+        if self.sub_text:
+            sub_progress = _clamp01((t - 0.3) / 0.7) if t < 1.0 else 1.0
+            n400 = NEUTRAL.n400
+            cr.set_source_rgba(n400.r, n400.g, n400.b, sub_progress)
+            cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+            cr.set_font_size(sub_size)
+            sub_ext = cr.text_extents(self.sub_text)
+            sub_x = (w - sub_ext.width) / 2.0
+            sub_y = pill_y + pill_h + 8.0 * scale + sub_ext.height
+            cr.move_to(sub_x, sub_y)
+            cr.show_text(self.sub_text)
 
         result = _surface_to_frame(surface, h, w)
         if t == 1.0:
@@ -628,8 +708,105 @@ class SocialHandle(Clip):
     animate_in: int = 15
     _static_cache: np.ndarray | None = field(default=None, repr=False, compare=False)
 
+    def _draw_platform_icon(
+        self,
+        cr: cairo.Context[cairo.ImageSurface],
+        cx: float,
+        cy: float,
+        size: float,
+        color: Color,
+        opacity: float,
+    ) -> None:
+        """Draw a platform-specific icon as Cairo paths.
+
+        Args:
+            cr: Cairo context.
+            cx: Center X of the icon area.
+            cy: Center Y of the icon area.
+            size: Icon size (16*scale).
+            color: Icon color.
+            opacity: Alpha multiplier.
+        """
+        cr.set_source_rgba(color.r, color.g, color.b, opacity)
+        half = size / 2.0
+        lw = 1.5 * (size / 16.0)
+
+        if self.platform == "youtube":
+            # Rounded rect + triangle
+            rr = 3.0 * (size / 16.0)
+            draw_rounded_rect(cr, cx - half, cy - half * 0.7, size, size * 0.7, rr)
+            cr.fill()
+            # Play triangle in chip bg color
+            n800 = NEUTRAL.n800
+            cr.set_source_rgba(n800.r, n800.g, n800.b, 0.9 * opacity)
+            tri_size = size * 0.25
+            cr.move_to(cx - tri_size * 0.4, cy - tri_size)
+            cr.line_to(cx + tri_size * 0.8, cy)
+            cr.line_to(cx - tri_size * 0.4, cy + tri_size)
+            cr.close_path()
+            cr.fill()
+        elif self.platform == "instagram":
+            # Rounded square + inner circle + small circle
+            rr = 4.0 * (size / 16.0)
+            cr.set_line_width(lw)
+            draw_rounded_rect(cr, cx - half, cy - half, size, size, rr)
+            cr.stroke()
+            cr.arc(cx, cy, size * 0.28, 0, 2 * math.pi)
+            cr.stroke()
+            cr.arc(cx + half * 0.55, cy - half * 0.55, size * 0.08, 0, 2 * math.pi)
+            cr.fill()
+        elif self.platform == "x":
+            # Two crossing diagonal strokes
+            margin = 2.0 * (size / 16.0)
+            cr.set_line_width(lw)
+            cr.move_to(cx - half + margin, cy - half + margin)
+            cr.line_to(cx + half - margin, cy + half - margin)
+            cr.stroke()
+            cr.move_to(cx + half - margin, cy - half + margin)
+            cr.line_to(cx - half + margin, cy + half - margin)
+            cr.stroke()
+        elif self.platform == "linkedin":
+            # Rounded square with "in" text
+            rr = 2.0 * (size / 16.0)
+            draw_rounded_rect(cr, cx - half, cy - half, size, size, rr)
+            cr.fill()
+            n800 = NEUTRAL.n800
+            cr.set_source_rgba(n800.r, n800.g, n800.b, 0.9 * opacity)
+            cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+            cr.set_font_size(size * 0.6)
+            in_ext = cr.text_extents("in")
+            cr.move_to(cx - in_ext.width / 2.0, cy + in_ext.height / 2.0)
+            cr.show_text("in")
+        elif self.platform == "tiktok":
+            # Music note shape: vertical stroke + horizontal cap
+            cr.set_line_width(size * 0.22)
+            cr.set_line_cap(cairo.LINE_CAP_ROUND)
+            cr.move_to(cx, cy + half * 0.6)
+            cr.line_to(cx, cy - half * 0.5)
+            cr.stroke()
+            cr.set_line_width(size * 0.15)
+            cr.move_to(cx, cy - half * 0.5)
+            cr.line_to(cx + half * 0.5, cy - half * 0.7)
+            cr.stroke()
+        else:
+            # Fallback: filled circle
+            cr.arc(cx, cy, size * 0.25, 0, 2 * math.pi)
+            cr.fill()
+
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a social handle overlay frame.
+
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Background: none (transparent overlay)
+        # Z-order (bottom to top):
+        #   1. Chip bg: rgba(27,27,42,0.9) neutral_800 90%, pill shape
+        #      Border: 1*scale, neutral_700 60%
+        #   2. Platform icon: Cairo path, 16*scale, neutral_400
+        #   3. Handle text: Inter Medium 13*scale, neutral_200
+        # Position: safe_h from left, safe_v from bottom
+        # ─────────────────────────────────────────────────────
 
         Args:
             ctx: The render context for this frame.
@@ -640,70 +817,65 @@ class SocialHandle(Clip):
         w = ctx.resolution.width
         h = ctx.resolution.height
 
-        # DESIGN INTENT: Minimal chip — platform icon + handle text on
-        #   frosted-glass-style dark surface.
-        # REFERENCE: Figma community cards, Vercel deployment metadata.
-
-        theme = get_theme()
-
         if self.animate_in > 0 and ctx.local_frame < self.animate_in:
             t = ease_out_quart(ctx.local_frame / self.animate_in)
         else:
             t = 1.0
 
-        # Return cached static frame when not animating
         if t == 1.0 and self._static_cache is not None:
             if self._static_cache.shape[:2] == (h, w):
                 return self._static_cache.copy()
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+        set_text_rendering(cr)
 
-        text_size = scale_size(BODY.size, h)
-        pad_x = scale_size(SPACE_2, h)
-        pad_y = scale_size(SPACE_1, h)
-        icon_size = 16.0 * (h / 1080)
-        icon_gap = scale_size(SPACE_1, h)
+        scale = h / 1080
+        chip_h = 36.0 * scale
+        icon_size = 16.0 * scale
+        pad_h = 12.0 * scale
+        icon_gap = 8.0 * scale
         sh = safe_h(w)
         sv = safe_v(h)
 
-        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+        # Measure handle text
+        text_size = 13.0 * scale
+        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(text_size)
         ext = cr.text_extents(self.handle)
 
-        box_w = pad_x + icon_size + icon_gap + ext.width + pad_x
-        box_h = pad_y * 2 + max(text_size, icon_size)
+        chip_w = pad_h + icon_size + icon_gap + ext.width + pad_h
         bx = sh
-        by = h - sv - box_h
+        by = h - sv - chip_h
 
         # Y-drift animation
-        y_drift = (1.0 - t) * 8.0 * (h / 1080)
+        y_drift = (1.0 - t) * 8.0 * scale
 
-        # Background chip (frosted glass style)
-        draw_rounded_rect(cr, bx, by + y_drift, box_w, box_h, RADIUS_MD)
-        cr.set_source_rgba(theme.surface.r, theme.surface.g, theme.surface.b, 0.9 * t)
+        # LAYER 1: Chip background (pill, frosted glass)
+        n800 = NEUTRAL.n800
+        draw_pill(cr, bx, by + y_drift, chip_w, chip_h, None)
+        cr.set_source_rgba(n800.r, n800.g, n800.b, 0.9 * t)
         cr.fill_preserve()
-        # Subtle border
-        cr.set_source_rgba(theme.border.r, theme.border.g, theme.border.b, 0.6 * t)
-        cr.set_line_width(1.0)
+        # Border
+        n700 = NEUTRAL.n700
+        cr.set_source_rgba(n700.r, n700.g, n700.b, 0.6 * t)
+        cr.set_line_width(1.0 * scale)
         cr.stroke()
 
-        # Platform icon — monochrome geometric initial
-        icon_x = bx + pad_x + icon_size / 2
-        icon_y = by + y_drift + box_h / 2
-        cr.set_source_rgba(theme.muted.r, theme.muted.g, theme.muted.b, t)
-        cr.set_font_size(icon_size * 0.75)
-        initial = self.platform[0].upper()
-        iext = cr.text_extents(initial)
-        cr.move_to(icon_x - iext.width / 2, icon_y + iext.height / 2)
-        cr.show_text(initial)
+        # LAYER 2: Platform icon
+        icon_cx = bx + pad_h + icon_size / 2.0
+        icon_cy = by + y_drift + chip_h / 2.0
+        n400 = NEUTRAL.n400
+        self._draw_platform_icon(cr, icon_cx, icon_cy, icon_size, n400, t)
 
-        # Handle text
-        cr.set_source_rgba(theme.text.r, theme.text.g, theme.text.b, t)
-        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+        # LAYER 3: Handle text
+        n200 = NEUTRAL.n200
+        cr.set_source_rgba(n200.r, n200.g, n200.b, t)
+        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(text_size)
-        text_x = bx + pad_x + icon_size + icon_gap
-        cr.move_to(text_x, by + y_drift + box_h / 2 + text_size * 0.35)
+        text_x = bx + pad_h + icon_size + icon_gap
+        text_y = by + y_drift + chip_h / 2.0 + ext.height / 2.0
+        cr.move_to(text_x, text_y)
         cr.show_text(self.handle)
 
         result = _surface_to_frame(surface, h, w)
@@ -741,8 +913,18 @@ class Countdown(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a countdown frame.
 
-        # DESIGN INTENT: Large monospaced digit, centered, no decoration.
-        # REFERENCE: Apple keynote countdown timers.
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Background: none (transparent overlay)
+        # Z-order (bottom to top):
+        #   1. Digit: JetBrains Mono Bold 120*scale, neutral_100, centered
+        #   2. Label: Inter Medium 11*scale, ALL CAPS 0.15em, neutral_400
+        #      "SECONDS", centered below digit
+        # Transition: outgoing digit y 0→-20*scale opacity 1→0 (9f)
+        #             incoming digit y 20*scale→0 opacity 0→1 (9f)
+        # Position: horizontal center, comp_height * 0.45
+        # ─────────────────────────────────────────────────────
 
         Args:
             ctx: The render context for this frame.
@@ -752,11 +934,14 @@ class Countdown(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+        scale = h / 1080
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
+        set_text_rendering(cr)
 
-        theme = get_theme()
+        n100 = NEUTRAL.n100
+        n400 = NEUTRAL.n400
 
         if self.count_duration > 0:
             progress = _clamp01(ctx.local_frame / self.count_duration)
@@ -772,47 +957,74 @@ class Countdown(Clip):
         else:
             text = str(current)
 
-        # Ticker transition: y-drift between digits
+        # Digit transition: overlapping outgoing + incoming
         frames_per_number = self.count_duration / max(1, self.from_n)
         within = ctx.local_frame % max(1, int(frames_per_number))
-        digit_t = within / max(1, frames_per_number)
+        transition_frames = 9
 
-        # Subtle Y drift on digit change (design system pattern)
-        y_offset = 0.0
-        alpha = 1.0
-        if digit_t < 0.15:
-            # Incoming: y+16→0, opacity 0→1
-            enter_t = ease_out_quart(digit_t / 0.15)
-            y_offset = 16.0 * (1.0 - enter_t) * (h / 1080)
-            alpha = enter_t
+        digit_size = 120.0 * scale
+        center_y = h * 0.45
 
-        # Use design token colors if default
-        c = self.color
-        if c.r == 1.0 and c.g == 1.0 and c.b == 1.0:
-            c = theme.text
+        cr.select_font_face("monospace", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cr.set_font_size(digit_size)
 
-        cr.save()
-        cr.translate(w / 2, h / 2 + y_offset)
+        if within < transition_frames and ctx.local_frame > 0:
+            # Transition phase: render both outgoing and incoming digits
+            trans_t = within / max(1, transition_frames)
 
-        cr.select_font_face(self.font, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        cr.set_font_size(self.size)
-        cr.set_source_rgba(c.r, c.g, c.b, c.a * alpha)
+            # Outgoing digit (previous number)
+            prev = min(self.from_n, current + 1)
+            prev_text = str(prev)
+            out_t = ease_in_quart(trans_t)
+            out_y_offset = -20.0 * scale * out_t
+            out_alpha = 1.0 - out_t
 
-        ext = cr.text_extents(text)
-        cr.move_to(-ext.width / 2, ext.height / 2)
-        cr.show_text(text)
+            ext = cr.text_extents(prev_text)
+            cr.set_source_rgba(n100.r, n100.g, n100.b, out_alpha)
+            cr.move_to(
+                w / 2.0 - ext.width / 2.0,
+                center_y + ext.height / 2.0 + out_y_offset,
+            )
+            cr.show_text(prev_text)
 
-        # Label below: "SECONDS"
-        label_size = scale_size(LABEL.size, h)
-        cr.set_source_rgba(theme.muted.r, theme.muted.g, theme.muted.b, alpha)
-        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+            # Incoming digit (current number)
+            in_t = ease_out_quart(trans_t)
+            in_y_offset = 20.0 * scale * (1.0 - in_t)
+            in_alpha = in_t
+
+            ext2 = cr.text_extents(text)
+            cr.set_source_rgba(n100.r, n100.g, n100.b, in_alpha)
+            cr.move_to(
+                w / 2.0 - ext2.width / 2.0,
+                center_y + ext2.height / 2.0 + in_y_offset,
+            )
+            cr.show_text(text)
+            digit_bottom = center_y + ext2.height / 2.0
+        else:
+            # Static phase: just render current digit
+            ext = cr.text_extents(text)
+            cr.set_source_rgba(n100.r, n100.g, n100.b, 1.0)
+            cr.move_to(w / 2.0 - ext.width / 2.0, center_y + ext.height / 2.0)
+            cr.show_text(text)
+            digit_bottom = center_y + ext.height / 2.0
+
+        # LAYER 2: Label
+        label_size = 11.0 * scale
+        cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(label_size)
         label = "SECONDS"
         lext = cr.text_extents(label)
-        cr.move_to(-lext.width / 2, ext.height / 2 + label_size * 2)
-        cr.show_text(label)
-
-        cr.restore()
+        label_y = digit_bottom + 12.0 * scale + lext.height
+        # Draw with 0.15em letter spacing
+        ls = label_size * 0.15
+        total_label_w = lext.width + ls * max(0, len(label) - 1)
+        lx = w / 2.0 - total_label_w / 2.0
+        cr.set_source_rgba(n400.r, n400.g, n400.b, 1.0)
+        for i, ch in enumerate(label):
+            cr.move_to(lx, label_y)
+            cr.show_text(ch)
+            cext = cr.text_extents(ch)
+            lx += cext.x_advance + (ls if i < len(label) - 1 else 0)
 
         return _surface_to_frame(surface, h, w)
 
@@ -867,6 +1079,19 @@ class QuoteCard(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a quote card frame.
 
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Background: none (transparent overlay)
+        # Z-order (bottom to top):
+        #   1. Accent bar: 3*scale wide, full content height, accent color
+        #   2. Opening quote mark: accent color, same font/size
+        #   3. Quote text: Inter Regular italic 32*scale, neutral_100, line_height 1.35
+        #   4. Attribution: Inter Medium 11*scale, ALL CAPS 0.1em, neutral_400
+        # Position: safe_h from left, vertically centered at 44%
+        # Contrast: bright text on transparent bg
+        # ─────────────────────────────────────────────────────
+
         Args:
             ctx: The render context for this frame.
 
@@ -878,38 +1103,34 @@ class QuoteCard(Clip):
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
-
-        # DESIGN INTENT: Editorial pull-quote — left accent bar, large
-        #   quote text, small attribution. No box, no card border.
-        # REFERENCE: Medium editorial pull-quotes.
+        set_text_rendering(cr)
 
         style_key = self.style if self.style in _QUOTE_STYLES else "default"
-        _ = _QUOTE_STYLES[style_key]  # validate style exists
+        _ = _QUOTE_STYLES[style_key]
         theme = get_theme()
+        scale = h / 1080
 
         if self.animate_in > 0 and ctx.local_frame < self.animate_in:
             t = ease_out_quart(ctx.local_frame / self.animate_in)
         else:
             t = 1.0
 
-        # Return cached static frame when not animating
         if t == 1.0 and self._static_cache is not None:
             if self._static_cache.shape[:2] == (h, w):
                 return self._static_cache.copy()
 
         sh = safe_h(w)
-        accent_bar_w = 3.0 * (h / 1080)
-        text_left_pad = scale_size(SPACE_2, h)
+        accent_bar_w = 3.0 * scale
+        text_gap = 16.0 * scale
         max_text_w = w * 0.55
 
-        # Quote text setup
-        quote_size = scale_size(DISPLAY_SM.size, h)
-        attr_size = scale_size(BODY_SM.size, h)
-
-        cr.select_font_face("serif", cairo.FONT_SLANT_ITALIC, cairo.FONT_WEIGHT_NORMAL)
-        cr.set_font_size(quote_size)
+        quote_size = 32.0 * scale
+        attr_size = 11.0 * scale
+        line_h = quote_size * 1.35
 
         # Word wrap
+        cr.select_font_face("serif", cairo.FONT_SLANT_ITALIC, cairo.FONT_WEIGHT_NORMAL)
+        cr.set_font_size(quote_size)
         words = self.text.split()
         lines: list[str] = []
         current_line = ""
@@ -924,33 +1145,36 @@ class QuoteCard(Clip):
         if current_line:
             lines.append(current_line)
 
-        line_h = quote_size * 1.3
-        attr_block = scale_size(SPACE_2, h) + attr_size if self.attribution else 0
+        attr_block = (16.0 * scale + attr_size) if self.attribution else 0
         content_h = len(lines) * line_h + attr_block
-        content_y = (h - content_h) / 2
 
-        # Left accent bar (scaleY animation)
-        bar_x = sh
-        bar_scale = _clamp01(t * 1.5)  # Bar animates first
-        bar_h = content_h * bar_scale
+        # Center content at optical center (44%)
+        content_y = h * 0.44 - content_h / 2.0
+        text_x = sh + accent_bar_w + text_gap
+
+        # Opening quote mark measurement
+        cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cr.set_font_size(quote_size)
+        qmark_ext = cr.text_extents("\u201c")
+
+        # LAYER 1: Accent bar
+        bar_scale = _clamp01(t * 1.5)
         cr.set_source_rgba(theme.accent.r, theme.accent.g, theme.accent.b, t)
-        cr.rectangle(bar_x, content_y, accent_bar_w, bar_h)
+        cr.rectangle(sh, content_y, accent_bar_w, content_h * bar_scale)
         cr.fill()
 
-        text_x = bar_x + accent_bar_w + text_left_pad
-
-        # Opening curly quote in accent color
+        # LAYER 2: Opening quote mark
         cr.set_source_rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.6 * t)
         cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        cr.set_font_size(quote_size * 1.5)
-        quote_ext = cr.text_extents("\u201c")
-        cr.move_to(text_x - quote_ext.width * 0.3, content_y + quote_size)
+        cr.set_font_size(quote_size)
+        cr.move_to(text_x - qmark_ext.width - 4.0 * scale, content_y + quote_size)
         cr.show_text("\u201c")
 
-        # Quote text with y-drift
+        # LAYER 3: Quote text
         quote_progress = _clamp01((t - 0.2) / 0.8) if t < 1.0 else 1.0
-        y_drift = (1.0 - quote_progress) * 16.0 * (h / 1080)
-        cr.set_source_rgba(theme.text.r, theme.text.g, theme.text.b, quote_progress)
+        y_drift = (1.0 - quote_progress) * 16.0 * scale
+        n100 = NEUTRAL.n100
+        cr.set_source_rgba(n100.r, n100.g, n100.b, quote_progress)
         cr.select_font_face("serif", cairo.FONT_SLANT_ITALIC, cairo.FONT_WEIGHT_NORMAL)
         cr.set_font_size(quote_size)
 
@@ -960,14 +1184,23 @@ class QuoteCard(Clip):
             cr.show_text(line)
             text_y += line_h
 
-        # Attribution
+        # LAYER 4: Attribution
         if self.attribution:
             attr_progress = _clamp01((t - 0.5) / 0.5) if t < 1.0 else 1.0
-            cr.set_source_rgba(theme.muted.r, theme.muted.g, theme.muted.b, attr_progress)
-            cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+            n400 = NEUTRAL.n400
+            cr.set_source_rgba(n400.r, n400.g, n400.b, attr_progress)
+            cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
             cr.set_font_size(attr_size)
-            cr.move_to(text_x, text_y + scale_size(SPACE_2, h) + attr_size)
-            cr.show_text(self.attribution.upper())
+            attr_text = self.attribution.upper()
+            # Letter spacing 0.1em
+            ls = attr_size * 0.1
+            attr_y = text_y + 16.0 * scale + attr_size
+            ax = text_x
+            for i, ch in enumerate(attr_text):
+                cr.move_to(ax, attr_y)
+                cr.show_text(ch)
+                cext = cr.text_extents(ch)
+                ax += cext.x_advance + (ls if i < len(attr_text) - 1 else 0)
 
         result = _surface_to_frame(surface, h, w)
         if t == 1.0:
@@ -1002,8 +1235,15 @@ class Divider(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a divider frame.
 
-        # DESIGN INTENT: A hairline rule that draws itself, nothing more.
-        # REFERENCE: Apple keynote slide dividers.
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: comp dimensions
+        # Background: none (transparent overlay)
+        # Element: hairline rule, 1*scale thick, neutral_700
+        # Animation: draws from center outward (horizontal) or
+        #            from center outward (vertical)
+        # Position: centered at comp_height/2 (h) or comp_width/2 (v)
+        # ─────────────────────────────────────────────────────
 
         Args:
             ctx: The render context for this frame.
@@ -1013,13 +1253,13 @@ class Divider(Clip):
         """
         w = ctx.resolution.width
         h = ctx.resolution.height
+        scale = h / 1080
 
         if self.div_duration > 0 and ctx.local_frame < self.div_duration:
             t = ease_in_out_quart(ctx.local_frame / self.div_duration)
         else:
             t = 1.0
 
-        # Return cached static frame when not animating
         if t == 1.0 and self._static_cache is not None:
             if self._static_cache.shape[:2] == (h, w):
                 return self._static_cache.copy()
@@ -1027,56 +1267,56 @@ class Divider(Clip):
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
 
-        theme = get_theme()
-
-        # Default color from token system
+        # Use neutral_700 for visibility on dark backgrounds
+        n700 = NEUTRAL.n700
         c = self.color
         if c.r == 1.0 and c.g == 1.0 and c.b == 1.0 and c.a == 0.8:
-            c = theme.border
+            c = n700
         cr.set_source_rgba(c.r, c.g, c.b, c.a)
-        cr.set_line_width(self.thickness)
+        cr.set_line_width(max(1.0, self.thickness * scale))
 
         sh = safe_h(w)
         sv_val = safe_v(h)
 
         if self.direction == "vertical":
-            cx = w / 2
+            cx = w / 2.0
             full_length = h - sv_val * 2
             length = full_length * t
-            y_start = (h - full_length) / 2
+            # Draw from center outward
+            mid_y = h / 2.0
             if self.style == "dashed":
-                dash_len = 10.0
-                cr.set_dash([dash_len, dash_len])
-            cr.move_to(cx, y_start)
-            cr.line_to(cx, y_start + length)
+                cr.set_dash([10.0 * scale, 10.0 * scale])
+            cr.move_to(cx, mid_y - length / 2.0)
+            cr.line_to(cx, mid_y + length / 2.0)
             cr.stroke()
         else:
-            cy = h / 2
+            cy = h / 2.0
             full_length = w - sh * 2
             length = full_length * t
-            x_start = (w - full_length) / 2
+            # Draw from center outward
+            mid_x = w / 2.0
             if self.style == "dashed":
-                dash_len = 10.0
-                cr.set_dash([dash_len, dash_len])
+                cr.set_dash([10.0 * scale, 10.0 * scale])
             if self.style == "dots":
-                dot_spacing = 20.0
-                n_dots = int(length / dot_spacing)
+                dot_spacing = 20.0 * scale
+                n_dots = max(1, int(length / dot_spacing))
+                start_x = mid_x - length / 2.0
                 for i in range(n_dots):
-                    dx = x_start + i * dot_spacing
-                    cr.arc(dx, cy, self.thickness * 1.5, 0, 2 * math.pi)
+                    dx = start_x + i * dot_spacing
+                    cr.arc(dx, cy, self.thickness * 1.5 * scale, 0, 2 * math.pi)
                     cr.fill()
             elif self.style == "wave":
-                cr.move_to(x_start, cy)
-                n_points = max(2, int(length / 5))
+                start_x = mid_x - length / 2.0
+                cr.move_to(start_x, cy)
+                n_points = max(2, int(length / (5.0 * scale)))
                 for i in range(n_points):
-                    px = x_start + (i / n_points) * length
-                    py = cy + math.sin(i * 0.3) * 8
+                    px = start_x + (i / n_points) * length
+                    py = cy + math.sin(i * 0.3) * 8.0 * scale
                     cr.line_to(px, py)
                 cr.stroke()
             else:
-                # Default: left-to-right draw
-                cr.move_to(x_start, cy)
-                cr.line_to(x_start + length, cy)
+                cr.move_to(mid_x - length / 2.0, cy)
+                cr.line_to(mid_x + length / 2.0, cy)
                 cr.stroke()
 
         result = _surface_to_frame(surface, h, w)
@@ -1135,6 +1375,19 @@ class TransitionTitle(Clip):
     def render_frame(self, ctx: RenderContext) -> np.ndarray:
         """Render a transition title frame.
 
+        # RENDER INTENT
+        # ─────────────────────────────────────────────────────
+        # Canvas: full frame (1920x1080 or comp dims)
+        # Background: neutral_950 flat fill
+        # Z-order (bottom to top):
+        #   1. Full background fill
+        #   2. Title text: Inter Bold 56*scale, centered, y=44% optical center
+        #      letter_spacing: -0.02em, color neutral_100
+        #   3. Hairline rule: 80*scale wide, 1*scale, neutral_700
+        #      y = title_bottom + 24*scale, draws from center outward
+        # Contrast: white text on near-black background
+        # ─────────────────────────────────────────────────────
+
         Args:
             ctx: The render context for this frame.
 
@@ -1146,14 +1399,12 @@ class TransitionTitle(Clip):
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
         cr: cairo.Context[cairo.ImageSurface] = cairo.Context(surface)
-
-        # DESIGN INTENT: Full-bleed section break with a single centered
-        #   text line on a solid dark background, no decorative elements.
-        # REFERENCE: Apple WWDC section slides, Stripe marketing videos.
+        set_text_rendering(cr)
 
         style_key = self.style if self.style in _TRANSITION_TITLE_STYLES else "default"
-        _ = _TRANSITION_TITLE_STYLES[style_key]  # validate style exists
+        _ = _TRANSITION_TITLE_STYLES[style_key]
         theme = get_theme()
+        scale = h / 1080
 
         dur = self.duration if self.duration > 0 else self.title_duration
         t_in = 1.0
@@ -1166,45 +1417,52 @@ class TransitionTitle(Clip):
 
         t = min(t_in, t_out)
 
-        # Return cached static frame when not animating
         if t == 1.0 and self._static_cache is not None:
             if self._static_cache.shape[:2] == (h, w):
                 return self._static_cache.copy()
 
-        # Background — always full opacity (dark)
+        # LAYER 1: Background fill
         cr.set_source_rgba(theme.background.r, theme.background.g, theme.background.b, 1.0)
         cr.paint()
 
-        # Title text — design token sized
-        title_size = scale_size(DISPLAY_LG.size, h)
+        # LAYER 2: Title text
+        title_size = 56.0 * scale
         cr.select_font_face("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         cr.set_font_size(title_size)
         ext = cr.text_extents(self.text)
 
-        # Position: centered, slightly above vertical center (50% - 10%)
-        y_center = h * 0.4
-        y_offset = (1.0 - t_in) * 24.0 * (h / 1080)  # y+24→0 drift
-        y_exit = 0.0
-        if t_out < 1.0:
-            y_exit = (1.0 - t_out) * -12.0 * (h / 1080)
+        # Negative letter spacing (-0.02em)
+        neg_tracking = title_size * -0.02
+        # Compute total text width with tracking
+        total_text_w = ext.width + neg_tracking * max(0, len(self.text) - 1)
 
-        cr.save()
-        cr.translate(w / 2, y_center + y_offset + y_exit)
-        cr.set_source_rgba(theme.text.r, theme.text.g, theme.text.b, t)
-        cr.move_to(-ext.width / 2, ext.height / 2)
-        cr.show_text(self.text)
-        cr.restore()
+        y_center = h * 0.44
+        y_drift_in = (1.0 - t_in) * 24.0 * scale
+        y_drift_out = (1.0 - t_out) * -12.0 * scale if t_out < 1.0 else 0.0
 
-        # Hairline rule centered below title (draws outward from center)
-        rule_delay_frames = 12
-        if ctx.local_frame > rule_delay_frames:
-            rule_t = ease_in_out_quart(_clamp01((ctx.local_frame - rule_delay_frames) / 12.0))
-            rule_w = 80.0 * (w / 1920) * rule_t
-            rule_y = y_center + ext.height / 2 + scale_size(SPACE_3, h)
-            cr.set_source_rgba(theme.border.r, theme.border.g, theme.border.b, t)
-            cr.set_line_width(1.0)
-            cr.move_to(w / 2 - rule_w / 2, rule_y)
-            cr.line_to(w / 2 + rule_w / 2, rule_y)
+        # Draw title with negative tracking
+        n100 = NEUTRAL.n100
+        cr.set_source_rgba(n100.r, n100.g, n100.b, t)
+        cx = (w - total_text_w) / 2.0
+        text_baseline = y_center + y_drift_in + y_drift_out + ext.height / 2.0
+        for i, ch in enumerate(self.text):
+            cr.move_to(cx, text_baseline)
+            cr.show_text(ch)
+            char_ext = cr.text_extents(ch)
+            cx += char_ext.x_advance + (neg_tracking if i < len(self.text) - 1 else 0)
+
+        # LAYER 3: Hairline rule
+        rule_delay = 12
+        if ctx.local_frame > rule_delay:
+            rule_t = ease_in_out_quart(_clamp01((ctx.local_frame - rule_delay) / 12.0))
+            rule_full_w = 80.0 * scale
+            rule_w = rule_full_w * rule_t
+            rule_y = y_center + ext.height / 2.0 + 24.0 * scale + y_drift_in + y_drift_out
+            n700 = NEUTRAL.n700
+            cr.set_source_rgba(n700.r, n700.g, n700.b, t)
+            cr.set_line_width(1.0 * scale)
+            cr.move_to(w / 2.0 - rule_w / 2.0, rule_y)
+            cr.line_to(w / 2.0 + rule_w / 2.0, rule_y)
             cr.stroke()
 
         result = _surface_to_frame(surface, h, w)
