@@ -1,7 +1,7 @@
-"""EX01 — Layered Product Card.
+"""EX01 — Core Composition & 2D Rendering.
 
-Use-case: A static-to-animated product card for e-commerce email headers
-or website hero sections.
+Use-case: A technical demo showcasing PyMotion's core primitives —
+one feature per scene, labeled and clearly visible.
 
 Features exercised:
   Composition, CompositionClip, Track, ColorClip, GradientClip, ImageClip,
@@ -17,7 +17,6 @@ Features exercised:
   benchmark, detect_bottlenecks, memory_report, profile_composition
 
 Output: 1920x1080, 30fps, 30s, preset h264_fast -> outputs/01_core.mp4
-Estimated render time: ~30s
 """
 
 from __future__ import annotations
@@ -31,6 +30,9 @@ ASSETS = Path(__file__).parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+SEC = 150  # 5s per scene at 30fps
+TOTAL = SEC * 6  # 6 scenes = 30s
+
 
 def main() -> None:
     # ── Config ────────────────────────────────────────────────────────────
@@ -43,7 +45,7 @@ def main() -> None:
     preset = pm.get_preset("h264_fast")
     print(f"Preset: {preset.name}, codec={preset.codec}")
 
-    # ── Demonstrate core types ────────────────────────────────────────────
+    # ── Demonstrate core types (print-only, no visual) ────────────────────
     c1 = ACCENT.a500
     c2 = pm.Color(1.0, 0.4, 0.2, 1.0)
     v2 = pm.Vec2(960, 540)
@@ -52,9 +54,9 @@ def main() -> None:
     tr = pm.TimeRange(0, 900)
     print(f"Colors: {c1}, {c2}, Vec2: {v2}, Vec3: {v3}, Res: {res}, TR: {tr}")
 
-    # ── Demonstrate animation primitives ──────────────────────────────────
+    # ── Animation primitives (print-only) ─────────────────────────────────
     kf = pm.Keyframe(frame=0, value=0.0)
-    track = pm.KeyframeTrack(keyframes=[pm.Keyframe(0, 0.0), pm.Keyframe(30, 1.0)])
+    track_kf = pm.KeyframeTrack(keyframes=[pm.Keyframe(0, 0.0), pm.Keyframe(30, 1.0)])
     ease_fn = pm.get_easing("ease_in_out_cubic")
     custom_ease = pm.cubic_bezier(0.25, 0.1, 0.25, 1.0)
     spring_val = pm.spring(stiffness=200, damping=15)
@@ -62,12 +64,12 @@ def main() -> None:
     interp = pm.interpolate(0.5, 0.0, 100.0)
     anim_val: pm.AnimatableValue = pm.animate(0.0, 1.0, duration=30)
     print(
-        f"Keyframe: {kf}, Track: {track}, Easing: {ease_fn}, "
+        f"Keyframe: {kf}, Track: {track_kf}, Easing: {ease_fn}, "
         f"Bezier: {custom_ease}, Spring: {spring_val}, Steps: {step_val}, "
         f"Interp: {interp}, Anim: {anim_val}"
     )
 
-    # ── Demonstrate Effect base, Align, RenderContext, Transitions ────────
+    # ── Effect base, Align, RenderContext, Transitions ─────────────────────
     print(f"Effect base: {pm.Effect.__name__}")
     print(f"Align: {pm.Align.CENTER}")
     ctx = pm.RenderContext(
@@ -81,135 +83,173 @@ def main() -> None:
     print(f"RenderContext: frame={ctx.frame}")
     print(f"Transitions: {pm.Cut.__name__}, {pm.Fade.__name__}, {pm.DipToColor.__name__}")
 
-    # ── Composition ───────────────────────────────────────────────────────
-    comp = pm.Composition(width=1920, height=1080, fps=30, duration=900)
-
-    # Track 1: Background gradient with blur
-    bg_track = pm.Track(name="background")
     theme = get_theme()
-    bg = pm.GradientClip(
+    comp = pm.Composition(width=1920, height=1080, fps=30, duration=TOTAL)
+
+    # ── Global background ─────────────────────────────────────────────────
+    bg_track = pm.Track(name="bg")
+    bg = pm.ColorClip(color=theme.background)
+    bg.set_duration(TOTAL)
+    bg_track.clips.append(bg)
+    comp.tracks.append(bg_track)
+
+    # ── SCENE 1: GradientClip — "Gradients" ─────────────────────────────
+    # SCENE: gradients | 150f | Primary: gradient fill | Secondary: label
+    # ENTRY: 0-15 | HOLD: 15-130 | EXIT: 130-150
+    offset = 0
+    s1 = pm.Track(name="s1_gradient")
+    grad = pm.GradientClip(
         color_start=theme.background,
         color_end=theme.surface,
-        direction=45.0,
+        direction=135.0,
         gradient_type="linear",
     )
-    bg.set_duration(900)
-    bg.add_effect(pm.GaussianBlur(radius=3.0))
-    bg_track.clips.append(bg)
-
-    # Track 2: Radial gradient accent
-    accent_track = pm.Track(name="accent")
+    grad.set_duration(SEC).at(offset)
+    s1.clips.append(grad)
+    # Radial accent overlay
     radial = pm.GradientClip(
         color_start=ACCENT.a500,
         color_end=NEUTRAL.n900,
         gradient_type="radial",
-        center_x=0.3,
-        center_y=0.4,
-        radius=0.6,
+        center_x=0.5,
+        center_y=0.45,
+        radius=0.5,
     )
-    radial.set_duration(900).set_opacity(0.4)
+    radial.set_duration(SEC).at(offset).set_opacity(0.3)
     radial.blend_mode = pm.BlendMode.SCREEN
-    accent_track.clips.append(radial)
+    s1.clips.append(radial)
+    # Label
+    lbl1 = pm.TextClip(text="GradientClip", size=56, color=theme.text)
+    lbl1.set_duration(SEC).at(offset).set_position(960, 486)
+    s1.clips.append(lbl1)
+    sub1 = pm.TextClip(text="Linear + Radial · BlendMode.SCREEN", size=18, color=theme.muted)
+    sub1.set_duration(SEC).at(offset).set_position(960, 560)
+    s1.clips.append(sub1)
+    comp.tracks.append(s1)
+    print("S1: GradientClip + BlendMode.SCREEN")
 
-    # Track 3: Decorative shapes
-    shapes_track = pm.Track(name="shapes")
-
-    # Rectangle with stroke
+    # ── SCENE 2: ShapeClip variants ──────────────────────────────────────
+    # SCENE: shapes | 150f | Primary: 4 shapes | Secondary: label
+    # ENTRY: 0-15 | HOLD: 15-130 | EXIT: 130-150
+    offset = SEC
+    s2 = pm.Track(name="s2_shapes")
+    # Rect — top-left quadrant
     rect = pm.ShapeClip.rect(
-        x=100,
-        y=200,
-        w=400,
-        h=300,
-        fill=NEUTRAL.n800,
+        x=280,
+        y=280,
+        w=320,
+        h=240,
+        fill=NEUTRAL.n500,
         stroke=ACCENT.a500,
-        stroke_width=3.0,
-    )
-    rect.set_duration(900).set_opacity(0.7).set_rotation(5.0)
-    rect.blend_mode = pm.BlendMode.OVERLAY
-    shapes_track.clips.append(rect)
-
-    # Circle
-    circle = pm.ShapeClip.circle(
-        cx=1600,
-        cy=300,
-        r=120,
-        fill=ACCENT.a500,
-        stroke=NEUTRAL.n50,
         stroke_width=2.0,
     )
-    circle.set_duration(900).set_opacity(0.6)
-    circle.blend_mode = pm.BlendMode.MULTIPLY
-    shapes_track.clips.append(circle)
-
-    # Polygon (triangle)
-    tri = pm.ShapeClip.polygon(
-        points=[(1700, 800), (1850, 950), (1550, 950)],
-        fill=NEUTRAL.n900,
+    rect.set_duration(SEC).at(offset).set_opacity(0.9).set_rotation(3.0)
+    rect.blend_mode = pm.BlendMode.OVERLAY
+    s2.clips.append(rect)
+    # Circle — top-right quadrant
+    circle = pm.ShapeClip.circle(
+        cx=1440,
+        cy=340,
+        r=140,
+        fill=ACCENT.a500,
+        stroke=NEUTRAL.n100,
+        stroke_width=1.5,
     )
-    tri.set_duration(900).set_opacity(0.5)
-    shapes_track.clips.append(tri)
-
-    # Line
+    circle.set_duration(SEC).at(offset).set_opacity(0.85)
+    s2.clips.append(circle)
+    # Polygon — bottom-left quadrant
+    tri = pm.ShapeClip.polygon(
+        points=[(400, 650), (550, 850), (250, 850)],
+        fill=NEUTRAL.n400,
+    )
+    tri.set_duration(SEC).at(offset).set_opacity(0.8)
+    s2.clips.append(tri)
+    # Line — bottom-right quadrant
     line = pm.ShapeClip.line(
-        x1=100,
-        y1=700,
-        x2=700,
-        y2=700,
+        x1=1200,
+        y1=750,
+        x2=1650,
+        y2=750,
         color=ACCENT.a500,
         width=3.0,
     )
-    line.set_duration(900)
-    shapes_track.clips.append(line)
+    line.set_duration(SEC).at(offset)
+    s2.clips.append(line)
+    # Label
+    lbl2 = pm.TextClip(text="ShapeClip", size=56, color=theme.text)
+    lbl2.set_duration(SEC).at(offset).set_position(960, 486)
+    s2.clips.append(lbl2)
+    sub2 = pm.TextClip(text="rect · circle · polygon · line", size=18, color=theme.muted)
+    sub2.set_duration(SEC).at(offset).set_position(960, 560)
+    s2.clips.append(sub2)
+    comp.tracks.append(s2)
+    print("S2: ShapeClip (rect, circle, polygon, line) + BlendModes")
 
-    # Track 4: Product image
-    product_track = pm.Track(name="product")
+    # ── SCENE 3: ImageClip + Brightness + Contrast ───────────────────────
+    # SCENE: image_fx | 150f | Primary: product image | Secondary: label
+    # ENTRY: 0-15 | HOLD: 15-130 | EXIT: 130-150
+    offset = SEC * 2
+    s3 = pm.Track(name="s3_image")
     product = pm.ImageClip(str(ASSETS / "product_hero.png"))
-    product.set_duration(900).set_position(960, 540).set_scale(1.2)
+    product.set_duration(SEC).at(offset).set_position(192, 60).set_scale(0.8)
     product.add_effect(pm.Brightness(value=1.1))
     product.add_effect(pm.Contrast(value=1.15))
-    product_track.clips.append(product)
+    s3.clips.append(product)
+    lbl3 = pm.TextClip(text="Brightness + Contrast", size=40, color=theme.text)
+    lbl3.set_duration(SEC).at(offset).set_position(960, 680)
+    s3.clips.append(lbl3)
+    comp.tracks.append(s3)
+    print("S3: ImageClip + Brightness + Contrast")
 
-    # Track 5: Logo top-left
-    logo_track = pm.Track(name="logo")
+    # ── SCENE 4: GaussianBlur ────────────────────────────────────────────
+    # SCENE: blur | 150f | Primary: blurred image | Secondary: label
+    # ENTRY: 0-15 | HOLD: 15-130 | EXIT: 130-150
+    offset = SEC * 3
+    s4 = pm.Track(name="s4_blur")
+    blur_img = pm.ImageClip(str(ASSETS / "product_hero.png"))
+    blur_img.set_duration(SEC).at(offset).set_position(192, 60).set_scale(0.8)
+    blur_img.add_effect(pm.GaussianBlur(radius=8.0))
+    s4.clips.append(blur_img)
+    lbl4 = pm.TextClip(text="GaussianBlur — radius: 8.0", size=40, color=theme.text)
+    lbl4.set_duration(SEC).at(offset).set_position(960, 680)
+    s4.clips.append(lbl4)
+    comp.tracks.append(s4)
+    print("S4: GaussianBlur")
+
+    # ── SCENE 5: Vignette ────────────────────────────────────────────────
+    # SCENE: vignette | 150f | Primary: vignetted image | Secondary: label
+    # ENTRY: 0-15 | HOLD: 15-130 | EXIT: 130-150
+    offset = SEC * 4
+    s5 = pm.Track(name="s5_vignette")
+    vig_img = pm.ImageClip(str(ASSETS / "product_hero.png"))
+    vig_img.set_duration(SEC).at(offset).set_position(192, 60).set_scale(0.8)
+    vig_img.add_effect(pm.Vignette(strength=0.8, radius=0.6, feather=0.3))
+    s5.clips.append(vig_img)
+    lbl5 = pm.TextClip(text="Vignette — strength: 0.8", size=40, color=theme.text)
+    lbl5.set_duration(SEC).at(offset).set_position(960, 680)
+    s5.clips.append(lbl5)
+    comp.tracks.append(s5)
+    print("S5: Vignette")
+
+    # ── SCENE 6: Logo + ColorClip strip ──────────────────────────────────
+    # SCENE: branding | 150f | Primary: logo | Secondary: accent strip
+    # ENTRY: 0-15 | HOLD: 15-130 | EXIT: 130-150
+    offset = SEC * 5
+    s6 = pm.Track(name="s6_branding")
     logo = pm.ImageClip(str(ASSETS / "logo.png"))
-    logo.set_duration(900).set_position(120, 80).set_scale(0.3, 0.3)
-    logo.set_opacity(0.85)
-    logo_track.clips.append(logo)
-
-    # Track 6: Solid color strip (demonstrates ColorClip)
-    strip_track = pm.Track(name="strip")
+    logo.set_duration(SEC).at(offset).set_position(384, 120).set_scale(0.6, 0.6)
+    logo.set_opacity(0.9)
+    s6.clips.append(logo)
+    # ColorClip accent strip below logo
     strip = pm.ColorClip(color=ACCENT.a500)
-    strip.set_duration(900).set_position(960, 1050).set_scale(1920, 60)
+    strip.set_duration(SEC).at(offset).set_position(660, 780).set_scale(600, 3)
     strip.set_opacity(0.8)
-    strip_track.clips.append(strip)
-
-    # Track 7: Vignette effect overlay
-    vignette_track = pm.Track(name="vignette")
-    vig_bg = pm.ColorClip(color=NEUTRAL.n950)
-    vig_bg.set_duration(900)
-    vig_bg.add_effect(pm.Vignette(strength=0.7, radius=0.75, feather=0.4))
-    vig_bg.set_opacity(0.5)
-    vignette_track.clips.append(vig_bg)
-
-    # Add all tracks
-    comp.tracks.extend(
-        [
-            bg_track,
-            accent_track,
-            shapes_track,
-            product_track,
-            logo_track,
-            strip_track,
-            vignette_track,
-        ]
-    )
-
-    # ── Export audit frame ────────────────────────────────────────────────
-    audit_dir = Path(__file__).parent.parent / "audit"
-    audit_dir.mkdir(exist_ok=True)
-    for f_num in [0, 15, 100, 450, 899]:
-        comp.export_frame(frame=f_num, output=audit_dir / f"ex01_f{f_num}.png")
-    print("Audit frames exported to audit/")
+    s6.clips.append(strip)
+    lbl6 = pm.TextClip(text="ImageClip + ColorClip", size=40, color=theme.text)
+    lbl6.set_duration(SEC).at(offset).set_position(960, 830)
+    s6.clips.append(lbl6)
+    comp.tracks.append(s6)
+    print("S6: Logo + ColorClip branding")
 
     # ── Profiling & diagnostics ───────────────────────────────────────────
     profile = pm.profile_composition(comp, start=0, end=5)
