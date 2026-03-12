@@ -46,6 +46,10 @@ def main() -> None:
     # their parameters printed, but not applied to rendered clips since
     # they require optional GPU/AI packages (rembg, torch, etc.).
 
+    from pymotion.design.tokens import NEUTRAL, get_theme
+
+    theme = get_theme()
+
     images = [
         "product_hero.jpg",
         "product_a.jpg",
@@ -61,11 +65,43 @@ def main() -> None:
         "product_c.jpg",
     ]
 
+    # ADDED: labels for each AI feature — principle 1, identify the primary element
+    ai_labels = [
+        "RemoveBackground",
+        "ReplaceBackground",
+        "ObjectSegmentation",
+        "Upscale + Denoise",
+        "ColorizeClip",
+        "ExtendFrame",
+        "FrameInterpolation",
+        "FaceDetector + FaceBlur",
+        "SceneDetector",
+        "ContentAwareCrop",
+        "AutoEdit + MusicGen",
+        "VoiceConversion",
+    ]
+
     for sec_idx in range(12):
         t = pm.Track(name=f"sec{sec_idx + 1}")
         img = pm.ImageClip(str(ASSETS / images[sec_idx]))
-        img.set_duration(SEC).at(sec_idx * SEC)
+        img.set_duration(SEC).at(sec_idx * SEC).set_opacity(0.4)
         t.clips.append(img)
+        # Large feature name — primary element
+        feat_label = pm.TextClip(
+            text=ai_labels[sec_idx],
+            size=56,
+            color=theme.text,
+        )
+        feat_label.set_duration(SEC).at(sec_idx * SEC).set_position(960, 460)
+        t.clips.append(feat_label)
+        # Small "AI Feature" subtitle
+        sub_label = pm.TextClip(
+            text="AI Feature (optional dependency)",
+            size=16,
+            color=NEUTRAL.n500,
+        )
+        sub_label.set_duration(SEC).at(sec_idx * SEC).set_position(960, 540).set_opacity(0.5)
+        t.clips.append(sub_label)
         comp.tracks.append(t)
 
     # ── Section 1: RemoveBackground ─────────────────────────────────────
