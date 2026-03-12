@@ -209,8 +209,9 @@ def main() -> None:
         ("Spectrum", 200),
         ("Spectrogram", 400),
     ]:
-        label = pm.TextClip(text=lbl, font_size=36, color="#555566")
-        label.set_duration(200).at(start).set_position(960, 1020).set_opacity(0.6)
+        # INCREASED label size 36→48px: principle 6, type does the work
+        label = pm.TextClip(text=lbl, size=48, color="#555566")
+        label.set_duration(200).at(start).set_position(960, 1000).set_opacity(0.6)
         label_track.clips.append(label)
     comp.tracks.append(label_track)
 
