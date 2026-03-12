@@ -1,7 +1,8 @@
 """EX06 — Particles & Visual Effects.
 
-Use-case: A VFX showcase reel with particle presets, distortion effects,
-light effects, and post-processing applied to scenic footage.
+Use-case: A VFX showcase reel — one effect per scene, full frame,
+dark background, labeled. Each particle preset and effect gets
+dedicated screen time.
 
 Features exercised:
   ParticleSystem, Emitter,
@@ -15,7 +16,6 @@ Features exercised:
   ScaleDissolve, Shatter, Vortex, ZoomBlur, ZoomIn, ZoomOut
 
 Output: 1920x1080, 30fps, ~42s, preset h264_fast -> outputs/06_vfx.mp4
-Estimated render time: ~120s
 """
 
 from __future__ import annotations
@@ -33,18 +33,28 @@ SEC = 75  # 2.5s per section at 30fps
 TOTAL = SEC * 17  # 17 sections = ~42s
 
 
+def _add_label(track: pm.Track, text: str, offset: int, dur: int) -> None:
+    """Add an effect label to the bottom-right corner — small, unobtrusive."""
+    theme = get_theme()
+    lbl = pm.TextClip(text=text, size=16, color=theme.muted)
+    lbl.set_duration(dur).at(offset).set_position(1780, 1040).set_opacity(0.4)
+    track.clips.append(lbl)
+
+
 def main() -> None:
     comp = pm.Composition(width=1920, height=1080, fps=30, duration=TOTAL)
 
-    # ── Background gradient ──────────────────────────────────────────────
+    # ── Background ───────────────────────────────────────────────────────
     bg_track = pm.Track(name="bg")
     theme = get_theme()
-    bg = pm.GradientClip(color_start=theme.background, color_end=theme.surface, direction=135.0)
+    bg = pm.ColorClip(color=theme.background)
+    # CHANGED: solid dark background instead of gradient — principle 5, restraint in color
     bg.set_duration(TOTAL)
     bg_track.clips.append(bg)
     comp.tracks.append(bg_track)
 
     # ── Section 1: ParticleSystem + Emitter (custom) ─────────────────────
+    # SCENE: custom_particles | 75f | Primary: fire-like particles | Secondary: label
     offset = 0
     emitter = pm.Emitter(
         position=pm.Vec2(960, 800),
@@ -67,11 +77,11 @@ def main() -> None:
     ps.add_emitter(emitter)
     ps_clip = ps.to_clip(duration=SEC)
     ps_clip.at(offset)
-
     sec1 = pm.Track(name="sec1_custom_particles")
     sec1.clips.append(ps_clip)
+    _add_label(sec1, "ParticleSystem", offset, SEC)
     comp.tracks.append(sec1)
-    print(f"1. ParticleSystem + Emitter: rate={emitter.rate}, emitters=1")
+    print(f"1. ParticleSystem + Emitter: rate={emitter.rate}")
 
     # ── Section 2: sparkles preset ───────────────────────────────────────
     offset = SEC
@@ -80,9 +90,9 @@ def main() -> None:
     sp_clip.at(offset)
     sec2 = pm.Track(name="sec2_sparkles")
     sec2.clips.append(sp_clip)
+    _add_label(sec2, "sparkles", offset, SEC)
     comp.tracks.append(sec2)
-    # Verify alias
-    print(f"2. sparkles: {type(sp).__name__}, Sparkles alias={pm.Sparkles is pm.sparkles}")
+    print(f"2. sparkles: Sparkles alias={pm.Sparkles is pm.sparkles}")
 
     # ── Section 3: fire preset ───────────────────────────────────────────
     offset = SEC * 2
@@ -91,8 +101,9 @@ def main() -> None:
     fi_clip.at(offset)
     sec3 = pm.Track(name="sec3_fire")
     sec3.clips.append(fi_clip)
+    _add_label(sec3, "fire", offset, SEC)
     comp.tracks.append(sec3)
-    print(f"3. fire: {type(fi).__name__}, Fire alias={pm.Fire is pm.fire}")
+    print(f"3. fire: Fire alias={pm.Fire is pm.fire}")
 
     # ── Section 4: confetti preset ───────────────────────────────────────
     offset = SEC * 3
@@ -101,6 +112,7 @@ def main() -> None:
     co_clip.at(offset)
     sec4 = pm.Track(name="sec4_confetti")
     sec4.clips.append(co_clip)
+    _add_label(sec4, "confetti", offset, SEC)
     comp.tracks.append(sec4)
     print(f"4. confetti: Confetti alias={pm.Confetti is pm.confetti}")
 
@@ -111,6 +123,7 @@ def main() -> None:
     sm_clip.at(offset)
     sec5 = pm.Track(name="sec5_smoke")
     sec5.clips.append(sm_clip)
+    _add_label(sec5, "smoke", offset, SEC)
     comp.tracks.append(sec5)
     print(f"5. smoke: Smoke alias={pm.Smoke is pm.smoke}")
 
@@ -121,6 +134,7 @@ def main() -> None:
     ra_clip.at(offset)
     sec6 = pm.Track(name="sec6_rain")
     sec6.clips.append(ra_clip)
+    _add_label(sec6, "rain", offset, SEC)
     comp.tracks.append(sec6)
     print(f"6. rain: Rain alias={pm.Rain is pm.rain}")
 
@@ -131,10 +145,12 @@ def main() -> None:
     st_clip.at(offset)
     sec7 = pm.Track(name="sec7_stars")
     sec7.clips.append(st_clip)
+    _add_label(sec7, "stars", offset, SEC)
     comp.tracks.append(sec7)
     print(f"7. stars: Stars alias={pm.Stars is pm.stars}")
 
     # ── Section 8: FilmGrain + MotionBlur + Sharpen ──────────────────────
+    # SCENE: post_fx | Primary: effected image | Secondary: label
     offset = SEC * 7
     sec8 = pm.Track(name="sec8_postfx")
     img8 = pm.ImageClip(str(ASSETS / "product_hero.jpg"))
@@ -143,8 +159,9 @@ def main() -> None:
     img8.add_effect(pm.MotionBlur(angle=45.0, distance=8.0))
     img8.add_effect(pm.Sharpen(amount=1.5))
     sec8.clips.append(img8)
+    _add_label(sec8, "FilmGrain + MotionBlur + Sharpen", offset, SEC)
     comp.tracks.append(sec8)
-    print("8. FilmGrain + MotionBlur + Sharpen applied")
+    print("8. FilmGrain + MotionBlur + Sharpen")
 
     # ── Section 9: GodRays + NeonGlow + LightLeak ────────────────────────
     offset = SEC * 8
@@ -157,8 +174,9 @@ def main() -> None:
         pm.LightLeak(color=CHART_COLORS[6], position=pm.Vec2(0.8, 0.2), intensity=0.5, size=0.5)
     )
     sec9.clips.append(img9)
+    _add_label(sec9, "GodRays + NeonGlow + LightLeak", offset, SEC)
     comp.tracks.append(sec9)
-    print("9. GodRays + NeonGlow + LightLeak applied")
+    print("9. GodRays + NeonGlow + LightLeak")
 
     # ── Section 10: LensFlare + LensFlareLight + Bloom ───────────────────
     offset = SEC * 9
@@ -169,8 +187,9 @@ def main() -> None:
     img10.add_effect(pm.LensFlareLight(position=pm.Vec2(0.3, 0.4), intensity=0.35, color="#FFF2CC"))
     img10.add_effect(pm.Bloom(radius=8.0, strength=0.3, threshold=200.0, iterations=3))
     sec10.clips.append(img10)
+    _add_label(sec10, "LensFlare + Bloom", offset, SEC)
     comp.tracks.append(sec10)
-    print("10. LensFlare + LensFlareLight + Bloom applied")
+    print("10. LensFlare + LensFlareLight + Bloom")
 
     # ── Section 11: Fisheye + PerspectiveWarp + Ripple ───────────────────
     offset = SEC * 10
@@ -192,8 +211,9 @@ def main() -> None:
         pm.Ripple(center=pm.Vec2(0.5, 0.5), amplitude=8.0, frequency=0.08, decay=0.005)
     )
     sec11.clips.append(img11)
+    _add_label(sec11, "Fisheye + PerspectiveWarp + Ripple", offset, SEC)
     comp.tracks.append(sec11)
-    print("11. Fisheye + PerspectiveWarp + Ripple applied")
+    print("11. Fisheye + PerspectiveWarp + Ripple")
 
     # ── Section 12: Twirl + WaveWarp ─────────────────────────────────────
     offset = SEC * 11
@@ -203,10 +223,13 @@ def main() -> None:
     img12.add_effect(pm.Twirl(center=pm.Vec2(0.5, 0.5), angle=0.8, radius=200.0))
     img12.add_effect(pm.WaveWarp(amplitude=12.0, frequency=0.04, phase=0.0, axis="x"))
     sec12.clips.append(img12)
+    _add_label(sec12, "Twirl + WaveWarp", offset, SEC)
     comp.tracks.append(sec12)
-    print("12. Twirl + WaveWarp applied")
+    print("12. Twirl + WaveWarp")
 
-    # Helper: create a transition demo concatenation on its own track
+    # ── Transition demos (sections 13-17) ────────────────────────────────
+    # Each section exercises 3 transitions. Only the topmost is visible,
+    # but all are rendered and exercised for feature coverage.
     def _trans_demo(
         name: str,
         trans: pm.Transition,
@@ -224,41 +247,45 @@ def main() -> None:
         comp.tracks.append(t)
         print(label)
 
-    # ── Section 13: RevealLeft + RevealRight + RevealUp ─────────────────
+    # Section 13: RevealLeft + RevealRight + RevealUp
     _trans_demo("sec13a", pm.RevealLeft(), SEC * 12, "13a. RevealLeft")
     _trans_demo("sec13b", pm.RevealRight(), SEC * 12, "13b. RevealRight")
+    sec13_lbl = pm.Track(name="sec13_label")
+    _add_label(sec13_lbl, "RevealLeft / Right / Up", SEC * 12, SEC)
+    comp.tracks.append(sec13_lbl)
     _trans_demo("sec13c", pm.RevealUp(), SEC * 12, "13c. RevealUp")
 
-    # ── Section 14: RevealDown + Glitch + FilmBurn ──────────────────────
+    # Section 14: RevealDown + Glitch + FilmBurn
     _trans_demo("sec14a", pm.RevealDown(), SEC * 13, "14a. RevealDown")
     _trans_demo("sec14b", pm.Glitch(), SEC * 13, "14b. Glitch")
+    sec14_lbl = pm.Track(name="sec14_label")
+    _add_label(sec14_lbl, "RevealDown / Glitch / FilmBurn", SEC * 13, SEC)
+    comp.tracks.append(sec14_lbl)
     _trans_demo("sec14c", pm.FilmBurn(), SEC * 13, "14c. FilmBurn")
 
-    # ── Section 15: MorphWarp + PageTurn + PixelDissolve ────────────────
+    # Section 15: MorphWarp + PageTurn + PixelDissolve
     _trans_demo("sec15a", pm.MorphWarp(), SEC * 14, "15a. MorphWarp")
     _trans_demo("sec15b", pm.PageTurn(), SEC * 14, "15b. PageTurn")
+    sec15_lbl = pm.Track(name="sec15_label")
+    _add_label(sec15_lbl, "MorphWarp / PageTurn / PixelDissolve", SEC * 14, SEC)
+    comp.tracks.append(sec15_lbl)
     _trans_demo("sec15c", pm.PixelDissolve(), SEC * 14, "15c. PixelDissolve")
 
-    # ── Section 16: ScaleDissolve + Shatter + Vortex ────────────────────
+    # Section 16: ScaleDissolve + Shatter + Vortex
     _trans_demo("sec16a", pm.ScaleDissolve(), SEC * 15, "16a. ScaleDissolve")
     _trans_demo("sec16b", pm.Shatter(), SEC * 15, "16b. Shatter")
+    sec16_lbl = pm.Track(name="sec16_label")
+    _add_label(sec16_lbl, "ScaleDissolve / Shatter / Vortex", SEC * 15, SEC)
+    comp.tracks.append(sec16_lbl)
     _trans_demo("sec16c", pm.Vortex(), SEC * 15, "16c. Vortex")
 
-    # ── Section 17: ZoomBlur + ZoomIn + ZoomOut ─────────────────────────
+    # Section 17: ZoomBlur + ZoomIn + ZoomOut
     _trans_demo("sec17a", pm.ZoomBlur(), SEC * 16, "17a. ZoomBlur")
     _trans_demo("sec17b", pm.ZoomIn(), SEC * 16, "17b. ZoomIn")
+    sec17_lbl = pm.Track(name="sec17_label")
+    _add_label(sec17_lbl, "ZoomBlur / ZoomIn / ZoomOut", SEC * 16, SEC)
+    comp.tracks.append(sec17_lbl)
     _trans_demo("sec17c", pm.ZoomOut(), SEC * 16, "17c. ZoomOut")
-
-    # ── Audit frames ─────────────────────────────────────────────────────
-    audit_dir = Path(__file__).parent.parent / "audit"
-    audit_dir.mkdir(exist_ok=True)
-    for sec_idx in range(17):
-        mid = sec_idx * SEC + SEC // 2
-        try:
-            comp.export_frame(frame=mid, output=audit_dir / f"ex06_sec{sec_idx + 1}.png")
-        except (ValueError, RuntimeError) as e:
-            print(f"  Audit sec{sec_idx + 1} skipped: {e}")
-    print("Audit frames exported")
 
     # ── Render ───────────────────────────────────────────────────────────
     output_path = OUTPUT_DIR / "06_vfx.mp4"
